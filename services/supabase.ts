@@ -5,17 +5,53 @@
 import 'react-native-url-polyfill/auto';
 import * as Linking from 'expo-linking';
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 import {
   createClient,
   type Session,
   type SupabaseClient,
 } from '@supabase/supabase-js';
 
-const SecureStoreAdapter = {
-  getItem: (key: string) => SecureStore.getItemAsync(key),
-  setItem: (key: string, value: string) => SecureStore.setItemAsync(key, value),
-  removeItem: (key: string) => SecureStore.deleteItemAsync(key),
+type StorageAdapter = {
+  getItem: (key: string) => Promise<string | null>;
+  setItem: (key: string, value: string) => Promise<void>;
+  removeItem: (key: string) => Promise<void>;
 };
+
+// SecureStore is native-only — on web we fall back to localStorage so dev/test
+// in a browser still keeps you signed in across reloads.
+const SecureStoreAdapter: StorageAdapter = {
+  getItem: (key) => SecureStore.getItemAsync(key),
+  setItem: (key, value) => SecureStore.setItemAsync(key, value),
+  removeItem: (key) => SecureStore.deleteItemAsync(key),
+};
+
+const WebStorageAdapter: StorageAdapter = {
+  getItem: async (key) => {
+    try {
+      return globalThis.localStorage?.getItem(key) ?? null;
+    } catch {
+      return null;
+    }
+  },
+  setItem: async (key, value) => {
+    try {
+      globalThis.localStorage?.setItem(key, value);
+    } catch {
+      /* no-op */
+    }
+  },
+  removeItem: async (key) => {
+    try {
+      globalThis.localStorage?.removeItem(key);
+    } catch {
+      /* no-op */
+    }
+  },
+};
+
+const sessionStorage: StorageAdapter =
+  Platform.OS === 'web' ? WebStorageAdapter : SecureStoreAdapter;
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -27,7 +63,7 @@ export const getSupabase = (): SupabaseClient | null => {
   if (!cached) {
     cached = createClient(url, anonKey, {
       auth: {
-        storage: SecureStoreAdapter,
+        storage: sessionStorage,
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: false,
