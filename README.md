@@ -90,6 +90,18 @@ EXPO_PUBLIC_DAILY_DOMAIN=
 
 `.env` is gitignored. Never put secret (server-side) Stripe or Supabase keys in the app.
 
+### Setting up Supabase (for real magic-link auth)
+
+When `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_ANON_KEY` are empty, the app falls back to a **mock signin** so you can run it in Expo Go without a backend. To enable the real magic-link flow:
+
+1. Create a project at [supabase.com](https://supabase.com/), then copy the URL and anon key from *Project Settings → API* into `.env`.
+2. In *Authentication → URL Configuration*, add this to **Redirect URLs**:
+   - `myapp://auth-callback` — for production/dev builds (the `scheme` from `app.json`)
+   - `exp://*/auth-callback` — for Expo Go testing (replace `*` with your local IP if Supabase requires exact match)
+3. Restart `npx expo start --clear` so the new env vars are picked up.
+
+Sign in by entering your email → tapping the link in the email on the same device → the app handles the redirect at `app/auth-callback.tsx` and exchanges the code for a session.
+
 ## Scripts
 
 | Command | What it does |

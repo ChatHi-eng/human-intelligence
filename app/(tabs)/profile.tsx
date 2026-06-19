@@ -10,7 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, role, signInAsExpert, signInAsCustomer, signOut } = useAuth();
+  const { user, role, switchToCustomer, switchToExpert, signOut } = useAuth();
 
   return (
     <Screen>
@@ -29,12 +29,12 @@ export default function ProfileScreen() {
         {role === 'expert' ? (
           <Button title="Open expert dashboard" onPress={() => router.push('/(expert)/dashboard')} />
         ) : (
-          <Button title="Switch to expert mode" onPress={signInAsExpert} variant="secondary" />
+          <Button title="Switch to expert mode" onPress={switchToExpert} variant="secondary" />
         )}
         {role !== 'customer' && (
-          <Button title="Switch to customer mode" onPress={signInAsCustomer} variant="ghost" />
+          <Button title="Switch to customer mode" onPress={switchToCustomer} variant="ghost" />
         )}
-        <Button title="Sign out (mock)" onPress={signOut} variant="ghost" />
+        <Button title="Sign out" onPress={() => void signOut()} variant="ghost" />
       </View>
     </Screen>
   );

@@ -7,21 +7,26 @@ import { useAuth } from '@/hooks/useAuth';
 
 export default function SignupScreen() {
   const router = useRouter();
-  const { signInAsCustomer, signInAsExpert } = useAuth();
+  const { isSupabaseConfigured, signInAsCustomerMock, signInAsExpertMock } = useAuth();
 
   return (
     <Screen>
       <View style={styles.container}>
         <Text style={styles.title}>How will you use Human Intelligence?</Text>
         <Text style={styles.caption}>
-          You can switch later from your profile. The expert path will include credentials, rate,
-          and availability.
+          {isSupabaseConfigured
+            ? 'You can switch later from your profile. Picking a role takes you to the sign-in screen.'
+            : 'Supabase keys are not set — these buttons sign you in to a mock account for UI testing.'}
         </Text>
         <Button
           title="I'm here to find an expert"
           onPress={() => {
-            signInAsCustomer();
-            router.replace('/(tabs)');
+            if (isSupabaseConfigured) {
+              router.push('/(auth)/login');
+            } else {
+              signInAsCustomerMock();
+              router.replace('/(tabs)');
+            }
           }}
           fullWidth
         />
@@ -29,8 +34,12 @@ export default function SignupScreen() {
           title="I want to offer expertise"
           variant="secondary"
           onPress={() => {
-            signInAsExpert();
-            router.replace('/(expert)/dashboard');
+            if (isSupabaseConfigured) {
+              router.push('/(auth)/login');
+            } else {
+              signInAsExpertMock();
+              router.replace('/(expert)/dashboard');
+            }
           }}
           fullWidth
         />
