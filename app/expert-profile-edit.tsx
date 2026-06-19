@@ -1,0 +1,191 @@
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput } from 'react-native';
+import Toast from 'react-native-toast-message';
+import { Button } from '@/components/ui/Button';
+import { LoadingView } from '@/components/ui/LoadingView';
+import { Screen } from '@/components/ui/Screen';
+import { SectionHeader } from '@/components/ui/SectionHeader';
+import { industries } from '@/constants/industries';
+import { colors, radius, spacing, typography } from '@/constants/theme';
+import { useMyExpertProfile, useUpsertMyExpertProfile } from '@/hooks/useExperts';
+
+type Form = {
+  industryId: string;
+  headline: string;
+  hourlyRateDollars: string;
+  yearsExperience: string;
+};
+
+const emptyForm: Form = {
+  industryId: '',
+  headline: '',
+  hourlyRateDollars: '',
+  yearsExperience: '',
+};
+
+export default function ExpertProfileEditScreen() {
+  const router = useRouter();
+  const { data: existing, isLoading } = useMyExpertProfile();
+  const { mutate: upsert, isPending } = useUpsertMyExpertProfile();
+  const [form, setForm] = useState<Form>(emptyForm);
+
+  useEffect(() => {
+    if (existing) {
+      setForm({
+        industryId: existing.industryId,
+        headline: existing.headline,
+        hourlyRateDollars: (existing.hourlyRate / 100).toString(),
+        yearsExperience: existing.yearsExperience.toString(),
+      });
+    }
+  }, [existing]);
+
+  if (isLoading) return <LoadingView label="Loading your profile…" />;
+
+  const onSave = () => {
+    if (!form.industryId) {
+      Toast.show({ type: 'error', text1: 'Pick an industry' });
+      return;
+    }
+    if (!form.headline.trim()) {
+      Toast.show({ type: 'error', text1: 'Add a headline' });
+      return;
+    }
+    const rate = Number(form.hourlyRateDollars);
+    if (!Number.isFinite(rate) || rate <= 0) {
+      Toast.show({ type: 'error', text1: 'Hourly rate must be a positive number' });
+      return;
+    }
+    const years = Number(form.yearsExperience);
+    if (!Number.isFinite(years) || years < 0) {
+      Toast.show({ type: 'error', text1: 'Years of experience must be 0 or more' });
+      return;
+    }
+    upsert(
+      {
+        industryId: form.industryId,
+        headline: form.headline.trim(),
+        hourlyRateCents: Math.round(rate * 100),
+        yearsExperience: Math.floor(years),
+      },
+      {
+        onSuccess: () => {
+          Toast.show({ type: 'success', text1: existing ? 'Profile updated' : 'You are live' });
+          router.replace('/(expert)/dashboard');
+        },
+        onError: (err) =>
+          Toast.show({
+            type: 'error',
+            text1: 'Could not save',
+            text2: err instanceof Error ? err.message : 'Unknown error',
+          }),
+      },
+    );
+  };
+
+  return (
+    <Screen>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <SectionHeader
+          title={existing ? 'Edit expert profile' : 'Become an expert'}
+          caption="Fill these in and you'll appear on the Discover screen. You can edit anytime."
+        />
+
+        <Text style={styles.label}>Industry</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chips}
+        >
+          {industries.map((i) => {
+            const active = form.industryId === i.id;
+            return (
+              <Pressable
+                key={i.id}
+                onPress={() => setForm({ ...form, industryId: i.id })}
+                style={[chipStyles.chip, active && chipStyles.active]}
+              >
+                <Text style={[chipStyles.text, active && chipStyles.activeText]}>
+                  {i.emoji} {i.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        <Text style={styles.label}>Headline</Text>
+        <TextInput
+          placeholder="One sentence on what you offer"
+          placeholderTextColor={colors.textMuted}
+          value={form.headline}
+          onChangeText={(headline) => setForm({ ...form, headline })}
+          style={styles.input}
+          maxLength={120}
+        />
+
+        <Text style={styles.label}>Hourly rate (USD)</Text>
+        <TextInput
+          placeholder="150"
+          placeholderTextColor={colors.textMuted}
+          value={form.hourlyRateDollars}
+          onChangeText={(hourlyRateDollars) => setForm({ ...form, hourlyRateDollars })}
+          keyboardType="decimal-pad"
+          style={styles.input}
+        />
+
+        <Text style={styles.label}>Years of experience</Text>
+        <TextInput
+          placeholder="10"
+          placeholderTextColor={colors.textMuted}
+          value={form.yearsExperience}
+          onChangeText={(yearsExperience) => setForm({ ...form, yearsExperience })}
+          keyboardType="number-pad"
+          style={styles.input}
+        />
+
+        <Button
+          title={existing ? 'Save changes' : 'Save and continue'}
+          onPress={onSave}
+          loading={isPending}
+          fullWidth
+          style={{ marginTop: spacing.lg }}
+        />
+        <Button
+          title="Cancel"
+          variant="ghost"
+          onPress={() => router.back()}
+          fullWidth
+        />
+      </ScrollView>
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  scroll: { paddingTop: spacing.lg, paddingBottom: spacing.xxxl, gap: spacing.md },
+  label: { ...typography.label, color: colors.textSecondary, marginTop: spacing.md },
+  input: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    ...typography.body,
+    color: colors.textPrimary,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  chips: { gap: spacing.sm, paddingVertical: spacing.xs },
+});
+
+const chipStyles = StyleSheet.create({
+  chip: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceAlt,
+  },
+  active: { backgroundColor: colors.textPrimary },
+  text: { ...typography.bodyStrong, color: colors.textPrimary },
+  activeText: { color: '#FFFFFF' },
+});

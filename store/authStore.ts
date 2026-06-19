@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Customer, Expert, Profile, Role } from '@/types/user';
+import type { Profile } from '@/types/user';
 import {
   getCurrentSession,
   signOutFromSupabase,
@@ -7,106 +7,79 @@ import {
   supabaseConfigured,
   type Session,
 } from '@/services/supabase';
+import { fetchMyProfile } from '@/services/api';
 
 type AuthState = {
   user: Profile | null;
-  role: Role | null;
   isHydrated: boolean;
+  configError: string | null;
   hydrate: () => Promise<void>;
-  signInMock: (role: Role) => void;
-  setRole: (role: Role) => void;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 };
 
-const mockCustomer: Customer = {
-  id: 'cust_self',
-  role: 'customer',
-  displayName: 'You',
-  avatarUrl: null,
-  bio: null,
-  createdAt: new Date().toISOString(),
-};
+let unsubscribe: (() => void) | null = null;
 
-const mockExpert: Expert = {
-  id: 'exp_self',
-  role: 'expert',
-  displayName: 'You (Expert mode)',
-  avatarUrl: null,
-  bio: 'Tell customers what you do.',
-  industryId: 'coders',
-  headline: 'Set your headline',
-  hourlyRate: 12000,
-  yearsExperience: 5,
-  ratingAverage: 0,
-  ratingCount: 0,
-  credentials: [],
-  availability: [],
-  verified: false,
-  coverImageUrl: '',
-  createdAt: new Date().toISOString(),
-};
-
-const profileFromSession = (session: Session, role: Role = 'customer'): Profile => {
-  const meta = session.user.user_metadata ?? {};
-  const displayName =
-    (typeof meta.full_name === 'string' && meta.full_name) ||
-    session.user.email ||
-    'You';
+const loadUserFromSession = async (session: Session | null): Promise<Profile | null> => {
+  if (!session) return null;
+  try {
+    const profile = await fetchMyProfile(session.user.id);
+    if (profile) return profile;
+  } catch {
+    // fall through to synth profile — likely a transient network issue
+  }
+  // The handle_new_user trigger normally seeds this row, but synth a fallback so the
+  // user can still proceed in the rare case it hasn't materialized yet.
   return {
     id: session.user.id,
-    role,
-    displayName,
-    avatarUrl: typeof meta.avatar_url === 'string' ? meta.avatar_url : null,
+    role: 'customer',
+    displayName: session.user.email ?? 'You',
+    avatarUrl: null,
     bio: null,
     createdAt: session.user.created_at,
   };
 };
 
-let unsubscribe: (() => void) | null = null;
-
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
-  role: null,
   isHydrated: false,
+  configError: null,
 
   hydrate: async () => {
     if (!supabaseConfigured()) {
-      // Dev mode: no Supabase project. Seed mock customer so the app is usable in Expo Go.
-      set({ user: mockCustomer, role: 'customer', isHydrated: true });
+      set({
+        isHydrated: true,
+        configError:
+          'Supabase is not configured. Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to .env and restart with `npx expo start --clear`.',
+      });
       return;
     }
-    const session = await getCurrentSession();
-    set({
-      user: session ? profileFromSession(session, get().role ?? 'customer') : null,
-      role: session ? (get().role ?? 'customer') : null,
-      isHydrated: true,
-    });
-    unsubscribe?.();
-    unsubscribe = subscribeToAuthChanges((next) => {
-      set({
-        user: next ? profileFromSession(next, get().role ?? 'customer') : null,
-        role: next ? (get().role ?? 'customer') : null,
+    try {
+      const session = await getCurrentSession();
+      const user = await loadUserFromSession(session);
+      set({ user, isHydrated: true, configError: null });
+      unsubscribe?.();
+      unsubscribe = subscribeToAuthChanges(async (next) => {
+        const refreshed = await loadUserFromSession(next);
+        set({ user: refreshed });
       });
-    });
-  },
-
-  signInMock: (role) => {
-    if (supabaseConfigured()) return; // mock signin only available in dev mode
-    set({ user: role === 'expert' ? mockExpert : mockCustomer, role });
-  },
-
-  setRole: (role) => {
-    const current = get().user;
-    if (!current) return;
-    if (supabaseConfigured()) {
-      set({ role, user: { ...current, role } });
-    } else {
-      set({ user: role === 'expert' ? mockExpert : mockCustomer, role });
+    } catch (err) {
+      set({
+        isHydrated: true,
+        configError: err instanceof Error ? err.message : 'Failed to connect to Supabase',
+      });
     }
   },
 
   signOut: async () => {
     await signOutFromSupabase();
-    set({ user: null, role: null });
+    set({ user: null });
+  },
+
+  refreshProfile: async () => {
+    const userId = get().user?.id;
+    if (!userId) return;
+    const profile = await fetchMyProfile(userId);
+    if (profile) set({ user: profile });
   },
 }));

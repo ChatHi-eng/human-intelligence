@@ -1,0 +1,420 @@
+// Application-level data API. UI talks to hooks; hooks call functions here;
+// these functions are the only place that knows about the Supabase row shape.
+// If we ever swap the backend, only this file changes.
+import { getSupabase } from './supabase';
+import type { AvailabilityWindow, Credential, Expert, Profile } from '@/types/user';
+import type {
+  Booking,
+  BookingStatus,
+  CallMedium,
+  PaymentStatus,
+  TimeSlot,
+} from '@/types/booking';
+import type { Review } from '@/types/review';
+
+const sb = () => {
+  const client = getSupabase();
+  if (!client) {
+    throw new Error(
+      'Supabase is not configured. Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to your .env.',
+    );
+  }
+  return client;
+};
+
+// ---------- Row types (snake_case, mirroring the DB) ----------
+
+type ProfileRow = {
+  id: string;
+  display_name: string;
+  avatar_url: string | null;
+  bio: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type ExpertProfileRow = {
+  profile_id: string;
+  industry_id: string;
+  headline: string;
+  hourly_rate_cents: number;
+  years_experience: number;
+  verified: boolean;
+  cover_image_url: string | null;
+  rating_average: number;
+  rating_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+type CredentialRow = {
+  id: string;
+  expert_profile_id: string;
+  title: string;
+  issuer: string;
+  year: number;
+};
+
+type AvailabilityRow = {
+  id: string;
+  expert_profile_id: string;
+  weekday: number;
+  start_minute: number;
+  end_minute: number;
+};
+
+type BookingRow = {
+  id: string;
+  customer_id: string;
+  expert_profile_id: string;
+  start_at: string;
+  end_at: string;
+  medium: CallMedium;
+  status: BookingStatus;
+  payment_status: PaymentStatus;
+  price_cents: number;
+  call_room_url: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type ReviewRow = {
+  id: string;
+  booking_id: string;
+  customer_id: string;
+  expert_profile_id: string;
+  rating: 1 | 2 | 3 | 4 | 5;
+  comment: string | null;
+  created_at: string;
+};
+
+type ExpertWithRelations = ExpertProfileRow & {
+  profiles: ProfileRow | null;
+  credentials: CredentialRow[];
+  availability_windows: AvailabilityRow[];
+};
+
+// ---------- Mappers (snake_case → app types) ----------
+
+const mapProfile = (row: ProfileRow): Profile => ({
+  id: row.id,
+  role: 'customer',
+  displayName: row.display_name,
+  avatarUrl: row.avatar_url,
+  bio: row.bio,
+  createdAt: row.created_at,
+});
+
+const mapCredential = (row: CredentialRow): Credential => ({
+  id: row.id,
+  title: row.title,
+  issuer: row.issuer,
+  year: row.year,
+});
+
+const mapAvailability = (row: AvailabilityRow): AvailabilityWindow => ({
+  weekday: row.weekday as AvailabilityWindow['weekday'],
+  startMinute: row.start_minute,
+  endMinute: row.end_minute,
+});
+
+const mapExpert = (row: ExpertWithRelations): Expert | null => {
+  if (!row.profiles) return null;
+  return {
+    id: row.profile_id,
+    role: 'expert',
+    displayName: row.profiles.display_name,
+    avatarUrl: row.profiles.avatar_url,
+    bio: row.profiles.bio,
+    industryId: row.industry_id,
+    headline: row.headline,
+    hourlyRate: row.hourly_rate_cents,
+    yearsExperience: row.years_experience,
+    ratingAverage: Number(row.rating_average),
+    ratingCount: row.rating_count,
+    credentials: (row.credentials ?? []).map(mapCredential),
+    availability: (row.availability_windows ?? []).map(mapAvailability),
+    verified: row.verified,
+    coverImageUrl: row.cover_image_url ?? '',
+    createdAt: row.created_at,
+  };
+};
+
+const mapBooking = (row: BookingRow): Booking => ({
+  id: row.id,
+  customerId: row.customer_id,
+  expertId: row.expert_profile_id,
+  slot: { startIso: row.start_at, endIso: row.end_at },
+  medium: row.medium,
+  status: row.status,
+  paymentStatus: row.payment_status,
+  priceCents: row.price_cents,
+  callRoomUrl: row.call_room_url,
+  createdAt: row.created_at,
+});
+
+const mapReview = (row: ReviewRow): Review => ({
+  id: row.id,
+  bookingId: row.booking_id,
+  customerId: row.customer_id,
+  expertId: row.expert_profile_id,
+  rating: row.rating,
+  comment: row.comment,
+  createdAt: row.created_at,
+});
+
+// Shared select string for Expert + relations.
+const EXPERT_SELECT = `
+  profile_id, industry_id, headline, hourly_rate_cents, years_experience,
+  verified, cover_image_url, rating_average, rating_count, created_at, updated_at,
+  profiles!inner(id, display_name, avatar_url, bio, created_at, updated_at),
+  credentials(id, expert_profile_id, title, issuer, year),
+  availability_windows(id, expert_profile_id, weekday, start_minute, end_minute)
+`;
+
+// ---------- Profiles ----------
+
+export const fetchMyProfile = async (userId: string): Promise<Profile | null> => {
+  const { data, error } = await sb()
+    .from('profiles')
+    .select('id, display_name, avatar_url, bio, created_at, updated_at')
+    .eq('id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? mapProfile(data as ProfileRow) : null;
+};
+
+export type ProfilePatch = Partial<{
+  displayName: string;
+  avatarUrl: string | null;
+  bio: string | null;
+}>;
+
+export const updateMyProfile = async (userId: string, patch: ProfilePatch): Promise<void> => {
+  const update: Record<string, unknown> = {};
+  if (patch.displayName !== undefined) update.display_name = patch.displayName;
+  if (patch.avatarUrl !== undefined) update.avatar_url = patch.avatarUrl;
+  if (patch.bio !== undefined) update.bio = patch.bio;
+  const { error } = await sb().from('profiles').update(update).eq('id', userId);
+  if (error) throw error;
+};
+
+// ---------- Experts ----------
+
+export type ExpertsFilters = {
+  industryId?: string;
+  query?: string;
+};
+
+export const fetchExperts = async (filters: ExpertsFilters = {}): Promise<Expert[]> => {
+  let q = sb()
+    .from('expert_profiles')
+    .select(EXPERT_SELECT)
+    .order('rating_average', { ascending: false });
+  if (filters.industryId) q = q.eq('industry_id', filters.industryId);
+  const { data, error } = await q;
+  if (error) throw error;
+  const experts = (data as unknown as ExpertWithRelations[])
+    .map(mapExpert)
+    .filter((e): e is Expert => e !== null);
+  if (!filters.query) return experts;
+  const needle = filters.query.toLowerCase();
+  return experts.filter((e) =>
+    `${e.displayName} ${e.headline} ${e.bio ?? ''}`.toLowerCase().includes(needle),
+  );
+};
+
+export const fetchExpert = async (id: string): Promise<Expert | null> => {
+  const { data, error } = await sb()
+    .from('expert_profiles')
+    .select(EXPERT_SELECT)
+    .eq('profile_id', id)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? mapExpert(data as unknown as ExpertWithRelations) : null;
+};
+
+export type ExpertProfileInput = {
+  industryId: string;
+  headline: string;
+  hourlyRateCents: number;
+  yearsExperience: number;
+  coverImageUrl?: string | null;
+};
+
+export const upsertMyExpertProfile = async (
+  userId: string,
+  input: ExpertProfileInput,
+): Promise<void> => {
+  const { error } = await sb()
+    .from('expert_profiles')
+    .upsert({
+      profile_id: userId,
+      industry_id: input.industryId,
+      headline: input.headline,
+      hourly_rate_cents: input.hourlyRateCents,
+      years_experience: input.yearsExperience,
+      cover_image_url: input.coverImageUrl ?? null,
+    });
+  if (error) throw error;
+};
+
+export const deleteMyExpertProfile = async (userId: string): Promise<void> => {
+  const { error } = await sb().from('expert_profiles').delete().eq('profile_id', userId);
+  if (error) throw error;
+};
+
+// ---------- Credentials ----------
+
+export const addCredential = async (
+  expertId: string,
+  c: { title: string; issuer: string; year: number },
+): Promise<void> => {
+  const { error } = await sb().from('credentials').insert({
+    expert_profile_id: expertId,
+    title: c.title,
+    issuer: c.issuer,
+    year: c.year,
+  });
+  if (error) throw error;
+};
+
+export const deleteCredential = async (id: string): Promise<void> => {
+  const { error } = await sb().from('credentials').delete().eq('id', id);
+  if (error) throw error;
+};
+
+// ---------- Availability ----------
+
+export const setAvailability = async (
+  expertId: string,
+  windows: AvailabilityWindow[],
+): Promise<void> => {
+  const client = sb();
+  const { error: delError } = await client
+    .from('availability_windows')
+    .delete()
+    .eq('expert_profile_id', expertId);
+  if (delError) throw delError;
+  if (windows.length === 0) return;
+  const { error } = await client.from('availability_windows').insert(
+    windows.map((w) => ({
+      expert_profile_id: expertId,
+      weekday: w.weekday,
+      start_minute: w.startMinute,
+      end_minute: w.endMinute,
+    })),
+  );
+  if (error) throw error;
+};
+
+// ---------- Bookings ----------
+
+export const fetchMyBookings = async (userId: string): Promise<Booking[]> => {
+  const { data, error } = await sb()
+    .from('bookings')
+    .select('*')
+    .or(`customer_id.eq.${userId},expert_profile_id.eq.${userId}`)
+    .order('start_at', { ascending: true });
+  if (error) throw error;
+  return (data as BookingRow[]).map(mapBooking);
+};
+
+export const fetchBooking = async (id: string): Promise<Booking | null> => {
+  const { data, error } = await sb()
+    .from('bookings')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? mapBooking(data as BookingRow) : null;
+};
+
+export type CreateBookingInput = {
+  customerId: string;
+  expertId: string;
+  slot: TimeSlot;
+  medium: CallMedium;
+  priceCents: number;
+  callRoomUrl?: string | null;
+};
+
+export const createBooking = async (input: CreateBookingInput): Promise<Booking> => {
+  const { data, error } = await sb()
+    .from('bookings')
+    .insert({
+      customer_id: input.customerId,
+      expert_profile_id: input.expertId,
+      start_at: input.slot.startIso,
+      end_at: input.slot.endIso,
+      medium: input.medium,
+      price_cents: input.priceCents,
+      call_room_url: input.callRoomUrl ?? null,
+    })
+    .select('*')
+    .single();
+  if (error) throw error;
+  return mapBooking(data as BookingRow);
+};
+
+export const updateBookingStatus = async (id: string, status: BookingStatus): Promise<void> => {
+  const { error } = await sb().from('bookings').update({ status }).eq('id', id);
+  if (error) throw error;
+};
+
+export const updateBookingPaymentStatus = async (
+  id: string,
+  paymentStatus: PaymentStatus,
+): Promise<void> => {
+  const { error } = await sb()
+    .from('bookings')
+    .update({ payment_status: paymentStatus })
+    .eq('id', id);
+  if (error) throw error;
+};
+
+export const fetchMyExpertBookings = async (
+  userId: string,
+  sinceIso?: string,
+): Promise<Booking[]> => {
+  let q = sb()
+    .from('bookings')
+    .select('*')
+    .eq('expert_profile_id', userId)
+    .order('start_at', { ascending: false });
+  if (sinceIso) q = q.gte('start_at', sinceIso);
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data as BookingRow[]).map(mapBooking);
+};
+
+// ---------- Reviews ----------
+
+export const fetchReviewsForExpert = async (expertId: string): Promise<Review[]> => {
+  const { data, error } = await sb()
+    .from('reviews')
+    .select('*')
+    .eq('expert_profile_id', expertId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data as ReviewRow[]).map(mapReview);
+};
+
+export type CreateReviewInput = {
+  bookingId: string;
+  customerId: string;
+  expertId: string;
+  rating: 1 | 2 | 3 | 4 | 5;
+  comment?: string | null;
+};
+
+export const createReview = async (input: CreateReviewInput): Promise<void> => {
+  const { error } = await sb().from('reviews').insert({
+    booking_id: input.bookingId,
+    customer_id: input.customerId,
+    expert_profile_id: input.expertId,
+    rating: input.rating,
+    comment: input.comment ?? null,
+  });
+  if (error) throw error;
+};

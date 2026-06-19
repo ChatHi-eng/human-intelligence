@@ -4,14 +4,14 @@ A marketplace for paid, real-human expert advice — by video or phone. Think Ta
 
 **Product thesis.** As AI floods the internet with synthetic content and displaces experienced workers, there's a growing market for paid, real-human guidance.
 
-This repo currently contains the **scaffolded UI shell** for the mobile app. Every screen is reachable, every list renders mock data through TanStack Query, and every third-party integration is behind a `services/*` stub so the real keys can drop in later without touching screens.
+The app talks to a real Supabase backend (auth + Postgres) — no mock data anywhere. Stripe and Daily.co are still stubbed (they need a dev build, scheduled next). Discover/dashboard/earnings show empty-state UX until real users sign up and create profiles.
 
 ## Stack
 
-- **Expo SDK 56** + **expo-router v5** (file-based routing, TypeScript strict mode)
-- **Zustand** for global state (auth, booking draft)
-- **TanStack Query v5** for server cache (mock query fns for now)
-- **Supabase** (`@supabase/supabase-js`) — stubbed; wired via `services/supabase.ts`
+- **Expo SDK 54** + **expo-router v6** (file-based routing, TypeScript strict mode)
+- **Zustand** for global state (auth)
+- **TanStack Query v5** for server cache (real Supabase queries)
+- **Supabase** (`@supabase/supabase-js`) — Postgres + auth + RLS. SQL schema lives in `supabase/migrations/`. Magic-link sign-in via PKCE flow.
 - **Stripe** (`@stripe/stripe-react-native`) — stubbed; **not yet installed** (needs a dev build)
 - **Daily.co** for video — stubbed; **not yet installed** (needs a dev build). Chosen over Twilio because Twilio Programmable Video was sunset for new customers in Dec 2024.
 - **react-native-calendars** for the scheduling UI
@@ -44,11 +44,14 @@ my-app/
 │   └── call/                     # CallControls, VideoTile, CallTimer
 ├── hooks/                        # useAuth, useExperts, useBookings, useEarnings
 ├── services/                     # API/3rd-party wrappers (UI never imports SDKs directly)
-│   ├── supabase.ts
-│   ├── stripe.ts
-│   ├── video.ts                  # Daily.co
+│   ├── supabase.ts               # Client + auth helpers
+│   ├── api.ts                    # CRUD functions for profiles/experts/bookings/reviews
+│   ├── stripe.ts                 # Stub — real SDK comes with dev build
+│   ├── video.ts                  # Daily.co stub — real SDK comes with dev build
 │   ├── calendar.ts               # expo-calendar + Google Calendar sync stub
 │   └── notifications.ts          # local notifications + email service stub
+├── supabase/
+│   └── migrations/               # SQL schema — paste 0001_initial_schema.sql in Supabase SQL editor
 ├── store/                        # Zustand stores (authStore, bookingStore)
 ├── types/                        # Shared TypeScript types
 ├── constants/                    # theme.ts (colors/spacing/radius/typography), industries.ts

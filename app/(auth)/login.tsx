@@ -11,24 +11,20 @@ type Stage = 'enter-email' | 'sent';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { isSupabaseConfigured, signInWithMagicLink, signInAsCustomerMock } = useAuth();
+  const { signInWithMagicLink, configError } = useAuth();
   const [email, setEmail] = useState('');
   const [stage, setStage] = useState<Stage>('enter-email');
   const [sending, setSending] = useState(false);
 
-  const onContinue = async () => {
-    if (!isSupabaseConfigured) {
-      signInAsCustomerMock();
-      router.replace('/(tabs)');
-      return;
-    }
-    if (!email.trim()) {
+  const onSendLink = async () => {
+    const trimmed = email.trim();
+    if (!trimmed) {
       Toast.show({ type: 'error', text1: 'Enter your email first' });
       return;
     }
     setSending(true);
     try {
-      await signInWithMagicLink(email.trim());
+      await signInWithMagicLink(trimmed);
       setStage('sent');
     } catch (err) {
       Toast.show({
@@ -40,6 +36,17 @@ export default function LoginScreen() {
       setSending(false);
     }
   };
+
+  if (configError) {
+    return (
+      <Screen>
+        <View style={styles.container}>
+          <Text style={styles.title}>Setup needed</Text>
+          <Text style={styles.caption}>{configError}</Text>
+        </View>
+      </Screen>
+    );
+  }
 
   if (stage === 'sent') {
     return (
@@ -65,34 +72,26 @@ export default function LoginScreen() {
   return (
     <Screen>
       <View style={styles.container}>
-        <Text style={styles.title}>Sign in</Text>
+        <Text style={styles.title}>Sign in or create account</Text>
         <Text style={styles.caption}>
-          {isSupabaseConfigured
-            ? 'Enter your email and we will send you a one-tap sign-in link.'
-            : 'Supabase keys are not set, so this signs you in to a mock customer for UI testing.'}
+          Enter your email and we&apos;ll send you a one-tap sign-in link. New here? Tapping the
+          link signs you in and creates your account at the same time.
         </Text>
-        {isSupabaseConfigured && (
-          <TextInput
-            placeholder="you@example.com"
-            placeholderTextColor={colors.textMuted}
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            autoComplete="email"
-            keyboardType="email-address"
-            style={styles.input}
-          />
-        )}
-        <Button
-          title={isSupabaseConfigured ? 'Send sign-in link' : 'Continue (mock)'}
-          onPress={onContinue}
-          loading={sending}
-          fullWidth
+        <TextInput
+          placeholder="you@example.com"
+          placeholderTextColor={colors.textMuted}
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          autoComplete="email"
+          keyboardType="email-address"
+          style={styles.input}
         />
+        <Button title="Send sign-in link" onPress={onSendLink} loading={sending} fullWidth />
         <Button
-          title="Create an account"
+          title="Back"
           variant="ghost"
-          onPress={() => router.push('/(auth)/signup')}
+          onPress={() => router.back()}
           fullWidth
         />
       </View>

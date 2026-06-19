@@ -15,7 +15,7 @@ export default function OnboardingScreen() {
           Talk to lawyers, therapists, coders, designers, and tradesmen — by video or phone. Paid
           time, with verified credentials.
         </Text>
-        <Button title="Get started" onPress={() => router.replace('/(auth)/signup')} fullWidth />
+        <Button title="Get started" onPress={() => router.push('/(auth)/login')} fullWidth />
       </View>
     </Screen>
   );

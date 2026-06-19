@@ -1,33 +1,24 @@
-import { useQuery } from '@tanstack/react-query';
-import { mockExperts } from '@/lib/mockData';
-import type { Expert } from '@/types/user';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  addCredential,
+  deleteCredential,
+  deleteMyExpertProfile,
+  fetchExpert,
+  fetchExperts,
+  setAvailability,
+  upsertMyExpertProfile,
+  type ExpertProfileInput,
+  type ExpertsFilters,
+} from '@/services/api';
+import { useAuthStore } from '@/store/authStore';
+import type { AvailabilityWindow } from '@/types/user';
 
-const delay = <T,>(value: T, ms = 350) =>
-  new Promise<T>((r) => setTimeout(() => r(value), ms));
-
-export type ExpertsFilters = {
-  industryId?: string;
-  minRating?: number;
-  maxHourlyRate?: number;
-  query?: string;
-};
-
-const matches = (e: Expert, f: ExpertsFilters): boolean => {
-  if (f.industryId && e.industryId !== f.industryId) return false;
-  if (typeof f.minRating === 'number' && e.ratingAverage < f.minRating) return false;
-  if (typeof f.maxHourlyRate === 'number' && e.hourlyRate > f.maxHourlyRate) return false;
-  if (f.query) {
-    const q = f.query.toLowerCase();
-    const hay = `${e.displayName} ${e.headline} ${e.bio ?? ''}`.toLowerCase();
-    if (!hay.includes(q)) return false;
-  }
-  return true;
-};
+export type { ExpertsFilters };
 
 export const useExperts = (filters: ExpertsFilters = {}) =>
   useQuery({
     queryKey: ['experts', filters],
-    queryFn: () => delay(mockExperts.filter((e) => matches(e, filters))),
+    queryFn: () => fetchExperts(filters),
     staleTime: 60_000,
   });
 
@@ -35,5 +26,87 @@ export const useExpert = (id: string | undefined) =>
   useQuery({
     queryKey: ['expert', id],
     enabled: Boolean(id),
-    queryFn: () => delay(mockExperts.find((e) => e.id === id) ?? null),
+    queryFn: () => (id ? fetchExpert(id) : Promise.resolve(null)),
   });
+
+export const useMyExpertProfile = () => {
+  const userId = useAuthStore((s) => s.user?.id);
+  return useQuery({
+    queryKey: ['my-expert-profile', userId],
+    enabled: Boolean(userId),
+    queryFn: () => (userId ? fetchExpert(userId) : Promise.resolve(null)),
+  });
+};
+
+export const useUpsertMyExpertProfile = () => {
+  const userId = useAuthStore((s) => s.user?.id);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: ExpertProfileInput) => {
+      if (!userId) throw new Error('Not signed in');
+      await upsertMyExpertProfile(userId, input);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['my-expert-profile'] });
+      void qc.invalidateQueries({ queryKey: ['experts'] });
+      if (userId) void qc.invalidateQueries({ queryKey: ['expert', userId] });
+    },
+  });
+};
+
+export const useDeleteMyExpertProfile = () => {
+  const userId = useAuthStore((s) => s.user?.id);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!userId) throw new Error('Not signed in');
+      await deleteMyExpertProfile(userId);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['my-expert-profile'] });
+      void qc.invalidateQueries({ queryKey: ['experts'] });
+    },
+  });
+};
+
+export const useAddCredential = () => {
+  const userId = useAuthStore((s) => s.user?.id);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (c: { title: string; issuer: string; year: number }) => {
+      if (!userId) throw new Error('Not signed in');
+      await addCredential(userId, c);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['my-expert-profile'] });
+      if (userId) void qc.invalidateQueries({ queryKey: ['expert', userId] });
+    },
+  });
+};
+
+export const useDeleteCredential = () => {
+  const userId = useAuthStore((s) => s.user?.id);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: deleteCredential,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['my-expert-profile'] });
+      if (userId) void qc.invalidateQueries({ queryKey: ['expert', userId] });
+    },
+  });
+};
+
+export const useSetAvailability = () => {
+  const userId = useAuthStore((s) => s.user?.id);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (windows: AvailabilityWindow[]) => {
+      if (!userId) throw new Error('Not signed in');
+      await setAvailability(userId, windows);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['my-expert-profile'] });
+      if (userId) void qc.invalidateQueries({ queryKey: ['expert', userId] });
+    },
+  });
+};

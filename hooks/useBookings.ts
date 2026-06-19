@@ -1,32 +1,37 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { mockBookings, mockExperts } from '@/lib/mockData';
-import { confirmBookingPayment } from '@/services/stripe';
+import {
+  createBooking,
+  fetchBooking,
+  fetchExpert,
+  fetchMyBookings,
+  updateBookingPaymentStatus,
+  updateBookingStatus,
+} from '@/services/api';
 import { addBookingToDeviceCalendar } from '@/services/calendar';
 import { emailService, scheduleBookingReminder } from '@/services/notifications';
+import { confirmBookingPayment } from '@/services/stripe';
 import { createRoomForBooking } from '@/services/video';
-import type { Booking, CallMedium, TimeSlot } from '@/types/booking';
+import { useAuthStore } from '@/store/authStore';
+import type { BookingStatus, CallMedium, TimeSlot } from '@/types/booking';
 
-const delay = <T,>(value: T, ms = 300) =>
-  new Promise<T>((r) => setTimeout(() => r(value), ms));
-
-// In-memory store for created bookings during the session. Real impl: Supabase.
-const session: Booking[] = [...mockBookings];
-
-export const useMyBookings = () =>
-  useQuery({
-    queryKey: ['bookings', 'me'],
-    queryFn: () => delay([...session].sort((a, b) => a.slot.startIso.localeCompare(b.slot.startIso))),
+export const useMyBookings = () => {
+  const userId = useAuthStore((s) => s.user?.id);
+  return useQuery({
+    queryKey: ['bookings', 'me', userId],
+    enabled: Boolean(userId),
+    queryFn: () => (userId ? fetchMyBookings(userId) : Promise.resolve([])),
     staleTime: 30_000,
   });
+};
 
 export const useBooking = (id: string | undefined) =>
   useQuery({
     queryKey: ['booking', id],
     enabled: Boolean(id),
-    queryFn: () => delay(session.find((b) => b.id === id) ?? null),
+    queryFn: () => (id ? fetchBooking(id) : Promise.resolve(null)),
   });
 
-type CreateBookingInput = {
+export type CreateBookingMutationInput = {
   expertId: string;
   slot: TimeSlot;
   medium: CallMedium;
@@ -34,41 +39,58 @@ type CreateBookingInput = {
 };
 
 export const useCreateBooking = () => {
+  const userId = useAuthStore((s) => s.user?.id);
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: CreateBookingInput): Promise<Booking> => {
-      const expert = mockExperts.find((e) => e.id === input.expertId);
+    mutationFn: async (input: CreateBookingMutationInput) => {
+      if (!userId) throw new Error('Not signed in');
+      const expert = await fetchExpert(input.expertId);
       if (!expert) throw new Error('Expert not found');
-      const draft: Booking = {
-        id: `bk_${Date.now()}`,
-        customerId: 'cust_self',
+
+      const room =
+        input.medium === 'video' ? await createRoomForBooking(`pending-${Date.now()}`) : null;
+
+      const booking = await createBooking({
+        customerId: userId,
         expertId: input.expertId,
         slot: input.slot,
         medium: input.medium,
-        status: 'confirmed',
-        paymentStatus: 'pending',
         priceCents: expert.hourlyRate,
-        callRoomUrl: null,
-        createdAt: new Date().toISOString(),
-      };
-      const payment = await confirmBookingPayment(draft);
-      draft.paymentStatus = payment.status === 'succeeded' ? 'authorized' : 'failed';
-      if (input.medium === 'video') {
-        const room = await createRoomForBooking(draft.id);
-        draft.callRoomUrl = room.url;
-      }
-      session.push(draft);
-      void addBookingToDeviceCalendar(draft, expert.displayName);
-      void scheduleBookingReminder(draft, expert.displayName);
+        callRoomUrl: room?.url ?? null,
+      });
+
+      // Payment is stubbed until Stripe is wired in a dev build.
+      const payment = await confirmBookingPayment(booking);
+      await updateBookingPaymentStatus(
+        booking.id,
+        payment.status === 'succeeded' ? 'authorized' : 'failed',
+      );
+
+      // Best-effort side effects — don't block on failure.
+      void addBookingToDeviceCalendar(booking, expert.displayName);
+      void scheduleBookingReminder(booking, expert.displayName);
       void emailService.sendBookingConfirmation(
         input.customerEmail ?? 'you@example.com',
-        draft,
+        booking,
         expert.displayName,
       );
-      return draft;
+
+      return booking;
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['bookings'] });
+    },
+  });
+};
+
+export const useUpdateBookingStatus = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: BookingStatus }) =>
+      updateBookingStatus(id, status),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['bookings'] });
+      void qc.invalidateQueries({ queryKey: ['booking'] });
     },
   });
 };

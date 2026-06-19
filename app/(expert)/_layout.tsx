@@ -1,7 +1,14 @@
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
+import { LoadingView } from '@/components/ui/LoadingView';
 import { colors } from '@/constants/theme';
+import { useMyExpertProfile } from '@/hooks/useExperts';
 
 export default function ExpertLayout() {
+  const { data: expertProfile, isLoading } = useMyExpertProfile();
+
+  if (isLoading) return <LoadingView label="Loading expert tools…" />;
+  if (!expertProfile) return <Redirect href="/expert-profile-edit" />;
+
   return (
     <Tabs
       screenOptions={{

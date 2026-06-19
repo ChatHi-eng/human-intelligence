@@ -36,7 +36,7 @@ export default function BookingsScreen() {
         ListEmptyComponent={
           <EmptyState
             title="No bookings yet"
-            description="Find an expert and book your first call."
+            description="Find an expert from the Discover tab and book your first session."
             emoji="📅"
           />
         }

@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ExpertList } from '@/components/expert/ExpertList';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { Screen } from '@/components/ui/Screen';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { industries } from '@/constants/industries';
@@ -14,49 +15,66 @@ export default function DiscoverScreen() {
   const [query, setQuery] = useState('');
   const { data: experts, isLoading } = useExperts({ industryId, query });
 
+  const noFiltersActive = !industryId && !query;
+  const dbIsEmpty = !isLoading && experts && experts.length === 0 && noFiltersActive;
+
   return (
     <Screen>
-      <ExpertList
-        experts={experts}
-        isLoading={isLoading}
-        onPressExpert={(e) => router.push(`/expert/${e.id}`)}
-        ListHeaderComponent={
-          <View style={styles.header}>
-            <SectionHeader
-              title="Talk to a human"
-              caption="Verified experts. Real video or phone advice — on your schedule."
-            />
-            <TextInput
-              placeholder="Search by expertise, name…"
-              placeholderTextColor={colors.textMuted}
-              style={styles.search}
-              value={query}
-              onChangeText={setQuery}
-              autoCorrect={false}
-              returnKeyType="search"
-            />
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.chips}
-            >
-              <FilterChip
-                label="All"
-                active={industryId === undefined}
-                onPress={() => setIndustryId(undefined)}
+      {dbIsEmpty ? (
+        <View style={{ flex: 1, gap: spacing.md, paddingTop: spacing.lg }}>
+          <SectionHeader
+            title="Talk to a human"
+            caption="Verified experts. Real video or phone advice — on your schedule."
+          />
+          <EmptyState
+            title="No experts yet"
+            description="Be the first — open your profile tab and tap Become an expert."
+            emoji="🧠"
+          />
+        </View>
+      ) : (
+        <ExpertList
+          experts={experts}
+          isLoading={isLoading}
+          onPressExpert={(e) => router.push(`/expert/${e.id}`)}
+          ListHeaderComponent={
+            <View style={styles.header}>
+              <SectionHeader
+                title="Talk to a human"
+                caption="Verified experts. Real video or phone advice — on your schedule."
               />
-              {industries.map((i) => (
+              <TextInput
+                placeholder="Search by expertise, name…"
+                placeholderTextColor={colors.textMuted}
+                style={styles.search}
+                value={query}
+                onChangeText={setQuery}
+                autoCorrect={false}
+                returnKeyType="search"
+              />
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.chips}
+              >
                 <FilterChip
-                  key={i.id}
-                  label={`${i.emoji}  ${i.label}`}
-                  active={industryId === i.id}
-                  onPress={() => setIndustryId(i.id)}
+                  label="All"
+                  active={industryId === undefined}
+                  onPress={() => setIndustryId(undefined)}
                 />
-              ))}
-            </ScrollView>
-          </View>
-        }
-      />
+                {industries.map((i) => (
+                  <FilterChip
+                    key={i.id}
+                    label={`${i.emoji}  ${i.label}`}
+                    active={industryId === i.id}
+                    onPress={() => setIndustryId(i.id)}
+                  />
+                ))}
+              </ScrollView>
+            </View>
+          }
+        />
+      )}
     </Screen>
   );
 }
