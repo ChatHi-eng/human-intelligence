@@ -1,7 +1,11 @@
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput } from 'react-native';
 import Toast from 'react-native-toast-message';
+import { AvailabilityEditor } from '@/components/expert/AvailabilityEditor';
+import { CredentialsEditor } from '@/components/expert/CredentialsEditor';
 import { Button } from '@/components/ui/Button';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { Screen } from '@/components/ui/Screen';
@@ -9,12 +13,14 @@ import { SectionHeader } from '@/components/ui/SectionHeader';
 import { industries } from '@/constants/industries';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useMyExpertProfile, useUpsertMyExpertProfile } from '@/hooks/useExperts';
+import { useUploadImage } from '@/hooks/useProfile';
 
 type Form = {
   industryId: string;
   headline: string;
   hourlyRateDollars: string;
   yearsExperience: string;
+  coverImageUrl: string;
 };
 
 const emptyForm: Form = {
@@ -22,12 +28,14 @@ const emptyForm: Form = {
   headline: '',
   hourlyRateDollars: '',
   yearsExperience: '',
+  coverImageUrl: '',
 };
 
 export default function ExpertProfileEditScreen() {
   const router = useRouter();
   const { data: existing, isLoading } = useMyExpertProfile();
   const { mutate: upsert, isPending } = useUpsertMyExpertProfile();
+  const { mutateAsync: upload, isPending: uploadingCover } = useUploadImage();
   const [form, setForm] = useState<Form>(emptyForm);
 
   useEffect(() => {
@@ -37,11 +45,43 @@ export default function ExpertProfileEditScreen() {
         headline: existing.headline,
         hourlyRateDollars: (existing.hourlyRate / 100).toString(),
         yearsExperience: existing.yearsExperience.toString(),
+        coverImageUrl: existing.coverImageUrl ?? '',
       });
     }
   }, [existing]);
 
   if (isLoading) return <LoadingView label="Loading your profile…" />;
+
+  const pickCover = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (perm.status !== 'granted') {
+      Toast.show({ type: 'error', text1: 'Photo permission needed' });
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.85,
+    });
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    if (!asset) return;
+    try {
+      const url = await upload({
+        bucket: 'cover-images',
+        uri: asset.uri,
+        mimeType: asset.mimeType ?? 'image/jpeg',
+      });
+      setForm({ ...form, coverImageUrl: url });
+    } catch (err) {
+      Toast.show({
+        type: 'error',
+        text1: 'Cover upload failed',
+        text2: err instanceof Error ? err.message : 'Unknown error',
+      });
+    }
+  };
 
   const onSave = () => {
     if (!form.industryId) {
@@ -68,11 +108,12 @@ export default function ExpertProfileEditScreen() {
         headline: form.headline.trim(),
         hourlyRateCents: Math.round(rate * 100),
         yearsExperience: Math.floor(years),
+        coverImageUrl: form.coverImageUrl || null,
       },
       {
         onSuccess: () => {
           Toast.show({ type: 'success', text1: existing ? 'Profile updated' : 'You are live' });
-          router.replace('/(expert)/dashboard');
+          if (!existing) router.replace('/(expert)/dashboard');
         },
         onError: (err) =>
           Toast.show({
@@ -89,8 +130,19 @@ export default function ExpertProfileEditScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <SectionHeader
           title={existing ? 'Edit expert profile' : 'Become an expert'}
-          caption="Fill these in and you'll appear on the Discover screen. You can edit anytime."
+          caption="Fill these in to appear on Discover. You can edit anytime."
         />
+
+        <Text style={styles.label}>Cover image</Text>
+        <Pressable onPress={pickCover} style={styles.coverPicker}>
+          {form.coverImageUrl ? (
+            <Image source={{ uri: form.coverImageUrl }} style={styles.coverImage} contentFit="cover" />
+          ) : (
+            <Text style={styles.coverPlaceholder}>
+              {uploadingCover ? 'Uploading…' : 'Tap to choose a cover photo'}
+            </Text>
+          )}
+        </Pressable>
 
         <Text style={styles.label}>Industry</Text>
         <ScrollView
@@ -151,12 +203,18 @@ export default function ExpertProfileEditScreen() {
           fullWidth
           style={{ marginTop: spacing.lg }}
         />
-        <Button
-          title="Cancel"
-          variant="ghost"
-          onPress={() => router.back()}
-          fullWidth
-        />
+
+        {existing && (
+          <>
+            <SectionHeader title="Credentials" />
+            <CredentialsEditor credentials={existing.credentials} />
+
+            <SectionHeader title="Weekly availability" />
+            <AvailabilityEditor initial={existing.availability} />
+          </>
+        )}
+
+        <Button title="Done" variant="ghost" onPress={() => router.back()} fullWidth />
       </ScrollView>
     </Screen>
   );
@@ -176,6 +234,18 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   chips: { gap: spacing.sm, paddingVertical: spacing.xs },
+  coverPicker: {
+    height: 160,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  coverImage: { width: '100%', height: '100%' },
+  coverPlaceholder: { ...typography.body, color: colors.textMuted },
 });
 
 const chipStyles = StyleSheet.create({

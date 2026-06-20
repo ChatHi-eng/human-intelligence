@@ -1,9 +1,11 @@
-import { Redirect, Tabs } from 'expo-router';
+import { Redirect, Tabs, useRouter } from 'expo-router';
+import { Pressable, StyleSheet, Text } from 'react-native';
 import { LoadingView } from '@/components/ui/LoadingView';
-import { colors } from '@/constants/theme';
+import { colors, spacing, typography } from '@/constants/theme';
 import { useMyExpertProfile } from '@/hooks/useExperts';
 
 export default function ExpertLayout() {
+  const router = useRouter();
   const { data: expertProfile, isLoading } = useMyExpertProfile();
 
   if (isLoading) return <LoadingView label="Loading expert tools…" />;
@@ -18,6 +20,11 @@ export default function ExpertLayout() {
         headerShadowVisible: false,
         headerStyle: { backgroundColor: colors.background },
         headerTitleStyle: { color: colors.textPrimary, fontWeight: '700' },
+        headerLeft: () => (
+          <Pressable onPress={() => router.replace('/(tabs)')} hitSlop={12} style={styles.back}>
+            <Text style={styles.backText}>← Customer view</Text>
+          </Pressable>
+        ),
       }}
     >
       <Tabs.Screen name="dashboard" options={{ title: 'Dashboard' }} />
@@ -26,3 +33,8 @@ export default function ExpertLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  back: { paddingHorizontal: spacing.lg },
+  backText: { ...typography.bodyStrong, color: colors.accent },
+});

@@ -25,11 +25,16 @@ export default function ProfileScreen() {
           <Avatar uri={user.avatarUrl} name={user.displayName} size={64} />
           <View style={{ flex: 1 }}>
             <Text style={styles.name}>{user.displayName}</Text>
-            <Text style={styles.meta}>
-              {expertProfile ? 'Expert · Customer' : 'Customer'}
-            </Text>
+            <Text style={styles.meta}>{expertProfile ? 'Expert · Customer' : 'Customer'}</Text>
+            {user.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
           </View>
         </View>
+        <Button
+          title="Edit profile"
+          variant="secondary"
+          onPress={() => router.push('/profile-edit')}
+          style={{ marginTop: spacing.md }}
+        />
       </Card>
 
       <View style={styles.actions}>
@@ -64,6 +69,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
   name: { ...typography.heading, color: colors.textPrimary },
   meta: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  bio: { ...typography.body, color: colors.textPrimary, marginTop: spacing.sm },
   muted: { ...typography.caption, color: colors.textMuted, textAlign: 'center' },
   actions: { gap: spacing.md, marginTop: spacing.xl },
 });

@@ -172,6 +172,41 @@ const EXPERT_SELECT = `
   availability_windows(id, expert_profile_id, weekday, start_minute, end_minute)
 `;
 
+// ---------- Storage uploads ----------
+
+export type ImageBucket = 'avatars' | 'cover-images';
+
+const extensionFor = (mime: string): string => {
+  if (mime.includes('png')) return 'png';
+  if (mime.includes('webp')) return 'webp';
+  return 'jpg';
+};
+
+// Uploads to <bucket>/<userId>/<filename>. Convention enforced by RLS.
+export const uploadImage = async (
+  bucket: ImageBucket,
+  userId: string,
+  uri: string,
+  mimeType: string,
+): Promise<string> => {
+  const client = sb();
+  const ext = extensionFor(mimeType);
+  // Stable filenames per bucket so re-uploads overwrite (avoids orphaned files).
+  const filename = bucket === 'avatars' ? 'avatar' : 'cover';
+  const path = `${userId}/${filename}.${ext}`;
+  // Fetch the local file as a binary blob — works in Expo Go + web.
+  const response = await fetch(uri);
+  const blob = await response.blob();
+  const { error } = await client.storage.from(bucket).upload(path, blob, {
+    contentType: mimeType,
+    upsert: true,
+  });
+  if (error) throw error;
+  const { data } = client.storage.from(bucket).getPublicUrl(path);
+  // Append a cache-busting param so RN <Image /> picks up the new file after upload.
+  return `${data.publicUrl}?v=${Date.now()}`;
+};
+
 // ---------- Profiles ----------
 
 export const fetchMyProfile = async (userId: string): Promise<Profile | null> => {
