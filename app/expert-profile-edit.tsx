@@ -4,8 +4,9 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput } from 'react-native';
 import Toast from 'react-native-toast-message';
+import { AvailabilityCalendarEditor } from '@/components/expert/AvailabilityCalendarEditor';
 import { AvailabilityEditor } from '@/components/expert/AvailabilityEditor';
-import { CredentialsEditor } from '@/components/expert/CredentialsEditor';
+import { BackgroundEditor } from '@/components/expert/BackgroundEditor';
 import { Button } from '@/components/ui/Button';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { Screen } from '@/components/ui/Screen';
@@ -21,6 +22,7 @@ type Form = {
   hourlyRateDollars: string;
   yearsExperience: string;
   coverImageUrl: string;
+  howICanHelp: string;
 };
 
 const emptyForm: Form = {
@@ -29,6 +31,7 @@ const emptyForm: Form = {
   hourlyRateDollars: '',
   yearsExperience: '',
   coverImageUrl: '',
+  howICanHelp: '',
 };
 
 export default function ExpertProfileEditScreen() {
@@ -46,6 +49,7 @@ export default function ExpertProfileEditScreen() {
         hourlyRateDollars: (existing.hourlyRate / 100).toString(),
         yearsExperience: existing.yearsExperience.toString(),
         coverImageUrl: existing.coverImageUrl ?? '',
+        howICanHelp: existing.howICanHelp ?? '',
       });
     }
   }, [existing]);
@@ -109,6 +113,7 @@ export default function ExpertProfileEditScreen() {
         hourlyRateCents: Math.round(rate * 100),
         yearsExperience: Math.floor(years),
         coverImageUrl: form.coverImageUrl || null,
+        howICanHelp: form.howICanHelp.trim() || null,
       },
       {
         onSuccess: () => {
@@ -176,6 +181,20 @@ export default function ExpertProfileEditScreen() {
           maxLength={120}
         />
 
+        <Text style={styles.label}>How can I help?</Text>
+        <Text style={styles.helper}>
+          Spell out who you&apos;re for and the kinds of problems you can solve.
+        </Text>
+        <TextInput
+          placeholder={'e.g. I help early founders pressure-test their go-to-market and pricing.\n• 1:1 strategy calls\n• Pitch deck reviews\n• Hiring plans'}
+          placeholderTextColor={colors.textMuted}
+          value={form.howICanHelp}
+          onChangeText={(howICanHelp) => setForm({ ...form, howICanHelp })}
+          multiline
+          style={[styles.input, styles.longInput]}
+          maxLength={1500}
+        />
+
         <Text style={styles.label}>Hourly rate (USD)</Text>
         <TextInput
           placeholder="150"
@@ -206,11 +225,14 @@ export default function ExpertProfileEditScreen() {
 
         {existing && (
           <>
-            <SectionHeader title="Credentials" />
-            <CredentialsEditor credentials={existing.credentials} />
+            <SectionHeader title="Background" caption="Work, education, certifications." />
+            <BackgroundEditor entries={existing.credentials} />
 
-            <SectionHeader title="Weekly availability" />
+            <SectionHeader title="Availability" caption="Recurring weekly hours plus one-off dates." />
+            <Text style={styles.subHeader}>Recurring weekly hours</Text>
             <AvailabilityEditor initial={existing.availability} />
+            <Text style={[styles.subHeader, { marginTop: spacing.lg }]}>Specific dates</Text>
+            <AvailabilityCalendarEditor dates={existing.availabilityDates} />
           </>
         )}
 
@@ -223,6 +245,8 @@ export default function ExpertProfileEditScreen() {
 const styles = StyleSheet.create({
   scroll: { paddingTop: spacing.lg, paddingBottom: spacing.xxxl, gap: spacing.md },
   label: { ...typography.label, color: colors.textSecondary, marginTop: spacing.md },
+  helper: { ...typography.caption, color: colors.textMuted, marginBottom: spacing.xs },
+  subHeader: { ...typography.bodyStrong, color: colors.textPrimary, marginTop: spacing.md },
   input: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
@@ -233,6 +257,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
+  longInput: { minHeight: 140, textAlignVertical: 'top' },
   chips: { gap: spacing.sm, paddingVertical: spacing.xs },
   coverPicker: {
     height: 160,

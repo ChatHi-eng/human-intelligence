@@ -6,14 +6,31 @@ export type CredentialBadgeProps = {
   credential: Credential;
 };
 
-export const CredentialBadge = ({ credential }: CredentialBadgeProps) => (
-  <View style={styles.container}>
-    <Text style={styles.title}>{credential.title}</Text>
-    <Text style={styles.meta}>
-      {credential.issuer} · {credential.year}
-    </Text>
-  </View>
-);
+const TYPE_EMOJI = {
+  work: '💼',
+  education: '🎓',
+  certification: '📜',
+  other: '✨',
+} as const;
+
+export const CredentialBadge = ({ credential }: CredentialBadgeProps) => {
+  const range =
+    credential.endYear
+      ? `${credential.year}–${credential.endYear}`
+      : credential.type === 'work'
+        ? `${credential.year}–Present`
+        : `${credential.year}`;
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>
+        {TYPE_EMOJI[credential.type]} {credential.title}
+      </Text>
+      <Text style={styles.meta}>
+        {credential.issuer} · {range}
+      </Text>
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
   container: {

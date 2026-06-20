@@ -101,12 +101,23 @@ export default function ExpertProfileScreen() {
           <RatingStars value={expert.ratingAverage} count={expert.ratingCount} size={18} />
           {expert.bio ? <Text style={styles.bio}>{expert.bio}</Text> : null}
 
-          <Text style={styles.sectionTitle}>Credentials</Text>
-          <View style={{ gap: spacing.sm }}>
-            {expert.credentials.map((c) => (
-              <CredentialBadge key={c.id} credential={c} />
-            ))}
-          </View>
+          {expert.howICanHelp ? (
+            <>
+              <Text style={styles.sectionTitle}>How I can help</Text>
+              <Text style={styles.bio}>{expert.howICanHelp}</Text>
+            </>
+          ) : null}
+
+          {expert.credentials.length > 0 ? (
+            <>
+              <Text style={styles.sectionTitle}>Background</Text>
+              <View style={{ gap: spacing.sm }}>
+                {expert.credentials.map((c) => (
+                  <CredentialBadge key={c.id} credential={c} />
+                ))}
+              </View>
+            </>
+          ) : null}
 
           <Text style={styles.sectionTitle}>Pick a time (tomorrow)</Text>
           <TimeSlotPicker slots={slots} selected={selectedSlot} onSelect={setSelectedSlot} />

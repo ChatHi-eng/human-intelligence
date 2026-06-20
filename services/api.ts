@@ -2,7 +2,14 @@
 // these functions are the only place that knows about the Supabase row shape.
 // If we ever swap the backend, only this file changes.
 import { getSupabase } from './supabase';
-import type { AvailabilityWindow, Credential, Expert, Profile } from '@/types/user';
+import type {
+  AvailabilityDate,
+  AvailabilityWindow,
+  BackgroundType,
+  Credential,
+  Expert,
+  Profile,
+} from '@/types/user';
 import type {
   Booking,
   BookingStatus,
@@ -43,6 +50,7 @@ type ExpertProfileRow = {
   cover_image_url: string | null;
   rating_average: number;
   rating_count: number;
+  how_i_can_help: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -53,12 +61,22 @@ type CredentialRow = {
   title: string;
   issuer: string;
   year: number;
+  end_year: number | null;
+  type: BackgroundType;
 };
 
 type AvailabilityRow = {
   id: string;
   expert_profile_id: string;
   weekday: number;
+  start_minute: number;
+  end_minute: number;
+};
+
+type AvailabilityDateRow = {
+  id: string;
+  expert_profile_id: string;
+  date: string;
   start_minute: number;
   end_minute: number;
 };
@@ -92,6 +110,7 @@ type ExpertWithRelations = ExpertProfileRow & {
   profiles: ProfileRow | null;
   credentials: CredentialRow[];
   availability_windows: AvailabilityRow[];
+  availability_dates: AvailabilityDateRow[];
 };
 
 // ---------- Mappers (snake_case → app types) ----------
@@ -110,10 +129,19 @@ const mapCredential = (row: CredentialRow): Credential => ({
   title: row.title,
   issuer: row.issuer,
   year: row.year,
+  endYear: row.end_year,
+  type: row.type,
 });
 
 const mapAvailability = (row: AvailabilityRow): AvailabilityWindow => ({
   weekday: row.weekday as AvailabilityWindow['weekday'],
+  startMinute: row.start_minute,
+  endMinute: row.end_minute,
+});
+
+const mapAvailabilityDate = (row: AvailabilityDateRow): AvailabilityDate => ({
+  id: row.id,
+  date: row.date,
   startMinute: row.start_minute,
   endMinute: row.end_minute,
 });
@@ -132,8 +160,10 @@ const mapExpert = (row: ExpertWithRelations): Expert | null => {
     yearsExperience: row.years_experience,
     ratingAverage: Number(row.rating_average),
     ratingCount: row.rating_count,
+    howICanHelp: row.how_i_can_help,
     credentials: (row.credentials ?? []).map(mapCredential),
     availability: (row.availability_windows ?? []).map(mapAvailability),
+    availabilityDates: (row.availability_dates ?? []).map(mapAvailabilityDate),
     verified: row.verified,
     coverImageUrl: row.cover_image_url ?? '',
     createdAt: row.created_at,
@@ -166,10 +196,11 @@ const mapReview = (row: ReviewRow): Review => ({
 // Shared select string for Expert + relations.
 const EXPERT_SELECT = `
   profile_id, industry_id, headline, hourly_rate_cents, years_experience,
-  verified, cover_image_url, rating_average, rating_count, created_at, updated_at,
+  verified, cover_image_url, rating_average, rating_count, how_i_can_help, created_at, updated_at,
   profiles!inner(id, display_name, avatar_url, bio, created_at, updated_at),
-  credentials(id, expert_profile_id, title, issuer, year),
-  availability_windows(id, expert_profile_id, weekday, start_minute, end_minute)
+  credentials(id, expert_profile_id, title, issuer, year, end_year, type),
+  availability_windows(id, expert_profile_id, weekday, start_minute, end_minute),
+  availability_dates(id, expert_profile_id, date, start_minute, end_minute)
 `;
 
 // ---------- Storage uploads ----------
@@ -275,6 +306,7 @@ export type ExpertProfileInput = {
   hourlyRateCents: number;
   yearsExperience: number;
   coverImageUrl?: string | null;
+  howICanHelp?: string | null;
 };
 
 export const upsertMyExpertProfile = async (
@@ -290,6 +322,7 @@ export const upsertMyExpertProfile = async (
       hourly_rate_cents: input.hourlyRateCents,
       years_experience: input.yearsExperience,
       cover_image_url: input.coverImageUrl ?? null,
+      how_i_can_help: input.howICanHelp ?? null,
     });
   if (error) throw error;
 };
@@ -299,17 +332,27 @@ export const deleteMyExpertProfile = async (userId: string): Promise<void> => {
   if (error) throw error;
 };
 
-// ---------- Credentials ----------
+// ---------- Background (work / education / certifications / other) ----------
+
+export type BackgroundEntryInput = {
+  type: BackgroundType;
+  title: string;
+  issuer: string;
+  year: number;
+  endYear?: number | null;
+};
 
 export const addCredential = async (
   expertId: string,
-  c: { title: string; issuer: string; year: number },
+  c: BackgroundEntryInput,
 ): Promise<void> => {
   const { error } = await sb().from('credentials').insert({
     expert_profile_id: expertId,
+    type: c.type,
     title: c.title,
     issuer: c.issuer,
     year: c.year,
+    end_year: c.endYear ?? null,
   });
   if (error) throw error;
 };
@@ -340,6 +383,26 @@ export const setAvailability = async (
       end_minute: w.endMinute,
     })),
   );
+  if (error) throw error;
+};
+
+// ---------- Availability dates (specific-date one-offs) ----------
+
+export const addAvailabilityDate = async (
+  expertId: string,
+  input: { date: string; startMinute: number; endMinute: number },
+): Promise<void> => {
+  const { error } = await sb().from('availability_dates').insert({
+    expert_profile_id: expertId,
+    date: input.date,
+    start_minute: input.startMinute,
+    end_minute: input.endMinute,
+  });
+  if (error) throw error;
+};
+
+export const deleteAvailabilityDate = async (id: string): Promise<void> => {
+  const { error } = await sb().from('availability_dates').delete().eq('id', id);
   if (error) throw error;
 };
 

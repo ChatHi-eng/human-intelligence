@@ -1,12 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  addAvailabilityDate,
   addCredential,
+  deleteAvailabilityDate,
   deleteCredential,
   deleteMyExpertProfile,
   fetchExpert,
   fetchExperts,
   setAvailability,
   upsertMyExpertProfile,
+  type BackgroundEntryInput,
   type ExpertProfileInput,
   type ExpertsFilters,
 } from '@/services/api';
@@ -73,10 +76,37 @@ export const useAddCredential = () => {
   const userId = useAuthStore((s) => s.user?.id);
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (c: { title: string; issuer: string; year: number }) => {
+    mutationFn: async (c: BackgroundEntryInput) => {
       if (!userId) throw new Error('Not signed in');
       await addCredential(userId, c);
     },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['my-expert-profile'] });
+      if (userId) void qc.invalidateQueries({ queryKey: ['expert', userId] });
+    },
+  });
+};
+
+export const useAddAvailabilityDate = () => {
+  const userId = useAuthStore((s) => s.user?.id);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { date: string; startMinute: number; endMinute: number }) => {
+      if (!userId) throw new Error('Not signed in');
+      await addAvailabilityDate(userId, input);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['my-expert-profile'] });
+      if (userId) void qc.invalidateQueries({ queryKey: ['expert', userId] });
+    },
+  });
+};
+
+export const useDeleteAvailabilityDate = () => {
+  const userId = useAuthStore((s) => s.user?.id);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: deleteAvailabilityDate,
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['my-expert-profile'] });
       if (userId) void qc.invalidateQueries({ queryKey: ['expert', userId] });
