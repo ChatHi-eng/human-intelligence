@@ -1,7 +1,16 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { ExpertList } from '@/components/expert/ExpertList';
+import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Screen } from '@/components/ui/Screen';
 import { SectionHeader } from '@/components/ui/SectionHeader';
@@ -9,14 +18,50 @@ import { industries } from '@/constants/industries';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useExperts } from '@/hooks/useExperts';
 
+type Filters = {
+  industryId?: string;
+  query: string;
+  minRating?: number;
+  maxHourlyRateCents?: number;
+};
+
+type FilterOption = { label: string; value?: number };
+
+const RATING_OPTIONS: FilterOption[] = [
+  { label: 'Any rating', value: undefined },
+  { label: '4.0+', value: 4 },
+  { label: '4.5+', value: 4.5 },
+  { label: '4.8+', value: 4.8 },
+];
+
+const PRICE_OPTIONS: FilterOption[] = [
+  { label: 'Any price', value: undefined },
+  { label: 'Under $75/hr', value: 7500 },
+  { label: 'Under $150/hr', value: 15000 },
+  { label: 'Under $250/hr', value: 25000 },
+];
+
 export default function DiscoverScreen() {
   const router = useRouter();
-  const [industryId, setIndustryId] = useState<string | undefined>();
-  const [query, setQuery] = useState('');
-  const { data: experts, isLoading } = useExperts({ industryId, query });
+  const [filters, setFilters] = useState<Filters>({ query: '' });
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const noFiltersActive = !industryId && !query;
+  const { data: experts, isLoading } = useExperts({
+    industryId: filters.industryId,
+    query: filters.query || undefined,
+    minRating: filters.minRating,
+    maxHourlyRateCents: filters.maxHourlyRateCents,
+  });
+
+  const noFiltersActive =
+    !filters.industryId &&
+    !filters.query &&
+    filters.minRating === undefined &&
+    filters.maxHourlyRateCents === undefined;
   const dbIsEmpty = !isLoading && experts && experts.length === 0 && noFiltersActive;
+  const activeFilterCount =
+    (filters.minRating !== undefined ? 1 : 0) +
+    (filters.maxHourlyRateCents !== undefined ? 1 : 0);
 
   return (
     <Screen>
@@ -43,15 +88,30 @@ export default function DiscoverScreen() {
                 title="Talk to a human"
                 caption="Verified experts. Real video or phone advice — on your schedule."
               />
-              <TextInput
-                placeholder="Search by expertise, name…"
-                placeholderTextColor={colors.textMuted}
-                style={styles.search}
-                value={query}
-                onChangeText={setQuery}
-                autoCorrect={false}
-                returnKeyType="search"
-              />
+              <View style={styles.searchRow}>
+                <TextInput
+                  placeholder="Search by expertise, name…"
+                  placeholderTextColor={colors.textMuted}
+                  style={styles.search}
+                  value={filters.query}
+                  onChangeText={(query) => setFilters({ ...filters, query })}
+                  autoCorrect={false}
+                  returnKeyType="search"
+                />
+                <Pressable
+                  onPress={() => setFiltersOpen(true)}
+                  style={[styles.filterButton, activeFilterCount > 0 && styles.filterButtonActive]}
+                >
+                  <Text
+                    style={[
+                      styles.filterText,
+                      activeFilterCount > 0 && styles.filterTextActive,
+                    ]}
+                  >
+                    Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+                  </Text>
+                </Pressable>
+              </View>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -59,15 +119,15 @@ export default function DiscoverScreen() {
               >
                 <FilterChip
                   label="All"
-                  active={industryId === undefined}
-                  onPress={() => setIndustryId(undefined)}
+                  active={filters.industryId === undefined}
+                  onPress={() => setFilters({ ...filters, industryId: undefined })}
                 />
                 {industries.map((i) => (
                   <FilterChip
                     key={i.id}
                     label={`${i.emoji}  ${i.label}`}
-                    active={industryId === i.id}
-                    onPress={() => setIndustryId(i.id)}
+                    active={filters.industryId === i.id}
+                    onPress={() => setFilters({ ...filters, industryId: i.id })}
                   />
                 ))}
               </ScrollView>
@@ -75,6 +135,16 @@ export default function DiscoverScreen() {
           }
         />
       )}
+
+      <FilterSheet
+        visible={filtersOpen}
+        filters={filters}
+        onClose={() => setFiltersOpen(false)}
+        onChange={(next) => setFilters({ ...filters, ...next })}
+        onReset={() =>
+          setFilters({ ...filters, minRating: undefined, maxHourlyRateCents: undefined })
+        }
+      />
     </Screen>
   );
 }
@@ -93,9 +163,69 @@ const FilterChip = ({
   </Pressable>
 );
 
+const FilterSheet = ({
+  visible,
+  filters,
+  onClose,
+  onChange,
+  onReset,
+}: {
+  visible: boolean;
+  filters: Filters;
+  onClose: () => void;
+  onChange: (next: Partial<Filters>) => void;
+  onReset: () => void;
+}) => (
+  <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Pressable style={styles.sheetBackdrop} onPress={onClose} />
+    <View style={styles.sheet}>
+      <Text style={styles.sheetTitle}>Filters</Text>
+
+      <Text style={styles.sheetLabel}>Minimum rating</Text>
+      <View style={styles.sheetOptions}>
+        {RATING_OPTIONS.map((o) => {
+          const active = filters.minRating === o.value;
+          return (
+            <Pressable
+              key={o.label}
+              onPress={() => onChange({ minRating: o.value })}
+              style={[chipStyles.chip, active && chipStyles.chipActive]}
+            >
+              <Text style={[chipStyles.text, active && chipStyles.textActive]}>{o.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <Text style={styles.sheetLabel}>Hourly rate</Text>
+      <View style={styles.sheetOptions}>
+        {PRICE_OPTIONS.map((o) => {
+          const active = filters.maxHourlyRateCents === o.value;
+          return (
+            <Pressable
+              key={o.label}
+              onPress={() => onChange({ maxHourlyRateCents: o.value })}
+              style={[chipStyles.chip, active && chipStyles.chipActive]}
+            >
+              <Text style={[chipStyles.text, active && chipStyles.textActive]}>{o.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <View style={styles.sheetActions}>
+        <Button title="Reset" variant="ghost" onPress={onReset} style={{ flex: 1 }} />
+        <Button title="Done" onPress={onClose} style={{ flex: 1 }} />
+      </View>
+    </View>
+  </Modal>
+);
+
 const styles = StyleSheet.create({
   header: { paddingTop: spacing.lg, gap: spacing.md, marginBottom: spacing.md },
+  searchRow: { flexDirection: 'row', gap: spacing.sm },
   search: {
+    flex: 1,
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     paddingHorizontal: spacing.lg,
@@ -105,7 +235,30 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
+  filterButton: {
+    paddingHorizontal: spacing.lg,
+    justifyContent: 'center',
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  filterButtonActive: { backgroundColor: colors.textPrimary, borderColor: colors.textPrimary },
+  filterText: { ...typography.bodyStrong, color: colors.textPrimary },
+  filterTextActive: { color: '#FFFFFF' },
   chips: { gap: spacing.sm, paddingVertical: spacing.xs },
+  sheetBackdrop: { flex: 1, backgroundColor: colors.overlay },
+  sheet: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing.xl,
+    gap: spacing.md,
+  },
+  sheetTitle: { ...typography.title, color: colors.textPrimary, marginBottom: spacing.sm },
+  sheetLabel: { ...typography.label, color: colors.textSecondary, marginTop: spacing.md },
+  sheetOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  sheetActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg },
 });
 
 const chipStyles = StyleSheet.create({

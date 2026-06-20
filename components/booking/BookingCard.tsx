@@ -24,7 +24,7 @@ const statusTone = (status: Booking['status']) => {
     case 'cancelled':
       return { label: 'Cancelled', tone: 'warning' as const };
     case 'requested':
-      return { label: 'Requested', tone: 'neutral' as const };
+      return { label: 'Awaiting expert', tone: 'warning' as const };
   }
 };
 

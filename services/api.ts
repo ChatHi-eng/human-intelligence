@@ -270,6 +270,8 @@ export const updateMyProfile = async (userId: string, patch: ProfilePatch): Prom
 export type ExpertsFilters = {
   industryId?: string;
   query?: string;
+  minRating?: number;
+  maxHourlyRateCents?: number;
 };
 
 export const fetchExperts = async (filters: ExpertsFilters = {}): Promise<Expert[]> => {
@@ -278,6 +280,10 @@ export const fetchExperts = async (filters: ExpertsFilters = {}): Promise<Expert
     .select(EXPERT_SELECT)
     .order('rating_average', { ascending: false });
   if (filters.industryId) q = q.eq('industry_id', filters.industryId);
+  if (typeof filters.minRating === 'number') q = q.gte('rating_average', filters.minRating);
+  if (typeof filters.maxHourlyRateCents === 'number') {
+    q = q.lte('hourly_rate_cents', filters.maxHourlyRateCents);
+  }
   const { data, error } = await q;
   if (error) throw error;
   const experts = (data as unknown as ExpertWithRelations[])
@@ -286,7 +292,9 @@ export const fetchExperts = async (filters: ExpertsFilters = {}): Promise<Expert
   if (!filters.query) return experts;
   const needle = filters.query.toLowerCase();
   return experts.filter((e) =>
-    `${e.displayName} ${e.headline} ${e.bio ?? ''}`.toLowerCase().includes(needle),
+    `${e.displayName} ${e.headline} ${e.bio ?? ''} ${e.howICanHelp ?? ''}`
+      .toLowerCase()
+      .includes(needle),
   );
 };
 
@@ -438,6 +446,7 @@ export type CreateBookingInput = {
 };
 
 export const createBooking = async (input: CreateBookingInput): Promise<Booking> => {
+  // Note: server-side default sets status='requested'. Expert must accept.
   const { data, error } = await sb()
     .from('bookings')
     .insert({
@@ -458,6 +467,62 @@ export const createBooking = async (input: CreateBookingInput): Promise<Booking>
 export const updateBookingStatus = async (id: string, status: BookingStatus): Promise<void> => {
   const { error } = await sb().from('bookings').update({ status }).eq('id', id);
   if (error) throw error;
+};
+
+export const acceptBooking = async (id: string): Promise<void> => {
+  const { error } = await sb()
+    .from('bookings')
+    .update({ status: 'confirmed' })
+    .eq('id', id);
+  if (error) throw error;
+};
+
+export const declineBooking = async (id: string, reason?: string): Promise<void> => {
+  const { error } = await sb()
+    .from('bookings')
+    .update({ status: 'cancelled', cancellation_reason: reason ?? null })
+    .eq('id', id);
+  if (error) throw error;
+};
+
+export const cancelBooking = async (id: string, reason?: string): Promise<void> => {
+  const { error } = await sb()
+    .from('bookings')
+    .update({ status: 'cancelled', cancellation_reason: reason ?? null })
+    .eq('id', id);
+  if (error) throw error;
+};
+
+// Pending requests for an expert to act on.
+export const fetchPendingRequestsForExpert = async (
+  userId: string,
+): Promise<Booking[]> => {
+  const { data, error } = await sb()
+    .from('bookings')
+    .select('*')
+    .eq('expert_profile_id', userId)
+    .eq('status', 'requested')
+    .order('start_at', { ascending: true });
+  if (error) throw error;
+  return (data as BookingRow[]).map(mapBooking);
+};
+
+// Confirmed/in_progress bookings on an expert's calendar — used for slot
+// generation so two customers can't double-book the same time.
+export const fetchActiveBookingsForExpert = async (
+  userId: string,
+  sinceIso?: string,
+): Promise<Booking[]> => {
+  let q = sb()
+    .from('bookings')
+    .select('*')
+    .eq('expert_profile_id', userId)
+    .in('status', ['requested', 'confirmed', 'in_progress'])
+    .order('start_at', { ascending: true });
+  if (sinceIso) q = q.gte('start_at', sinceIso);
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data as BookingRow[]).map(mapBooking);
 };
 
 export const updateBookingPaymentStatus = async (

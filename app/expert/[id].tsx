@@ -15,30 +15,27 @@ import { RatingStars } from '@/components/ui/RatingStars';
 import { Screen } from '@/components/ui/Screen';
 import { industryById } from '@/constants/industries';
 import { colors, radius, spacing, typography } from '@/constants/theme';
-import { useCreateBooking } from '@/hooks/useBookings';
+import { useCreateBooking, useExpertActiveBookings } from '@/hooks/useBookings';
 import { useExpert } from '@/hooks/useExperts';
-import { addMinutes } from '@/lib/date';
+import { formatDay } from '@/lib/date';
 import { formatCurrency } from '@/lib/format';
+import { generateSlots, groupSlotsByDate } from '@/lib/slots';
 import type { CallMedium, TimeSlot } from '@/types/booking';
-
-const buildSlotsForTomorrow = (): TimeSlot[] => {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(9, 0, 0, 0);
-  return Array.from({ length: 8 }).map((_, i) => {
-    const start = new Date(tomorrow.getTime() + i * 60 * 60_000);
-    return { startIso: start.toISOString(), endIso: addMinutes(start.toISOString(), 30) };
-  });
-};
 
 export default function ExpertProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { data: expert, isLoading } = useExpert(id);
-  const slots = useMemo(() => buildSlotsForTomorrow(), []);
+  const { data: busy } = useExpertActiveBookings(id);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [medium, setMedium] = useState<CallMedium>('video');
   const { mutate: book, isPending } = useCreateBooking();
+
+  const slotsByDate = useMemo(() => {
+    if (!expert) return {};
+    const slots = generateSlots(expert.availability, expert.availabilityDates, busy ?? []);
+    return groupSlotsByDate(slots);
+  }, [expert, busy]);
 
   if (isLoading && !expert) return <LoadingView label="Loading expert…" />;
   if (!expert) {
@@ -59,8 +56,8 @@ export default function ExpertProfileScreen() {
         onSuccess: (booking) => {
           Toast.show({
             type: 'success',
-            text1: 'Booking confirmed',
-            text2: `Calendar event added. See you soon.`,
+            text1: 'Request sent',
+            text2: `Waiting for ${expert.displayName} to confirm.`,
           });
           router.replace(`/booking/${booking.id}`);
         },
@@ -74,15 +71,21 @@ export default function ExpertProfileScreen() {
     );
   };
 
+  const dateKeys = Object.keys(slotsByDate).sort().slice(0, 7);
+
   return (
     <Screen padded={false}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <Image
-          source={{ uri: expert.coverImageUrl }}
-          style={styles.cover}
-          transition={200}
-          contentFit="cover"
-        />
+        {expert.coverImageUrl ? (
+          <Image
+            source={{ uri: expert.coverImageUrl }}
+            style={styles.cover}
+            transition={200}
+            contentFit="cover"
+          />
+        ) : (
+          <View style={[styles.cover, styles.coverPlaceholder]} />
+        )}
         <View style={styles.body}>
           <View style={styles.headerRow}>
             <Avatar uri={expert.avatarUrl} name={expert.displayName} size={64} />
@@ -119,36 +122,60 @@ export default function ExpertProfileScreen() {
             </>
           ) : null}
 
-          <Text style={styles.sectionTitle}>Pick a time (tomorrow)</Text>
-          <TimeSlotPicker slots={slots} selected={selectedSlot} onSelect={setSelectedSlot} />
-
-          <Text style={styles.sectionTitle}>How would you like to talk?</Text>
-          <View style={styles.mediumRow}>
-            <Button
-              title="Video"
-              variant={medium === 'video' ? 'primary' : 'secondary'}
-              onPress={() => setMedium('video')}
-              style={{ flex: 1 }}
+          <Text style={styles.sectionTitle}>Pick a time</Text>
+          {dateKeys.length === 0 ? (
+            <EmptyState
+              title="No times available"
+              description={`${expert.displayName} hasn't opened up their calendar yet.`}
+              emoji="📅"
             />
-            <Button
-              title="Phone"
-              variant={medium === 'phone' ? 'primary' : 'secondary'}
-              onPress={() => setMedium('phone')}
-              style={{ flex: 1 }}
-            />
-          </View>
+          ) : (
+            dateKeys.map((dateKey) => {
+              const slots = slotsByDate[dateKey] ?? [];
+              return (
+                <View key={dateKey} style={styles.daySection}>
+                  <Text style={styles.dayLabel}>{formatDay(`${dateKey}T12:00:00`)}</Text>
+                  <TimeSlotPicker
+                    slots={slots}
+                    selected={selectedSlot}
+                    onSelect={setSelectedSlot}
+                  />
+                </View>
+              );
+            })
+          )}
 
-          <View style={styles.rateRow}>
-            <Text style={styles.rateLabel}>Rate</Text>
-            <Text style={styles.rateValue}>{formatCurrency(expert.hourlyRate)}/hr</Text>
-          </View>
+          {dateKeys.length > 0 && (
+            <>
+              <Text style={styles.sectionTitle}>How would you like to talk?</Text>
+              <View style={styles.mediumRow}>
+                <Button
+                  title="Video"
+                  variant={medium === 'video' ? 'primary' : 'secondary'}
+                  onPress={() => setMedium('video')}
+                  style={{ flex: 1 }}
+                />
+                <Button
+                  title="Phone"
+                  variant={medium === 'phone' ? 'primary' : 'secondary'}
+                  onPress={() => setMedium('phone')}
+                  style={{ flex: 1 }}
+                />
+              </View>
 
-          <PaymentSheet
-            amountCents={expert.hourlyRate}
-            expertName={expert.displayName}
-            onPay={onPay}
-            loading={isPending}
-          />
+              <View style={styles.rateRow}>
+                <Text style={styles.rateLabel}>Rate</Text>
+                <Text style={styles.rateValue}>{formatCurrency(expert.hourlyRate)}/hr</Text>
+              </View>
+
+              <PaymentSheet
+                amountCents={expert.hourlyRate}
+                expertName={expert.displayName}
+                onPay={onPay}
+                loading={isPending}
+              />
+            </>
+          )}
         </View>
       </ScrollView>
     </Screen>
@@ -158,6 +185,7 @@ export default function ExpertProfileScreen() {
 const styles = StyleSheet.create({
   scroll: { paddingBottom: spacing.xxxl },
   cover: { width: '100%', height: 220, backgroundColor: colors.surfaceAlt },
+  coverPlaceholder: { backgroundColor: colors.surfaceAlt },
   body: { padding: spacing.lg, gap: spacing.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   name: { ...typography.title, color: colors.textPrimary },
@@ -165,6 +193,8 @@ const styles = StyleSheet.create({
   badgeRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
   bio: { ...typography.body, color: colors.textPrimary, marginTop: spacing.xs },
   sectionTitle: { ...typography.heading, color: colors.textPrimary, marginTop: spacing.md },
+  daySection: { gap: spacing.sm, paddingVertical: spacing.xs },
+  dayLabel: { ...typography.bodyStrong, color: colors.textSecondary },
   mediumRow: { flexDirection: 'row', gap: spacing.md },
   rateRow: {
     flexDirection: 'row',
