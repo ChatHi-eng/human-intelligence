@@ -5,6 +5,7 @@ import Toast from 'react-native-toast-message';
 import { Button } from '@/components/ui/Button';
 import { Screen } from '@/components/ui/Screen';
 import { colors, radius, spacing, typography } from '@/constants/theme';
+import { authRedirectUrl } from '@/services/supabase';
 import { useAuth } from '@/hooks/useAuth';
 
 type Stage = 'enter-email' | 'sent';
@@ -58,6 +59,16 @@ export default function LoginScreen() {
             We sent a sign-in link to <Text style={styles.bold}>{email}</Text>. Tap it on this
             device to come back signed in.
           </Text>
+          <View style={styles.debugBox}>
+            <Text style={styles.debugLabel}>Debug — redirect URL sent to Supabase:</Text>
+            <Text selectable style={styles.debugUrl}>
+              {authRedirectUrl()}
+            </Text>
+            <Text style={styles.debugHint}>
+              If sign-in fails, paste this URL exactly into Supabase → Authentication → URL
+              Configuration → Redirect URLs.
+            </Text>
+          </View>
           <Button
             title="Use a different email"
             variant="ghost"
@@ -115,4 +126,14 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
+  debugBox: {
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: spacing.xs,
+    marginTop: spacing.md,
+  },
+  debugLabel: { ...typography.label, color: colors.textSecondary },
+  debugUrl: { ...typography.bodyStrong, color: colors.textPrimary },
+  debugHint: { ...typography.caption, color: colors.textMuted },
 });
