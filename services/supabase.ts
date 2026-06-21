@@ -3,7 +3,7 @@
 // empty (dev / Expo Go without a project set up), getSupabase() returns null and
 // the authStore falls back to mock mode.
 import 'react-native-url-polyfill/auto';
-import * as Linking from 'expo-linking';
+import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import {
@@ -76,7 +76,32 @@ export const getSupabase = (): SupabaseClient | null => {
 
 export const supabaseConfigured = () => Boolean(url && anonKey);
 
-export const authRedirectUrl = () => Linking.createURL('auth-callback');
+// We hand-build the redirect URL instead of using Linking.createURL because that
+// helper returns an IP-based exp:// URL in Expo Go that changes whenever the
+// laptop's LAN IP changes — and Supabase is fussy about validating it.
+// Stable URLs by environment:
+//   - Web: <origin>/auth-callback (works with localhost:8081)
+//   - Expo Go on phone: exp+<slug>://auth-callback (registered by Expo Go)
+//   - Standalone build: <scheme>://auth-callback (from app.json scheme)
+export const authRedirectUrl = (): string => {
+  if (Platform.OS === 'web') {
+    const origin =
+      (globalThis as { location?: { origin?: string } }).location?.origin ??
+      'http://localhost:8081';
+    return `${origin}/auth-callback`;
+  }
+  const slug = Constants.expoConfig?.slug;
+  const scheme = Constants.expoConfig?.scheme;
+  // __DEV__ + slug → Expo Go (uses the exp+slug:// scheme).
+  // Otherwise → standalone build (uses the scheme from app.json).
+  if (typeof __DEV__ !== 'undefined' && __DEV__ && slug) {
+    return `exp+${slug}://auth-callback`;
+  }
+  if (typeof scheme === 'string' && scheme) {
+    return `${scheme}://auth-callback`;
+  }
+  return 'myapp://auth-callback';
+};
 
 export const signInWithMagicLink = async (email: string): Promise<void> => {
   const sb = getSupabase();
