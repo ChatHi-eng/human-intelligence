@@ -23,10 +23,16 @@ export const PaymentSheet = ({ amountCents, expertName, onPay, loading }: Paymen
       </View>
     </View>
     <Text style={styles.notice}>
-      Payment is authorized now and captured after the call. Stripe runs in stub mode until a dev
-      build is wired up.
+      You&apos;ll be sent to Stripe Checkout to enter card details. The booking is held for the
+      expert to accept once payment goes through. Test mode card: 4242 4242 4242 4242, any future
+      expiry, any CVC.
     </Text>
-    <Button title="Confirm and pay" onPress={onPay} loading={loading} fullWidth />
+    <Button
+      title={loading ? 'Opening Stripe Checkout…' : 'Continue to payment'}
+      onPress={onPay}
+      loading={loading}
+      fullWidth
+    />
   </View>
 );
 

@@ -105,6 +105,36 @@ When `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_ANON_KEY` are empty, the
 
 Sign in by entering your email → tapping the link in the email on the same device → the app handles the redirect at `app/auth-callback.tsx` and exchanges the code for a session.
 
+### Setting up Stripe (real payments via hosted Checkout)
+
+The MVP flow opens **Stripe Checkout** (hosted page) in an in-app browser. The native PaymentSheet comes once we're on a dev build.
+
+**1. Create a Stripe account.** [stripe.com](https://stripe.com) → sign up → activate test mode (top right toggle).
+
+**2. Grab keys** from *Developers → API keys*:
+- **Publishable key** (`pk_test_...`) — goes in `.env` as `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY`.
+- **Secret key** (`sk_test_...`) — stays out of `.env`; goes to Supabase as an Edge Function secret (next step).
+
+**3. Apply schema migration `0005_stripe_columns.sql`** (Supabase → SQL Editor).
+
+**4. Deploy the Edge Functions.** Supabase dashboard → **Edge Functions** → **Deploy a new function**:
+- Name: `create-checkout-session` → paste contents of `supabase/functions/create-checkout-session/index.ts` → Deploy. Leave "Verify JWT" **ON**.
+- Name: `stripe-webhook` → paste contents of `supabase/functions/stripe-webhook/index.ts` → Deploy. **Toggle "Verify JWT" OFF** (Stripe doesn't send a Supabase auth header; the webhook is authenticated by Stripe's signature instead).
+
+**5. Set Edge Function secrets.** Supabase dashboard → **Edge Functions** → **Secrets** (or Project Settings → Edge Functions):
+```
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...  (filled in step 6)
+APP_DEEP_LINK_RETURN_BASE=http://localhost:8081
+```
+
+**6. Configure the Stripe webhook endpoint.** Stripe dashboard → **Developers → Webhooks → Add endpoint**:
+- Endpoint URL: `https://<your-project-ref>.supabase.co/functions/v1/stripe-webhook`
+- Events to send: `checkout.session.completed`, `checkout.session.expired`, `payment_intent.succeeded`, `payment_intent.payment_failed`, `charge.refunded`
+- After creating, click into the endpoint → **Signing secret** → reveal → copy. Paste that as the value of `STRIPE_WEBHOOK_SECRET` in the Supabase secrets (back to step 5).
+
+**7. Test.** Sign in → pick an expert → choose a slot → tap **Continue to payment** → use Stripe's test card `4242 4242 4242 4242`, any future expiry, any CVC. Stripe fires the webhook, the booking flips to `payment_status: captured`, and TanStack Query refetches so you see the update on the booking detail screen within ~30 seconds.
+
 ## Scripts
 
 | Command | What it does |

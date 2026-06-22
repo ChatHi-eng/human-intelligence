@@ -9,12 +9,11 @@ import {
   fetchExpert,
   fetchMyBookings,
   fetchPendingRequestsForExpert,
-  updateBookingPaymentStatus,
   updateBookingStatus,
 } from '@/services/api';
 import { addBookingToDeviceCalendar } from '@/services/calendar';
 import { emailService, scheduleBookingReminder } from '@/services/notifications';
-import { confirmBookingPayment } from '@/services/stripe';
+import { createCheckoutSession, openCheckout } from '@/services/stripe';
 import { createRoomForBooking } from '@/services/video';
 import { useAuthStore } from '@/store/authStore';
 import type { BookingStatus, CallMedium, TimeSlot } from '@/types/booking';
@@ -71,11 +70,16 @@ export type CreateBookingMutationInput = {
   customerEmail?: string;
 };
 
+export type CreateBookingResult = {
+  bookingId: string;
+  checkoutResult: 'success' | 'cancel' | 'dismiss' | 'unknown';
+};
+
 export const useCreateBooking = () => {
   const userId = useAuthStore((s) => s.user?.id);
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (input: CreateBookingMutationInput) => {
+  return useMutation<CreateBookingResult, Error, CreateBookingMutationInput>({
+    mutationFn: async (input) => {
       if (!userId) throw new Error('Not signed in');
       const expert = await fetchExpert(input.expertId);
       if (!expert) throw new Error('Expert not found');
@@ -83,7 +87,9 @@ export const useCreateBooking = () => {
       const room =
         input.medium === 'video' ? await createRoomForBooking(`pending-${Date.now()}`) : null;
 
-      // Created in 'requested' status (server default). Expert must accept.
+      // Booking row goes in with status='requested' (server default) and
+      // payment_status='pending'. The webhook flips payment_status after
+      // checkout succeeds.
       const booking = await createBooking({
         customerId: userId,
         expertId: input.expertId,
@@ -93,13 +99,13 @@ export const useCreateBooking = () => {
         callRoomUrl: room?.url ?? null,
       });
 
-      // Authorize the payment (hold funds). Stripe is stubbed — real capture
-      // happens when expert accepts.
-      const payment = await confirmBookingPayment(booking);
-      await updateBookingPaymentStatus(
-        booking.id,
-        payment.status === 'succeeded' ? 'authorized' : 'failed',
-      );
+      // Mint a hosted Stripe Checkout Session via Edge Function.
+      const session = await createCheckoutSession(booking.id);
+      void qc.invalidateQueries({ queryKey: ['bookings'] });
+
+      // Open hosted Checkout. Resolves when the browser dismisses — Stripe's
+      // webhook handles the actual payment update on the server side.
+      const result = await openCheckout(session.sessionUrl);
 
       void emailService.sendBookingConfirmation(
         input.customerEmail ?? 'you@example.com',
@@ -107,7 +113,7 @@ export const useCreateBooking = () => {
         expert.displayName,
       );
 
-      return booking;
+      return { bookingId: booking.id, checkoutResult: result.type };
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['bookings'] });

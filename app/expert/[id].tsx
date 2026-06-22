@@ -53,13 +53,17 @@ export default function ExpertProfileScreen() {
     book(
       { expertId: expert.id, slot: selectedSlot, medium },
       {
-        onSuccess: (booking) => {
-          Toast.show({
-            type: 'success',
-            text1: 'Request sent',
-            text2: `Waiting for ${expert.displayName} to confirm.`,
-          });
-          router.replace(`/booking/${booking.id}`);
+        onSuccess: (result) => {
+          if (result.checkoutResult === 'cancel') {
+            Toast.show({ type: 'error', text1: 'Payment cancelled' });
+          } else {
+            Toast.show({
+              type: 'success',
+              text1: 'Request sent',
+              text2: `Waiting for ${expert.displayName} to confirm.`,
+            });
+          }
+          router.replace(`/booking/${result.bookingId}`);
         },
         onError: (err) =>
           Toast.show({
