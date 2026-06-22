@@ -13,6 +13,10 @@ import {
   type ExpertProfileInput,
   type ExpertsFilters,
 } from '@/services/api';
+import {
+  createConnectOnboardingLink,
+  openConnectOnboarding,
+} from '@/services/stripe';
 import { useAuthStore } from '@/store/authStore';
 import type { AvailabilityWindow } from '@/types/user';
 
@@ -122,6 +126,23 @@ export const useDeleteCredential = () => {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['my-expert-profile'] });
       if (userId) void qc.invalidateQueries({ queryKey: ['expert', userId] });
+    },
+  });
+};
+
+export const useStartConnectOnboarding = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const link = await createConnectOnboardingLink();
+      const result = await openConnectOnboarding(link.onboardingUrl);
+      return { ...link, result: result.type };
+    },
+    onSuccess: () => {
+      // payouts_enabled gets set by the account.updated webhook; refetch so we
+      // notice the change as soon as it lands.
+      void qc.invalidateQueries({ queryKey: ['my-expert-profile'] });
+      void qc.invalidateQueries({ queryKey: ['experts'] });
     },
   });
 };

@@ -51,6 +51,10 @@ export type Expert = Profile & {
   availabilityDates: AvailabilityDate[];
   verified: boolean;
   coverImageUrl: string;
+  // Stripe Connect — set after expert starts onboarding. payoutsEnabled flips
+  // true once Stripe says charges_enabled + payouts_enabled.
+  stripeConnectAccountId: string | null;
+  stripeConnectPayoutsEnabled: boolean;
 };
 
 export const isExpert = (p: Profile): p is Expert => p.role === 'expert';

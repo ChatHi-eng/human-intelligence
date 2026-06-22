@@ -135,6 +135,27 @@ APP_DEEP_LINK_RETURN_BASE=http://localhost:8081
 
 **7. Test.** Sign in → pick an expert → choose a slot → tap **Continue to payment** → use Stripe's test card `4242 4242 4242 4242`, any future expiry, any CVC. Stripe fires the webhook, the booking flips to `payment_status: captured`, and TanStack Query refetches so you see the update on the booking detail screen within ~30 seconds.
 
+### Stripe Connect — expert payouts (`feat/stripe-complete`)
+
+Once a basic Checkout payment works, the next layer makes payments actually flow to the expert (instead of sitting in the platform account).
+
+**1. Apply schema migration `0006_stripe_connect.sql`** (Supabase → SQL Editor).
+
+**2. Enable Connect in your Stripe dashboard.** Stripe dashboard → **Connect** (left sidebar) → **Get started**. Pick **Platform or marketplace**. Choose **Express** for account type. Fill in the platform profile (test mode is fine). No legal info required in test mode.
+
+**3. Deploy two more Edge Functions** (same drill as before):
+- `create-connect-account` (Verify JWT OFF) — from `supabase/functions/create-connect-account/index.ts`.
+- `refund-booking` (Verify JWT OFF) — from `supabase/functions/refund-booking/index.ts`.
+
+**4. Update the existing webhook to also receive `account.updated`.** Stripe dashboard → Developers → Webhooks → click your endpoint → **Add events** → tick `account.updated` and `account.application.authorized` (or just "all account events"). Save.
+
+**5. Test.**
+- As an expert, open the expert profile editor → scroll to **Payouts** → tap **Set up payouts via Stripe**.
+- Stripe Connect Express onboarding opens in a browser tab. Fill in dummy info (Test mode → "Test mode bank account": routing `110000000`, account `000123456789`; the form is short). Finish.
+- Webhook fires `account.updated` → `stripe_connect_payouts_enabled` flips to true on your expert profile.
+- The next customer booking will automatically split: 85% to the expert's Connect balance, 15% application fee to the platform.
+- Cancel a paid booking → the customer is automatically refunded via `refund-booking`.
+
 ## Scripts
 
 | Command | What it does |

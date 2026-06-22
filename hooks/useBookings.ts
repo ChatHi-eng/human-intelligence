@@ -13,7 +13,11 @@ import {
 } from '@/services/api';
 import { addBookingToDeviceCalendar } from '@/services/calendar';
 import { emailService, scheduleBookingReminder } from '@/services/notifications';
-import { createCheckoutSession, openCheckout } from '@/services/stripe';
+import {
+  createCheckoutSession,
+  openCheckout,
+  refundBooking as refundBookingApi,
+} from '@/services/stripe';
 import { createRoomForBooking } from '@/services/video';
 import { useAuthStore } from '@/store/authStore';
 import type { BookingStatus, CallMedium, TimeSlot } from '@/types/booking';
@@ -161,7 +165,30 @@ export const useDeclineBooking = () => {
 export const useCancelBooking = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { id: string; reason?: string }) => cancelBooking(input.id, input.reason),
+    mutationFn: async (input: { id: string; reason?: string; refund?: boolean }) => {
+      await cancelBooking(input.id, input.reason);
+      // Refund any captured/authorized payment by default when the booking is
+      // cancelled. If the caller knows the booking was never paid (e.g. expert
+      // declining a request before checkout completed) they can pass refund=false.
+      if (input.refund !== false) {
+        try {
+          await refundBookingApi(input.id, input.reason);
+        } catch {
+          // Refund best-effort: webhook will catch up if Stripe takes a while.
+        }
+      }
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['bookings'] });
+    },
+  });
+};
+
+export const useRefundBooking = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { bookingId: string; reason?: string }) =>
+      refundBookingApi(input.bookingId, input.reason),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['bookings'] });
     },

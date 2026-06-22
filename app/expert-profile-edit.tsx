@@ -2,18 +2,24 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { AvailabilityCalendarEditor } from '@/components/expert/AvailabilityCalendarEditor';
 import { AvailabilityEditor } from '@/components/expert/AvailabilityEditor';
 import { BackgroundEditor } from '@/components/expert/BackgroundEditor';
+import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { Screen } from '@/components/ui/Screen';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { industries } from '@/constants/industries';
 import { colors, radius, spacing, typography } from '@/constants/theme';
-import { useMyExpertProfile, useUpsertMyExpertProfile } from '@/hooks/useExperts';
+import {
+  useMyExpertProfile,
+  useStartConnectOnboarding,
+  useUpsertMyExpertProfile,
+} from '@/hooks/useExperts';
 import { useUploadImage } from '@/hooks/useProfile';
 
 type Form = {
@@ -225,6 +231,9 @@ export default function ExpertProfileEditScreen() {
 
         {existing && (
           <>
+            <SectionHeader title="Payouts" caption="Get paid via Stripe Connect (test mode)." />
+            <PayoutsCard expert={existing} />
+
             <SectionHeader title="Background" caption="Work, education, certifications." />
             <BackgroundEditor entries={existing.credentials} />
 
@@ -283,4 +292,71 @@ const chipStyles = StyleSheet.create({
   active: { backgroundColor: colors.textPrimary },
   text: { ...typography.bodyStrong, color: colors.textPrimary },
   activeText: { color: '#FFFFFF' },
+});
+
+const PayoutsCard = ({
+  expert,
+}: {
+  expert: { stripeConnectAccountId: string | null; stripeConnectPayoutsEnabled: boolean };
+}) => {
+  const { mutate: start, isPending } = useStartConnectOnboarding();
+  const isReady = expert.stripeConnectPayoutsEnabled;
+  const isStarted = Boolean(expert.stripeConnectAccountId) && !isReady;
+
+  const status = isReady
+    ? { label: 'Ready', tone: 'success' as const }
+    : isStarted
+      ? { label: 'In progress', tone: 'warning' as const }
+      : { label: 'Not set up', tone: 'neutral' as const };
+
+  const onPress = () =>
+    start(undefined, {
+      onSuccess: () => {
+        Toast.show({
+          type: 'success',
+          text1: 'Returned from Stripe',
+          text2: isReady ? 'Payouts enabled.' : 'We will pick up your status from Stripe shortly.',
+        });
+      },
+      onError: (err) =>
+        Toast.show({
+          type: 'error',
+          text1: 'Could not open Stripe',
+          text2: err instanceof Error ? err.message : 'Unknown error',
+        }),
+    });
+
+  return (
+    <Card>
+      <View style={payoutsStyles.row}>
+        <View style={{ flex: 1 }}>
+          <Text style={payoutsStyles.title}>Stripe Connect</Text>
+          <Text style={payoutsStyles.body}>
+            Customers pay you through Stripe. Until you finish onboarding, payments are held by the
+            platform. Test mode uses fake bank info — fill anything plausible.
+          </Text>
+        </View>
+        <Badge label={status.label} tone={status.tone} />
+      </View>
+      <Button
+        title={
+          isReady
+            ? 'Update payout info'
+            : isStarted
+              ? 'Finish Stripe setup'
+              : 'Set up payouts via Stripe'
+        }
+        variant="secondary"
+        onPress={onPress}
+        loading={isPending}
+        style={{ marginTop: spacing.md }}
+      />
+    </Card>
+  );
+};
+
+const payoutsStyles = StyleSheet.create({
+  row: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },
+  title: { ...typography.bodyStrong, color: colors.textPrimary },
+  body: { ...typography.body, color: colors.textSecondary, marginTop: spacing.xs },
 });

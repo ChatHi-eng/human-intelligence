@@ -47,3 +47,55 @@ export const openCheckout = async (
   if (result.type === 'dismiss') return { type: 'dismiss' };
   return { type: 'unknown' };
 };
+
+// ---------- Stripe Connect (expert payouts) ----------
+
+export type ConnectOnboarding = {
+  accountId: string;
+  onboardingUrl: string;
+};
+
+export const createConnectOnboardingLink = async (): Promise<ConnectOnboarding> => {
+  const sb = getSupabase();
+  if (!sb) throw new Error('Supabase is not configured');
+  const { data, error } = await sb.functions.invoke<ConnectOnboarding>(
+    'create-connect-account',
+    { body: {} },
+  );
+  if (error) throw error;
+  if (!data || !data.onboardingUrl) throw new Error('No onboarding URL returned');
+  return data;
+};
+
+export const openConnectOnboarding = async (
+  onboardingUrl: string,
+): Promise<{ type: 'cancel' | 'dismiss' | 'success' | 'unknown' }> => {
+  const result = await WebBrowser.openAuthSessionAsync(onboardingUrl, undefined, {
+    showInRecents: true,
+  });
+  if (result.type === 'success') return { type: 'success' };
+  if (result.type === 'cancel') return { type: 'cancel' };
+  if (result.type === 'dismiss') return { type: 'dismiss' };
+  return { type: 'unknown' };
+};
+
+// ---------- Refunds ----------
+
+export type RefundResult = {
+  refundId: string;
+  status: 'pending' | 'succeeded' | 'failed' | 'requires_action' | 'canceled' | string;
+};
+
+export const refundBooking = async (
+  bookingId: string,
+  reason?: string,
+): Promise<RefundResult> => {
+  const sb = getSupabase();
+  if (!sb) throw new Error('Supabase is not configured');
+  const { data, error } = await sb.functions.invoke<RefundResult>('refund-booking', {
+    body: { bookingId, reason },
+  });
+  if (error) throw error;
+  if (!data) throw new Error('No refund result returned');
+  return data;
+};

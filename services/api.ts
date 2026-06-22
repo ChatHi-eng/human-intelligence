@@ -51,6 +51,8 @@ type ExpertProfileRow = {
   rating_average: number;
   rating_count: number;
   how_i_can_help: string | null;
+  stripe_connect_account_id: string | null;
+  stripe_connect_payouts_enabled: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -166,6 +168,8 @@ const mapExpert = (row: ExpertWithRelations): Expert | null => {
     availabilityDates: (row.availability_dates ?? []).map(mapAvailabilityDate),
     verified: row.verified,
     coverImageUrl: row.cover_image_url ?? '',
+    stripeConnectAccountId: row.stripe_connect_account_id,
+    stripeConnectPayoutsEnabled: row.stripe_connect_payouts_enabled,
     createdAt: row.created_at,
   };
 };
@@ -196,7 +200,8 @@ const mapReview = (row: ReviewRow): Review => ({
 // Shared select string for Expert + relations.
 const EXPERT_SELECT = `
   profile_id, industry_id, headline, hourly_rate_cents, years_experience,
-  verified, cover_image_url, rating_average, rating_count, how_i_can_help, created_at, updated_at,
+  verified, cover_image_url, rating_average, rating_count, how_i_can_help,
+  stripe_connect_account_id, stripe_connect_payouts_enabled, created_at, updated_at,
   profiles!inner(id, display_name, avatar_url, bio, created_at, updated_at),
   credentials(id, expert_profile_id, title, issuer, year, end_year, type),
   availability_windows(id, expert_profile_id, weekday, start_minute, end_minute),

@@ -69,7 +69,9 @@ serve(async (req) => {
 
   const { data: booking, error: bookingError } = await userClient
     .from('bookings')
-    .select('id, customer_id, expert_profile_id, price_cents, status, payment_status, stripe_checkout_session_id')
+    .select(
+      'id, customer_id, expert_profile_id, price_cents, status, payment_status, stripe_checkout_session_id',
+    )
     .eq('id', body.bookingId)
     .maybeSingle();
   if (bookingError) return json({ error: bookingError.message }, 500);
@@ -78,6 +80,20 @@ serve(async (req) => {
   if (booking.payment_status === 'captured') {
     return json({ error: 'Already paid' }, 409);
   }
+
+  // Look up the expert's Connect account so we can route the payout. If
+  // payouts aren't enabled yet, fall back to a platform-only charge — the
+  // platform holds the money until Connect is set up.
+  const { data: expert } = await userClient
+    .from('expert_profiles')
+    .select('stripe_connect_account_id, stripe_connect_payouts_enabled')
+    .eq('profile_id', booking.expert_profile_id)
+    .maybeSingle();
+
+  const PLATFORM_FEE_PCT = 0.15;
+  const applicationFeeCents = Math.floor(booking.price_cents * PLATFORM_FEE_PCT);
+  const canSplit =
+    expert?.stripe_connect_account_id && expert.stripe_connect_payouts_enabled;
 
   const stripe = new Stripe(stripeKey, {
     apiVersion: '2024-06-20',
@@ -106,14 +122,24 @@ serve(async (req) => {
       customer_id: booking.customer_id,
       expert_profile_id: booking.expert_profile_id,
     },
+    payment_intent_data: canSplit
+      ? {
+          application_fee_amount: applicationFeeCents,
+          transfer_data: { destination: expert!.stripe_connect_account_id! },
+        }
+      : undefined,
     success_url: `${returnBase}/booking/${booking.id}?stripe=success`,
     cancel_url: `${returnBase}/booking/${booking.id}?stripe=cancel`,
   });
 
-  // Persist the session id so the webhook can correlate events back to this booking.
+  // Persist the session id + application fee so the webhook can correlate events
+  // back to this booking and our earnings/payout reports stay accurate.
   await userClient
     .from('bookings')
-    .update({ stripe_checkout_session_id: session.id })
+    .update({
+      stripe_checkout_session_id: session.id,
+      stripe_application_fee_cents: canSplit ? applicationFeeCents : null,
+    })
     .eq('id', booking.id);
 
   return json({ sessionId: session.id, sessionUrl: session.url });

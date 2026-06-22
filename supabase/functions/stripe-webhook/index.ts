@@ -105,6 +105,18 @@ serve(async (req) => {
       if (piId) await updateBookingByPI(piId, { payment_status: 'refunded' });
       break;
     }
+    case 'account.updated': {
+      // Stripe Connect account state changed. Mirror charges_enabled +
+      // payouts_enabled onto our expert_profiles row so the app can show the
+      // right status and the checkout session knows whether to split payments.
+      const account = event.data.object as Stripe.Account;
+      const enabled = Boolean(account.charges_enabled && account.payouts_enabled);
+      await admin
+        .from('expert_profiles')
+        .update({ stripe_connect_payouts_enabled: enabled })
+        .eq('stripe_connect_account_id', account.id);
+      break;
+    }
     default:
       // Ignore other events.
       break;
