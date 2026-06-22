@@ -49,3 +49,8 @@ Thumbs.db
 
 # Claude Code local config
 .claude/
+
+# Playwright test artifacts
+tests/e2e/.results/
+tests/e2e/.playwright-report/
+tests/e2e/screenshots/*.png

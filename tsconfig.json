@@ -14,5 +14,5 @@
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
   ],
-  "exclude": ["node_modules", "supabase/functions"]
+  "exclude": ["node_modules", "supabase/functions", "tests/e2e/.results", "tests/e2e/.playwright-report"]
 }
