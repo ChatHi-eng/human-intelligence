@@ -156,6 +156,25 @@ Once a basic Checkout payment works, the next layer makes payments actually flow
 - The next customer booking will automatically split: 85% to the expert's Connect balance, 15% application fee to the platform.
 - Cancel a paid booking → the customer is automatically refunded via `refund-booking`.
 
+### Setting up Daily.co (real video calls)
+
+The MVP flow opens the Daily room URL in an in-app web browser. Daily's hosted call page (camera, mic, screen share, chat) works on mobile browsers. The native in-app video tile comes once we're on a dev build.
+
+**1. Create a Daily account.** [daily.co](https://daily.co) → sign up. Free tier includes 10,000 participant-minutes/month and unlimited rooms.
+
+**2. Grab the API key.** Daily dashboard → **Developers** → **API keys** → copy the key (looks like a long random string).
+
+**3. Apply schema migration `0007_daily_rooms.sql`** (Supabase → SQL Editor).
+
+**4. Deploy the Edge Function.** Supabase dashboard → Edge Functions → Deploy a new function → name: `create-daily-room` → paste from `supabase/functions/create-daily-room/index.ts` → **Verify JWT OFF** → Deploy.
+
+**5. Set the secret.** Supabase Edge Functions → Secrets → add:
+```
+DAILY_API_KEY=<paste-your-daily-api-key>
+```
+
+**6. Test.** Book a video session (test card `4242 4242 4242 4242`), pay, expert accepts. On the booking detail page, tap **Join call** → an in-app browser opens at `https://<your-team>.daily.co/hi-<booking-id-prefix>`. Allow camera/mic. You're in.
+
 ## Scripts
 
 | Command | What it does |

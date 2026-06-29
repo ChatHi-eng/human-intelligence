@@ -88,9 +88,6 @@ export const useCreateBooking = () => {
       const expert = await fetchExpert(input.expertId);
       if (!expert) throw new Error('Expert not found');
 
-      const room =
-        input.medium === 'video' ? await createRoomForBooking(`pending-${Date.now()}`) : null;
-
       // Booking row goes in with status='requested' (server default) and
       // payment_status='pending'. The webhook flips payment_status after
       // checkout succeeds.
@@ -100,8 +97,19 @@ export const useCreateBooking = () => {
         slot: input.slot,
         medium: input.medium,
         priceCents: expert.hourlyRate,
-        callRoomUrl: room?.url ?? null,
+        callRoomUrl: null,
       });
+
+      // Mint a Daily room now that we have a real booking id (video only).
+      // Best-effort — if Daily isn't configured, the join button can re-mint
+      // later. We don't want to block payment for a transient video error.
+      if (input.medium === 'video') {
+        try {
+          await createRoomForBooking(booking.id);
+        } catch {
+          /* swallow — booking.call_room_url stays null, retried on Join */
+        }
+      }
 
       // Mint a hosted Stripe Checkout Session via Edge Function.
       const session = await createCheckoutSession(booking.id);

@@ -1,10 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Toast from 'react-native-toast-message';
-import { CallControls } from '@/components/call/CallControls';
-import { CallTimer } from '@/components/call/CallTimer';
-import { VideoTile } from '@/components/call/VideoTile';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -19,10 +16,10 @@ import { useBooking, useCancelBooking } from '@/hooks/useBookings';
 import { useExpert } from '@/hooks/useExperts';
 import { formatDateTime, minutesBetween } from '@/lib/date';
 import { formatCurrency } from '@/lib/format';
-import { joinCall, createRoomForBooking, type CallEvent } from '@/services/video';
+import { createRoomForBooking, openCallRoom } from '@/services/video';
 import type { BookingStatus } from '@/types/booking';
 
-type CallStage = 'idle' | 'connecting' | 'live' | 'ended' | 'review';
+type CallStage = 'idle' | 'connecting' | 'in-call' | 'review';
 
 const statusBadge = (status: BookingStatus): { label: string; tone: BadgeTone } => {
   switch (status) {
@@ -48,18 +45,8 @@ export default function BookingDetailScreen() {
   const { mutate: cancel, isPending: cancelling } = useCancelBooking();
 
   const [stage, setStage] = useState<CallStage>('idle');
-  const [muted, setMuted] = useState(false);
-  const [cameraOff, setCameraOff] = useState(false);
-  const [callStartedAt, setCallStartedAt] = useState<number | null>(null);
   const [rating, setRating] = useState<1 | 2 | 3 | 4 | 5 | null>(null);
   const [comment, setComment] = useState('');
-  const leaveRef = useRef<(() => void) | null>(null);
-
-  useEffect(() => {
-    return () => {
-      leaveRef.current?.();
-    };
-  }, []);
 
   if (isLoading && !booking) return <LoadingView label="Loading booking…" />;
   if (!booking) {
@@ -72,25 +59,23 @@ export default function BookingDetailScreen() {
 
   const handleJoin = async () => {
     setStage('connecting');
-    const room = booking.callRoomUrl
-      ? { url: booking.callRoomUrl, token: null, expiresAtIso: '' }
-      : await createRoomForBooking(booking.id);
-    const handle = joinCall(room, (e: CallEvent) => {
-      if (e.type === 'joined') {
-        setStage('live');
-        setCallStartedAt(Date.now());
-      } else if (e.type === 'error') {
-        setStage('idle');
-        Toast.show({ type: 'error', text1: 'Call error', text2: e.message });
-      }
-    });
-    leaveRef.current = handle.leave;
-  };
-
-  const handleEnd = () => {
-    leaveRef.current?.();
-    leaveRef.current = null;
-    setStage('review');
+    try {
+      // Use the persisted URL if we have one. Otherwise mint a fresh one (the
+      // booking flow may have skipped minting due to a transient Daily error).
+      const room = booking.callRoomUrl
+        ? { url: booking.callRoomUrl, name: '' }
+        : await createRoomForBooking(booking.id);
+      setStage('in-call');
+      await openCallRoom(room.url);
+      setStage('review');
+    } catch (err) {
+      setStage('idle');
+      Toast.show({
+        type: 'error',
+        text1: 'Could not start call',
+        text2: err instanceof Error ? err.message : 'Unknown error',
+      });
+    }
   };
 
   const submitReview = () => {
@@ -109,32 +94,6 @@ export default function BookingDetailScreen() {
     (isCustomer || isExpert) &&
     (booking.status === 'requested' || booking.status === 'confirmed');
   const canJoin = booking.status === 'confirmed' || booking.status === 'in_progress';
-
-  if (stage === 'live' && callStartedAt) {
-    return (
-      <View style={styles.callStage}>
-        <View style={styles.callHeader}>
-          <Badge label={booking.medium === 'video' ? 'Video call' : 'Phone call'} tone="accent" />
-          <CallTimer startedAt={callStartedAt} />
-        </View>
-        <View style={styles.tilesWrap}>
-          <VideoTile name={expert?.displayName ?? 'Expert'} />
-          <View style={styles.localTile}>
-            <VideoTile name="You" isLocal size="small" />
-          </View>
-        </View>
-        <View style={styles.callControlsWrap}>
-          <CallControls
-            muted={muted}
-            cameraOff={cameraOff}
-            onToggleMute={() => setMuted((m) => !m)}
-            onToggleCamera={() => setCameraOff((c) => !c)}
-            onEnd={handleEnd}
-          />
-        </View>
-      </View>
-    );
-  }
 
   return (
     <Screen>
@@ -195,12 +154,21 @@ export default function BookingDetailScreen() {
               {booking.medium === 'video' ? 'Join the video call' : 'Start the phone call'}
             </Text>
             <Text style={styles.cardBody}>
-              {`The call provider is stubbed for now — you'll see a mock call screen with mute, end, and a timer.`}
+              {booking.medium === 'video'
+                ? 'Opens the Daily.co room in your browser. Allow camera + mic when prompted.'
+                : 'Phone calls open via your device dialer (coming with the dev build).'}
             </Text>
             <Button
-              title={stage === 'connecting' ? 'Connecting…' : 'Join call'}
+              title={
+                stage === 'connecting'
+                  ? 'Opening room…'
+                  : stage === 'in-call'
+                    ? 'In call'
+                    : 'Join call'
+              }
               onPress={handleJoin}
               loading={stage === 'connecting'}
+              disabled={stage === 'in-call'}
             />
           </Card>
         ) : null}
@@ -273,20 +241,4 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     textAlignVertical: 'top',
   },
-  callStage: {
-    flex: 1,
-    backgroundColor: '#0F0F0F',
-    paddingTop: 60,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xxl,
-  },
-  callHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  tilesWrap: { flex: 1, position: 'relative' },
-  localTile: { position: 'absolute', right: 0, bottom: spacing.lg },
-  callControlsWrap: { paddingTop: spacing.lg },
 });
