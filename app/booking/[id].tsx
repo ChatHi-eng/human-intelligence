@@ -12,12 +12,12 @@ import { RatingStars } from '@/components/ui/RatingStars';
 import { Screen } from '@/components/ui/Screen';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
-import { useBooking, useCancelBooking } from '@/hooks/useBookings';
+import { useBooking, useCancelBooking, useCompletePayment } from '@/hooks/useBookings';
 import { useExpert } from '@/hooks/useExperts';
 import { formatDateTime, minutesBetween } from '@/lib/date';
 import { formatCurrency } from '@/lib/format';
 import { createRoomForBooking, openCallRoom } from '@/services/video';
-import type { BookingStatus } from '@/types/booking';
+import type { BookingStatus, PaymentStatus } from '@/types/booking';
 
 type CallStage = 'idle' | 'connecting' | 'in-call' | 'review';
 
@@ -36,6 +36,21 @@ const statusBadge = (status: BookingStatus): { label: string; tone: BadgeTone } 
   }
 };
 
+const paymentLabel = (status: PaymentStatus): string => {
+  switch (status) {
+    case 'pending':
+      return 'Not paid yet';
+    case 'authorized':
+      return 'Payment held';
+    case 'captured':
+      return 'Paid';
+    case 'refunded':
+      return 'Refunded';
+    case 'failed':
+      return 'Payment failed';
+  }
+};
+
 export default function BookingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -43,6 +58,7 @@ export default function BookingDetailScreen() {
   const { data: booking, isLoading } = useBooking(id);
   const { data: expert } = useExpert(booking?.expertId);
   const { mutate: cancel, isPending: cancelling } = useCancelBooking();
+  const { mutate: completePayment, isPending: paying } = useCompletePayment();
 
   const [stage, setStage] = useState<CallStage>('idle');
   const [rating, setRating] = useState<1 | 2 | 3 | 4 | 5 | null>(null);
@@ -96,6 +112,10 @@ export default function BookingDetailScreen() {
     (isCustomer || isExpert) &&
     (booking.status === 'requested' || booking.status === 'confirmed');
   const canJoin = booking.status === 'confirmed' || booking.status === 'in_progress';
+  const bookingActive = booking.status === 'requested' || booking.status === 'confirmed';
+  const paymentIncomplete =
+    booking.paymentStatus === 'pending' || booking.paymentStatus === 'failed';
+  const needsPayment = isCustomer && bookingActive && paymentIncomplete;
 
   return (
     <Screen>
@@ -120,16 +140,49 @@ export default function BookingDetailScreen() {
             <Text style={styles.value}>{booking.medium === 'video' ? 'Video' : 'Phone'}</Text>
           </View>
           <View style={styles.detailRow}>
-            <Text style={styles.label}>Paid</Text>
-            <Text style={styles.value}>{formatCurrency(booking.priceCents)}</Text>
+            <Text style={styles.label}>Payment</Text>
+            <Text
+              style={[
+                styles.value,
+                paymentIncomplete && { color: colors.danger },
+                booking.paymentStatus === 'refunded' && { color: colors.textMuted },
+              ]}
+            >
+              {formatCurrency(booking.priceCents)} · {paymentLabel(booking.paymentStatus)}
+            </Text>
           </View>
         </Card>
 
-        {booking.status === 'requested' && isCustomer && (
+        {needsPayment && (
           <Card style={{ marginTop: spacing.lg }}>
-            <Text style={styles.sectionTitle}>Waiting for confirmation</Text>
+            <Text style={styles.sectionTitle}>Finish your payment</Text>
             <Text style={styles.cardBody}>
-              {(expert?.displayName ?? 'The expert') + ' has been notified. You\'ll get a confirmation as soon as they accept.'}
+              Your time slot is being held, but the payment didn&apos;t go through. Complete it to
+              lock in the session.
+            </Text>
+            <Button
+              title={paying ? 'Opening Stripe…' : 'Complete payment'}
+              onPress={() =>
+                completePayment(booking.id, {
+                  onError: (err) =>
+                    Toast.show({
+                      type: 'error',
+                      text1: 'Could not open payment',
+                      text2: err instanceof Error ? err.message : 'Unknown error',
+                    }),
+                })
+              }
+              loading={paying}
+            />
+          </Card>
+        )}
+
+        {booking.status === 'requested' && isCustomer && !needsPayment && (
+          <Card style={{ marginTop: spacing.lg }}>
+            <Text style={styles.sectionTitle}>Payment received</Text>
+            <Text style={styles.cardBody}>
+              {(expert?.displayName ?? 'The expert') +
+                " has been notified. You'll get a confirmation as soon as they accept — and a full refund if they can't make it."}
             </Text>
           </Card>
         )}

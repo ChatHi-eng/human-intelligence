@@ -1,11 +1,7 @@
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import Toast from 'react-native-toast-message';
 import { CredentialBadge } from '@/components/expert/CredentialBadge';
-import { PaymentSheet } from '@/components/booking/PaymentSheet';
-import { TimeSlotPicker } from '@/components/booking/TimeSlotPicker';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -14,28 +10,16 @@ import { LoadingView } from '@/components/ui/LoadingView';
 import { RatingStars } from '@/components/ui/RatingStars';
 import { Screen } from '@/components/ui/Screen';
 import { industryById } from '@/constants/industries';
-import { colors, radius, spacing, typography } from '@/constants/theme';
-import { useCreateBooking, useExpertActiveBookings } from '@/hooks/useBookings';
+import { colors, shadow, spacing, typography } from '@/constants/theme';
+import { useAuth } from '@/hooks/useAuth';
 import { useExpert } from '@/hooks/useExperts';
-import { formatDay } from '@/lib/date';
 import { formatCurrency } from '@/lib/format';
-import { generateSlots, groupSlotsByDate } from '@/lib/slots';
-import type { CallMedium, TimeSlot } from '@/types/booking';
 
 export default function ExpertProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { user } = useAuth();
   const { data: expert, isLoading } = useExpert(id);
-  const { data: busy } = useExpertActiveBookings(id);
-  const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
-  const [medium, setMedium] = useState<CallMedium>('video');
-  const { mutate: book, isPending } = useCreateBooking();
-
-  const slotsByDate = useMemo(() => {
-    if (!expert) return {};
-    const slots = generateSlots(expert.availability, expert.availabilityDates, busy ?? []);
-    return groupSlotsByDate(slots);
-  }, [expert, busy]);
 
   if (isLoading && !expert) return <LoadingView label="Loading expert…" />;
   if (!expert) {
@@ -47,35 +31,9 @@ export default function ExpertProfileScreen() {
   }
 
   const industry = industryById(expert.industryId);
-
-  const onPay = () => {
-    if (!selectedSlot) return;
-    book(
-      { expertId: expert.id, slot: selectedSlot, medium },
-      {
-        onSuccess: (result) => {
-          if (result.checkoutResult === 'cancel') {
-            Toast.show({ type: 'error', text1: 'Payment cancelled' });
-          } else {
-            Toast.show({
-              type: 'success',
-              text1: 'Request sent',
-              text2: `Waiting for ${expert.displayName} to confirm.`,
-            });
-          }
-          router.replace(`/booking/${result.bookingId}`);
-        },
-        onError: (err) =>
-          Toast.show({
-            type: 'error',
-            text1: 'Could not book',
-            text2: err instanceof Error ? err.message : 'Unknown error',
-          }),
-      },
-    );
-  };
-
-  const dateKeys = Object.keys(slotsByDate).sort().slice(0, 7);
+  const hasAvailability =
+    expert.availability.length > 0 || expert.availabilityDates.length > 0;
+  const isSelf = user?.id === expert.id;
 
   return (
     <Screen padded={false}>
@@ -88,7 +46,9 @@ export default function ExpertProfileScreen() {
             contentFit="cover"
           />
         ) : (
-          <View style={[styles.cover, styles.coverPlaceholder]} />
+          <View style={[styles.cover, styles.coverFallback]}>
+            <Text style={styles.coverEmoji}>{industry?.emoji ?? '🧠'}</Text>
+          </View>
         )}
         <View style={styles.body}>
           <View style={styles.headerRow}>
@@ -105,13 +65,16 @@ export default function ExpertProfileScreen() {
             <Badge label={`${expert.yearsExperience}y experience`} tone="accent" />
           </View>
 
-          <RatingStars value={expert.ratingAverage} count={expert.ratingCount} size={18} />
-          {expert.bio ? <Text style={styles.bio}>{expert.bio}</Text> : null}
+          {expert.ratingCount > 0 ? (
+            <RatingStars value={expert.ratingAverage} count={expert.ratingCount} size={18} />
+          ) : (
+            <Text style={styles.newHere}>New on Human Intelligence</Text>
+          )}
 
           {expert.howICanHelp ? (
             <>
               <Text style={styles.sectionTitle}>How I can help</Text>
-              <Text style={styles.bio}>{expert.howICanHelp}</Text>
+              <Text style={styles.bodyText}>{expert.howICanHelp}</Text>
             </>
           ) : null}
 
@@ -126,90 +89,65 @@ export default function ExpertProfileScreen() {
             </>
           ) : null}
 
-          <Text style={styles.sectionTitle}>Pick a time</Text>
-          {dateKeys.length === 0 ? (
-            <EmptyState
-              title="No times available"
-              description={`${expert.displayName} hasn't opened up their calendar yet.`}
-              emoji="📅"
-            />
-          ) : (
-            dateKeys.map((dateKey) => {
-              const slots = slotsByDate[dateKey] ?? [];
-              return (
-                <View key={dateKey} style={styles.daySection}>
-                  <Text style={styles.dayLabel}>{formatDay(`${dateKey}T12:00:00`)}</Text>
-                  <TimeSlotPicker
-                    slots={slots}
-                    selected={selectedSlot}
-                    onSelect={setSelectedSlot}
-                  />
-                </View>
-              );
-            })
-          )}
-
-          {dateKeys.length > 0 && (
+          {expert.bio ? (
             <>
-              <Text style={styles.sectionTitle}>How would you like to talk?</Text>
-              <View style={styles.mediumRow}>
-                <Button
-                  title="Video"
-                  variant={medium === 'video' ? 'primary' : 'secondary'}
-                  onPress={() => setMedium('video')}
-                  style={{ flex: 1 }}
-                />
-                <Button
-                  title="Phone"
-                  variant={medium === 'phone' ? 'primary' : 'secondary'}
-                  onPress={() => setMedium('phone')}
-                  style={{ flex: 1 }}
-                />
-              </View>
-
-              <View style={styles.rateRow}>
-                <Text style={styles.rateLabel}>Rate</Text>
-                <Text style={styles.rateValue}>{formatCurrency(expert.hourlyRate)}/hr</Text>
-              </View>
-
-              <PaymentSheet
-                amountCents={expert.hourlyRate}
-                expertName={expert.displayName}
-                onPay={onPay}
-                loading={isPending}
-              />
+              <Text style={styles.sectionTitle}>About</Text>
+              <Text style={styles.bodyText}>{expert.bio}</Text>
             </>
-          )}
+          ) : null}
         </View>
       </ScrollView>
+
+      {/* Sticky booking bar — the single CTA for the whole page. */}
+      <View style={styles.bookBar}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.bookRate}>{formatCurrency(expert.hourlyRate)}/hr</Text>
+          <Text style={styles.bookHint}>
+            {isSelf
+              ? 'This is your public profile'
+              : hasAvailability
+                ? '30-minute sessions · video or phone'
+                : 'No times available yet'}
+          </Text>
+        </View>
+        <Button
+          title="Book session"
+          onPress={() => router.push({ pathname: '/book/[id]', params: { id: expert.id } })}
+          disabled={isSelf || !hasAvailability}
+        />
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { paddingBottom: spacing.xxxl },
+  scroll: { paddingBottom: spacing.xxl },
   cover: { width: '100%', height: 220, backgroundColor: colors.surfaceAlt },
-  coverPlaceholder: { backgroundColor: colors.surfaceAlt },
+  coverFallback: {
+    backgroundColor: colors.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  coverEmoji: { fontSize: 72 },
   body: { padding: spacing.lg, gap: spacing.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   name: { ...typography.title, color: colors.textPrimary },
   headline: { ...typography.body, color: colors.textSecondary },
   badgeRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
-  bio: { ...typography.body, color: colors.textPrimary, marginTop: spacing.xs },
+  newHere: { ...typography.caption, color: colors.textMuted },
   sectionTitle: { ...typography.heading, color: colors.textPrimary, marginTop: spacing.md },
-  daySection: { gap: spacing.sm, paddingVertical: spacing.xs },
-  dayLabel: { ...typography.bodyStrong, color: colors.textSecondary },
-  mediumRow: { flexDirection: 'row', gap: spacing.md },
-  rateRow: {
+  bodyText: { ...typography.body, color: colors.textPrimary },
+  bookBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    padding: spacing.lg,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    backgroundColor: colors.background,
+    ...shadow.floating,
   },
-  rateLabel: { ...typography.body, color: colors.textSecondary },
-  rateValue: { ...typography.heading, color: colors.textPrimary },
+  bookRate: { ...typography.heading, color: colors.textPrimary },
+  bookHint: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
 });

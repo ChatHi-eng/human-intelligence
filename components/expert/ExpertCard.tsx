@@ -19,12 +19,18 @@ export const ExpertCard = ({ expert, onPress }: ExpertCardProps) => {
       onPress={onPress}
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
-      <Image
-        source={{ uri: expert.coverImageUrl }}
-        style={styles.cover}
-        transition={200}
-        contentFit="cover"
-      />
+      {expert.coverImageUrl ? (
+        <Image
+          source={{ uri: expert.coverImageUrl }}
+          style={styles.cover}
+          transition={200}
+          contentFit="cover"
+        />
+      ) : (
+        <View style={[styles.cover, styles.coverFallback]}>
+          <Text style={styles.coverEmoji}>{industry?.emoji ?? '🧠'}</Text>
+        </View>
+      )}
       <View style={styles.body}>
         <View style={styles.headerRow}>
           {industry ? (
@@ -56,6 +62,12 @@ const styles = StyleSheet.create({
   },
   pressed: { opacity: 0.92, transform: [{ scale: 0.99 }] },
   cover: { width: '100%', height: 180, backgroundColor: colors.surfaceAlt },
+  coverFallback: {
+    backgroundColor: colors.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  coverEmoji: { fontSize: 56 },
   body: { padding: spacing.lg, gap: spacing.sm },
   headerRow: { flexDirection: 'row', gap: spacing.sm },
   name: { ...typography.heading, color: colors.textPrimary },

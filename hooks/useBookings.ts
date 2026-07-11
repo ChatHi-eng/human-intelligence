@@ -39,7 +39,26 @@ export const useBooking = (id: string | undefined) =>
     enabled: Boolean(id),
     queryFn: () => (id ? fetchBooking(id) : Promise.resolve(null)),
     staleTime: 10_000,
+    // Poll so webhook-driven changes (payment captured, expert accepted)
+    // show up without a manual refresh.
+    refetchInterval: 15_000,
   });
+
+// Re-mints a Stripe Checkout session for a booking whose payment was
+// abandoned (user closed the checkout tab). Opens the hosted page again.
+export const useCompletePayment = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (bookingId: string) => {
+      const session = await createCheckoutSession(bookingId);
+      return openCheckout(session.sessionUrl);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['bookings'] });
+      void qc.invalidateQueries({ queryKey: ['booking'] });
+    },
+  });
+};
 
 // Bookings the expert needs to act on (status='requested').
 export const usePendingRequests = () => {
