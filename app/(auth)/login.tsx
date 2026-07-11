@@ -42,8 +42,9 @@ export default function LoginScreen() {
 
   const onVerify = async () => {
     const trimmedCode = code.trim();
-    if (trimmedCode.length !== 6) {
-      Toast.show({ type: 'error', text1: 'Enter the 6-digit code from your email' });
+    // Supabase OTP length is configurable (6-10 digits) — don't hard-require 6.
+    if (trimmedCode.length < 6) {
+      Toast.show({ type: 'error', text1: 'Enter the code from your email' });
       return;
     }
     setVerifying(true);
@@ -83,16 +84,16 @@ export default function LoginScreen() {
           <Text style={styles.emoji}>📬</Text>
           <Text style={styles.title}>Enter your code</Text>
           <Text style={styles.caption}>
-            We emailed a 6-digit code to <Text style={styles.bold}>{email}</Text>. It may take a
+            We emailed a sign-in code to <Text style={styles.bold}>{email}</Text>. It may take a
             minute to arrive.
           </Text>
           <TextInput
-            placeholder="123456"
+            placeholder="Enter code"
             placeholderTextColor={colors.textMuted}
             value={code}
             onChangeText={setCode}
             keyboardType="number-pad"
-            maxLength={6}
+            maxLength={10}
             autoFocus
             style={[styles.input, styles.codeInput]}
           />
@@ -120,8 +121,8 @@ export default function LoginScreen() {
       <View style={styles.container}>
         <Text style={styles.title}>Sign in or create account</Text>
         <Text style={styles.caption}>
-          Enter your email and we&apos;ll send you a 6-digit sign-in code. New here? The code signs
-          you in and creates your account at the same time.
+          Enter your email and we&apos;ll send you a sign-in code. New here? The code signs you in
+          and creates your account at the same time.
         </Text>
         <TextInput
           placeholder="you@example.com"
@@ -160,6 +161,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 24,
     fontWeight: '700',
-    letterSpacing: 8,
+    letterSpacing: 4,
   },
 });
