@@ -20,13 +20,11 @@ export default function ProfileEditScreen() {
   const { mutateAsync: upload, isPending: uploading } = useUploadImage();
 
   const [displayName, setDisplayName] = useState('');
-  const [bio, setBio] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (profile) {
       setDisplayName(profile.displayName);
-      setBio(profile.bio ?? '');
       setAvatarUrl(profile.avatarUrl);
     }
   }, [profile]);
@@ -66,18 +64,14 @@ export default function ProfileEditScreen() {
   const onSave = () => {
     const trimmedName = displayName.trim();
     if (!trimmedName) {
-      Toast.show({ type: 'error', text1: 'Display name cannot be empty' });
+      Toast.show({ type: 'error', text1: 'Name cannot be empty' });
       return;
     }
     update(
-      {
-        displayName: trimmedName,
-        bio: bio.trim() || null,
-        avatarUrl,
-      },
+      { displayName: trimmedName, avatarUrl },
       {
         onSuccess: () => {
-          Toast.show({ type: 'success', text1: 'Profile saved' });
+          Toast.show({ type: 'success', text1: 'Account updated' });
           router.back();
         },
         onError: (err) =>
@@ -90,12 +84,15 @@ export default function ProfileEditScreen() {
     );
   };
 
-  if (isLoading || !user) return <LoadingView label="Loading your profile…" />;
+  if (isLoading || !user) return <LoadingView label="Loading your account…" />;
 
   return (
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <SectionHeader title="Edit profile" caption="This is how you appear to other people." />
+        <SectionHeader
+          title="Edit account"
+          caption="Basic info. If you're an expert, edit your public expert profile separately."
+        />
 
         <View style={styles.avatarRow}>
           <Avatar uri={avatarUrl} name={displayName || 'You'} size={96} />
@@ -114,7 +111,7 @@ export default function ProfileEditScreen() {
           </View>
         </View>
 
-        <Text style={styles.label}>Display name</Text>
+        <Text style={styles.label}>Name</Text>
         <TextInput
           placeholder="Your name"
           placeholderTextColor={colors.textMuted}
@@ -123,18 +120,6 @@ export default function ProfileEditScreen() {
           style={styles.input}
           maxLength={80}
         />
-
-        <Text style={styles.label}>Bio</Text>
-        <TextInput
-          placeholder="A sentence or two about you."
-          placeholderTextColor={colors.textMuted}
-          value={bio}
-          onChangeText={setBio}
-          multiline
-          style={[styles.input, styles.bioInput]}
-          maxLength={500}
-        />
-        <Text style={styles.helper}>{bio.length}/500</Text>
 
         <Button
           title="Save"
@@ -159,7 +144,6 @@ const styles = StyleSheet.create({
   },
   removeText: { ...typography.caption, color: colors.danger, textAlign: 'center' },
   label: { ...typography.label, color: colors.textSecondary, marginTop: spacing.md },
-  helper: { ...typography.caption, color: colors.textMuted, alignSelf: 'flex-end' },
   input: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
@@ -170,5 +154,4 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
-  bioInput: { minHeight: 100, textAlignVertical: 'top' },
 });

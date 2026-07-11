@@ -125,7 +125,7 @@ export default function ExpertProfileEditScreen() {
       {
         onSuccess: () => {
           Toast.show({ type: 'success', text1: existing ? 'Profile updated' : 'You are live' });
-          if (!existing) router.replace('/(expert)/dashboard');
+          if (!existing) router.replace('/(tabs)/studio');
         },
         onError: (err) =>
           Toast.show({

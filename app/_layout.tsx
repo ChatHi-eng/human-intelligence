@@ -36,7 +36,6 @@ export default function RootLayout() {
               >
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-                <Stack.Screen name="(expert)" options={{ headerShown: false }} />
                 <Stack.Screen
                   name="expert/[id]"
                   options={{ title: 'Expert', presentation: 'card' }}
@@ -51,7 +50,15 @@ export default function RootLayout() {
                 />
                 <Stack.Screen
                   name="profile-edit"
-                  options={{ title: 'Edit profile', presentation: 'modal' }}
+                  options={{ title: 'Edit account', presentation: 'modal' }}
+                />
+                <Stack.Screen
+                  name="studio/calendar"
+                  options={{ title: 'Calendar', presentation: 'card' }}
+                />
+                <Stack.Screen
+                  name="studio/earnings"
+                  options={{ title: 'Earnings', presentation: 'card' }}
                 />
                 <Stack.Screen
                   name="auth-callback"
