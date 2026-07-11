@@ -65,7 +65,9 @@ export default function BookingDetailScreen() {
       const room = booking.callRoomUrl
         ? { url: booking.callRoomUrl, name: '' }
         : await createRoomForBooking(booking.id);
-      setStage('in-call');
+      // openBrowserAsync returns quickly once the browser has actually opened.
+      // We don't await the entire call session — the user can navigate back
+      // any time and hit 'Review the call' when finished.
       await openCallRoom(room.url);
       setStage('review');
     } catch (err) {

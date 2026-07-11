@@ -32,16 +32,15 @@ export const createRoomForBooking = async (bookingId: string): Promise<CallRoom>
 };
 
 /**
- * Opens the Daily room in the in-app browser. Works in Expo Go + standalone.
- * Resolves when the user dismisses the browser (leaves the call).
+ * Opens the Daily room. Uses plain openBrowserAsync (not openAuthSessionAsync)
+ * because there's no OAuth-style redirect to intercept — we just need the URL
+ * to open. On native this pops an in-app browser; on web it opens a new tab.
  */
 export const openCallRoom = async (
   roomUrl: string,
-): Promise<{ type: 'cancel' | 'dismiss' | 'success' | 'unknown' }> => {
-  const result = await WebBrowser.openAuthSessionAsync(roomUrl, undefined, {
-    showInRecents: true,
-  });
-  if (result.type === 'success') return { type: 'success' };
+): Promise<{ type: 'cancel' | 'dismiss' | 'opened' | 'unknown' }> => {
+  const result = await WebBrowser.openBrowserAsync(roomUrl, { showInRecents: true });
+  if (result.type === 'opened') return { type: 'opened' };
   if (result.type === 'cancel') return { type: 'cancel' };
   if (result.type === 'dismiss') return { type: 'dismiss' };
   return { type: 'unknown' };
