@@ -53,6 +53,10 @@ export default function RootLayout() {
                   options={{ title: 'Expert profile', presentation: 'modal' }}
                 />
                 <Stack.Screen
+                  name="expert-onboarding"
+                  options={{ title: 'Become an expert', presentation: 'modal' }}
+                />
+                <Stack.Screen
                   name="profile-edit"
                   options={{ title: 'Edit account', presentation: 'modal' }}
                 />

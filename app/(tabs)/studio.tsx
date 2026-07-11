@@ -31,8 +31,8 @@ export default function StudioScreen() {
   const { data: earnings } = useEarningsBuckets();
 
   if (expertLoading) return <LoadingView label="Loading Studio…" />;
-  // Studio is only for experts. Non-experts get sent to the setup screen.
-  if (!expertProfile) return <Redirect href="/expert-profile-edit" />;
+  // Studio is only for experts. Non-experts get sent to the onboarding wizard.
+  if (!expertProfile) return <Redirect href="/expert-onboarding" />;
 
   const today = isoDateKey(new Date().toISOString());
   const asExpert = (bookings ?? []).filter((b) => b.expertId === expertProfile.id);

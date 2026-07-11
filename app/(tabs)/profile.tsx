@@ -109,7 +109,7 @@ export default function YouScreen() {
             </Text>
             <Button
               title="Become an expert"
-              onPress={() => router.push('/expert-profile-edit')}
+              onPress={() => router.push('/expert-onboarding')}
               style={{ marginTop: spacing.md }}
             />
           </Card>

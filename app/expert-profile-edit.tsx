@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Toast from 'react-native-toast-message';
@@ -62,6 +62,8 @@ export default function ExpertProfileEditScreen() {
   }, [existing]);
 
   if (isLoading) return <LoadingView label="Loading your profile…" />;
+  // First-time setup goes through the step-by-step wizard instead.
+  if (!existing) return <Redirect href="/expert-onboarding" />;
 
   const pickCover = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
