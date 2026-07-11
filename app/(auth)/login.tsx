@@ -5,19 +5,20 @@ import Toast from 'react-native-toast-message';
 import { Button } from '@/components/ui/Button';
 import { Screen } from '@/components/ui/Screen';
 import { colors, radius, spacing, typography } from '@/constants/theme';
-import { authRedirectUrl } from '@/services/supabase';
 import { useAuth } from '@/hooks/useAuth';
 
-type Stage = 'enter-email' | 'sent';
+type Stage = 'enter-email' | 'enter-code';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { signInWithMagicLink, configError } = useAuth();
+  const { signInWithMagicLink, verifyEmailOtp, configError } = useAuth();
   const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
   const [stage, setStage] = useState<Stage>('enter-email');
   const [sending, setSending] = useState(false);
+  const [verifying, setVerifying] = useState(false);
 
-  const onSendLink = async () => {
+  const onSendCode = async () => {
     const trimmed = email.trim();
     if (!trimmed) {
       Toast.show({ type: 'error', text1: 'Enter your email first' });
@@ -26,15 +27,41 @@ export default function LoginScreen() {
     setSending(true);
     try {
       await signInWithMagicLink(trimmed);
-      setStage('sent');
+      setCode('');
+      setStage('enter-code');
     } catch (err) {
       Toast.show({
         type: 'error',
-        text1: 'Could not send link',
+        text1: 'Could not send code',
         text2: err instanceof Error ? err.message : 'Unknown error',
       });
     } finally {
       setSending(false);
+    }
+  };
+
+  const onVerify = async () => {
+    const trimmedCode = code.trim();
+    if (trimmedCode.length !== 6) {
+      Toast.show({ type: 'error', text1: 'Enter the 6-digit code from your email' });
+      return;
+    }
+    setVerifying(true);
+    try {
+      await verifyEmailOtp(email.trim(), trimmedCode);
+      Toast.show({ type: 'success', text1: 'Signed in' });
+      router.replace('/(tabs)');
+    } catch (err) {
+      Toast.show({
+        type: 'error',
+        text1: 'Code not accepted',
+        text2:
+          err instanceof Error
+            ? err.message
+            : 'Double-check the code, or request a new one.',
+      });
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -49,26 +76,34 @@ export default function LoginScreen() {
     );
   }
 
-  if (stage === 'sent') {
+  if (stage === 'enter-code') {
     return (
       <Screen>
         <View style={styles.container}>
           <Text style={styles.emoji}>📬</Text>
-          <Text style={styles.title}>Check your email</Text>
+          <Text style={styles.title}>Enter your code</Text>
           <Text style={styles.caption}>
-            We sent a sign-in link to <Text style={styles.bold}>{email}</Text>. Tap it on this
-            device to come back signed in.
+            We emailed a 6-digit code to <Text style={styles.bold}>{email}</Text>. It may take a
+            minute to arrive.
           </Text>
-          <View style={styles.debugBox}>
-            <Text style={styles.debugLabel}>Debug — redirect URL sent to Supabase:</Text>
-            <Text selectable style={styles.debugUrl}>
-              {authRedirectUrl()}
-            </Text>
-            <Text style={styles.debugHint}>
-              If sign-in fails, paste this URL exactly into Supabase → Authentication → URL
-              Configuration → Redirect URLs.
-            </Text>
-          </View>
+          <TextInput
+            placeholder="123456"
+            placeholderTextColor={colors.textMuted}
+            value={code}
+            onChangeText={setCode}
+            keyboardType="number-pad"
+            maxLength={6}
+            autoFocus
+            style={[styles.input, styles.codeInput]}
+          />
+          <Button title="Verify and sign in" onPress={onVerify} loading={verifying} fullWidth />
+          <Button
+            title="Resend code"
+            variant="ghost"
+            onPress={onSendCode}
+            loading={sending}
+            fullWidth
+          />
           <Button
             title="Use a different email"
             variant="ghost"
@@ -85,8 +120,8 @@ export default function LoginScreen() {
       <View style={styles.container}>
         <Text style={styles.title}>Sign in or create account</Text>
         <Text style={styles.caption}>
-          Enter your email and we&apos;ll send you a one-tap sign-in link. New here? Tapping the
-          link signs you in and creates your account at the same time.
+          Enter your email and we&apos;ll send you a 6-digit sign-in code. New here? The code signs
+          you in and creates your account at the same time.
         </Text>
         <TextInput
           placeholder="you@example.com"
@@ -98,13 +133,8 @@ export default function LoginScreen() {
           keyboardType="email-address"
           style={styles.input}
         />
-        <Button title="Send sign-in link" onPress={onSendLink} loading={sending} fullWidth />
-        <Button
-          title="Back"
-          variant="ghost"
-          onPress={() => router.back()}
-          fullWidth
-        />
+        <Button title="Send code" onPress={onSendCode} loading={sending} fullWidth />
+        <Button title="Back" variant="ghost" onPress={() => router.back()} fullWidth />
       </View>
     </Screen>
   );
@@ -126,14 +156,10 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
-  debugBox: {
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    gap: spacing.xs,
-    marginTop: spacing.md,
+  codeInput: {
+    textAlign: 'center',
+    fontSize: 24,
+    fontWeight: '700',
+    letterSpacing: 8,
   },
-  debugLabel: { ...typography.label, color: colors.textSecondary },
-  debugUrl: { ...typography.bodyStrong, color: colors.textPrimary },
-  debugHint: { ...typography.caption, color: colors.textMuted },
 });

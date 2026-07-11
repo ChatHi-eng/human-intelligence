@@ -120,6 +120,16 @@ export const exchangeCodeForSession = async (code: string): Promise<void> => {
   if (error) throw error;
 };
 
+// Verifies the 6-digit code from the sign-in email. This is the primary
+// sign-in path on phones: no deep links, no redirect URLs, no IP juggling.
+// The emailed magic link still works on web as a convenience.
+export const verifyEmailOtp = async (email: string, token: string): Promise<void> => {
+  const sb = getSupabase();
+  if (!sb) throw new Error('Supabase is not configured');
+  const { error } = await sb.auth.verifyOtp({ email, token, type: 'email' });
+  if (error) throw error;
+};
+
 export const signOutFromSupabase = async (): Promise<void> => {
   const sb = getSupabase();
   if (!sb) return;

@@ -1,5 +1,5 @@
 import { useAuthStore } from '@/store/authStore';
-import { signInWithMagicLink, supabaseConfigured } from '@/services/supabase';
+import { signInWithMagicLink, supabaseConfigured, verifyEmailOtp } from '@/services/supabase';
 
 export const useAuth = () => {
   const { user, isHydrated, configError, signOut, refreshProfile } = useAuthStore();
@@ -10,6 +10,7 @@ export const useAuth = () => {
     isSignedIn: Boolean(user),
     isSupabaseConfigured: supabaseConfigured(),
     signInWithMagicLink,
+    verifyEmailOtp,
     signOut,
     refreshProfile,
   };
