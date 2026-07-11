@@ -18,6 +18,7 @@ import { colors, radius, spacing, typography } from '@/constants/theme';
 import {
   useMyExpertProfile,
   useStartConnectOnboarding,
+  useSyncConnectStatus,
   useUpsertMyExpertProfile,
 } from '@/hooks/useExperts';
 import { useUploadImage } from '@/hooks/useProfile';
@@ -300,6 +301,7 @@ const PayoutsCard = ({
   expert: { stripeConnectAccountId: string | null; stripeConnectPayoutsEnabled: boolean };
 }) => {
   const { mutate: start, isPending } = useStartConnectOnboarding();
+  const { mutate: sync, isPending: syncing } = useSyncConnectStatus();
   const isReady = expert.stripeConnectPayoutsEnabled;
   const isStarted = Boolean(expert.stripeConnectAccountId) && !isReady;
 
@@ -311,17 +313,44 @@ const PayoutsCard = ({
 
   const onPress = () =>
     start(undefined, {
-      onSuccess: () => {
+      onSuccess: (result) => {
+        const nowReady = result.status?.payoutsEnabled;
         Toast.show({
           type: 'success',
-          text1: 'Returned from Stripe',
-          text2: isReady ? 'Payouts enabled.' : 'We will pick up your status from Stripe shortly.',
+          text1: nowReady ? 'Payouts enabled' : 'Returned from Stripe',
+          text2: nowReady
+            ? 'Ready to accept bookings that pay out to you.'
+            : result.status?.status === 'action-required'
+              ? 'Stripe still needs some info. Tap "Finish Stripe setup" again.'
+              : 'We will pick up your status from Stripe.',
         });
       },
       onError: (err) =>
         Toast.show({
           type: 'error',
           text1: 'Could not open Stripe',
+          text2: err instanceof Error ? err.message : 'Unknown error',
+        }),
+    });
+
+  const onRefresh = () =>
+    sync(undefined, {
+      onSuccess: (result) => {
+        Toast.show({
+          type: result.payoutsEnabled ? 'success' : 'info',
+          text1: result.payoutsEnabled ? 'Payouts enabled' : 'Not ready yet',
+          text2:
+            result.missingRequirements && result.missingRequirements.length > 0
+              ? `Stripe needs: ${result.missingRequirements.slice(0, 2).join(', ')}${
+                  result.missingRequirements.length > 2 ? '…' : ''
+                }`
+              : `Status: ${result.status}`,
+        });
+      },
+      onError: (err) =>
+        Toast.show({
+          type: 'error',
+          text1: 'Could not check status',
           text2: err instanceof Error ? err.message : 'Unknown error',
         }),
     });
@@ -351,6 +380,15 @@ const PayoutsCard = ({
         loading={isPending}
         style={{ marginTop: spacing.md }}
       />
+      {isStarted && (
+        <Button
+          title={syncing ? 'Checking Stripe…' : 'Refresh status'}
+          variant="ghost"
+          onPress={onRefresh}
+          loading={syncing}
+          style={{ marginTop: spacing.xs }}
+        />
+      )}
     </Card>
   );
 };

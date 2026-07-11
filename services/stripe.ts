@@ -79,6 +79,36 @@ export const openConnectOnboarding = async (
   return { type: 'unknown' };
 };
 
+export type ConnectStatus = {
+  accountId: string | null;
+  payoutsEnabled: boolean;
+  chargesEnabled: boolean;
+  detailsSubmitted: boolean;
+  missingRequirements?: string[];
+  status:
+    | 'not-started'
+    | 'onboarding-incomplete'
+    | 'pending-verification'
+    | 'action-required'
+    | 'ready';
+};
+
+/**
+ * Actively pulls the expert's Stripe Connect account state and updates our DB.
+ * Complements the account.updated webhook — safe to call any time and doesn't
+ * depend on the webhook config being correct.
+ */
+export const syncConnectStatus = async (): Promise<ConnectStatus> => {
+  const sb = getSupabase();
+  if (!sb) throw new Error('Supabase is not configured');
+  const { data, error } = await sb.functions.invoke<ConnectStatus>('sync-connect-status', {
+    body: {},
+  });
+  if (error) throw error;
+  if (!data) throw new Error('No status returned');
+  return data;
+};
+
 // ---------- Refunds ----------
 
 export type RefundResult = {

@@ -16,6 +16,7 @@ import {
 import {
   createConnectOnboardingLink,
   openConnectOnboarding,
+  syncConnectStatus,
 } from '@/services/stripe';
 import { useAuthStore } from '@/store/authStore';
 import type { AvailabilityWindow } from '@/types/user';
@@ -136,11 +137,23 @@ export const useStartConnectOnboarding = () => {
     mutationFn: async () => {
       const link = await createConnectOnboardingLink();
       const result = await openConnectOnboarding(link.onboardingUrl);
-      return { ...link, result: result.type };
+      // Actively sync when the user returns — doesn't wait for Stripe's
+      // account.updated webhook (which requires the correct webhook scope).
+      const status = await syncConnectStatus().catch(() => null);
+      return { ...link, result: result.type, status };
     },
     onSuccess: () => {
-      // payouts_enabled gets set by the account.updated webhook; refetch so we
-      // notice the change as soon as it lands.
+      void qc.invalidateQueries({ queryKey: ['my-expert-profile'] });
+      void qc.invalidateQueries({ queryKey: ['experts'] });
+    },
+  });
+};
+
+export const useSyncConnectStatus = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => syncConnectStatus(),
+    onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['my-expert-profile'] });
       void qc.invalidateQueries({ queryKey: ['experts'] });
     },

@@ -143,9 +143,10 @@ Once a basic Checkout payment works, the next layer makes payments actually flow
 
 **2. Enable Connect in your Stripe dashboard.** Stripe dashboard → **Connect** (left sidebar) → **Get started**. Pick **Platform or marketplace**. Choose **Express** for account type. Fill in the platform profile (test mode is fine). No legal info required in test mode.
 
-**3. Deploy two more Edge Functions** (same drill as before):
+**3. Deploy three more Edge Functions** (same drill as before):
 - `create-connect-account` (Verify JWT OFF) — from `supabase/functions/create-connect-account/index.ts`.
 - `refund-booking` (Verify JWT OFF) — from `supabase/functions/refund-booking/index.ts`.
+- `sync-connect-status` (Verify JWT OFF) — from `supabase/functions/sync-connect-status/index.ts`. Called on return from onboarding and via the "Refresh status" button, so the app doesn't depend on the `account.updated` webhook.
 
 **4. Update the existing webhook to also receive `account.updated`.** Stripe dashboard → Developers → Webhooks → click your endpoint → **Add events** → tick `account.updated` and `account.application.authorized` (or just "all account events"). Save.
 
