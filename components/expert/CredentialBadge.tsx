@@ -14,20 +14,21 @@ const TYPE_EMOJI = {
 } as const;
 
 export const CredentialBadge = ({ credential }: CredentialBadgeProps) => {
-  const range =
-    credential.endYear
-      ? `${credential.year}–${credential.endYear}`
-      : credential.type === 'work'
-        ? `${credential.year}–Present`
-        : `${credential.year}`;
+  const range = credential.endYear
+    ? `${credential.year}–${credential.endYear}`
+    : credential.type === 'work'
+      ? `${credential.year}–Present`
+      : `${credential.year}`;
+  // Education leads with the school (issuer); everything else leads with the title.
+  const primary = credential.type === 'education' ? credential.issuer : credential.title;
+  const secondaryName = credential.type === 'education' ? credential.title : credential.issuer;
+  const secondary = [secondaryName, range].filter(Boolean).join(' · ');
   return (
     <View style={styles.container}>
       <Text style={styles.title}>
-        {TYPE_EMOJI[credential.type]} {credential.title}
+        {TYPE_EMOJI[credential.type]} {primary}
       </Text>
-      <Text style={styles.meta}>
-        {credential.issuer} · {range}
-      </Text>
+      {secondary ? <Text style={styles.meta}>{secondary}</Text> : null}
     </View>
   );
 };
