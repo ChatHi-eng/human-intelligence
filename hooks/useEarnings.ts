@@ -33,13 +33,3 @@ export const useDailyEarningsSeries = (days = 14) => {
   });
 };
 
-export const useReviewsForExpert = (expertId: string | undefined) =>
-  useQuery({
-    queryKey: ['reviews', 'expert', expertId],
-    enabled: Boolean(expertId),
-    queryFn: async () => {
-      if (!expertId) return [];
-      const { fetchReviewsForExpert } = await import('@/services/api');
-      return fetchReviewsForExpert(expertId);
-    },
-  });

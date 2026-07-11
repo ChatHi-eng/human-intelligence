@@ -10,9 +10,11 @@ import { LoadingView } from '@/components/ui/LoadingView';
 import { RatingStars } from '@/components/ui/RatingStars';
 import { Screen } from '@/components/ui/Screen';
 import { industryById } from '@/constants/industries';
-import { colors, shadow, spacing, typography } from '@/constants/theme';
+import { colors, radius, shadow, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useExpert } from '@/hooks/useExperts';
+import { useReviewsForExpert } from '@/hooks/useReviews';
+import { formatDay } from '@/lib/date';
 import { formatCurrency } from '@/lib/format';
 
 export default function ExpertProfileScreen() {
@@ -20,6 +22,7 @@ export default function ExpertProfileScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { data: expert, isLoading } = useExpert(id);
+  const { data: reviews } = useReviewsForExpert(id);
 
   if (isLoading && !expert) return <LoadingView label="Loading expert…" />;
   if (!expert) {
@@ -95,6 +98,29 @@ export default function ExpertProfileScreen() {
               <Text style={styles.bodyText}>{expert.bio}</Text>
             </>
           ) : null}
+
+          {reviews && reviews.length > 0 ? (
+            <>
+              <Text style={styles.sectionTitle}>
+                Reviews ({expert.ratingCount})
+              </Text>
+              <View style={{ gap: spacing.sm }}>
+                {reviews.map((r) => (
+                  <View key={r.id} style={styles.reviewCard}>
+                    <View style={styles.reviewHeader}>
+                      <Avatar uri={r.reviewerAvatarUrl} name={r.reviewerName ?? 'Customer'} size={32} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.reviewName}>{r.reviewerName ?? 'Customer'}</Text>
+                        <Text style={styles.reviewDate}>{formatDay(r.createdAt)}</Text>
+                      </View>
+                      <RatingStars value={r.rating} size={14} />
+                    </View>
+                    {r.comment ? <Text style={styles.reviewComment}>{r.comment}</Text> : null}
+                  </View>
+                ))}
+              </View>
+            </>
+          ) : null}
         </View>
       </ScrollView>
 
@@ -150,4 +176,15 @@ const styles = StyleSheet.create({
   },
   bookRate: { ...typography.heading, color: colors.textPrimary },
   bookHint: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  reviewCard: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  reviewHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  reviewName: { ...typography.bodyStrong, color: colors.textPrimary },
+  reviewDate: { ...typography.caption, color: colors.textMuted },
+  reviewComment: { ...typography.body, color: colors.textPrimary },
 });

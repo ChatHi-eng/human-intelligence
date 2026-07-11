@@ -14,6 +14,7 @@ import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useBooking, useCancelBooking, useCompletePayment } from '@/hooks/useBookings';
 import { useExpert } from '@/hooks/useExperts';
+import { useMyReviewForBooking, useSubmitReview } from '@/hooks/useReviews';
 import { formatDateTime, minutesBetween } from '@/lib/date';
 import { formatCurrency } from '@/lib/format';
 import { createRoomForBooking, openCallRoom } from '@/services/video';
@@ -59,6 +60,8 @@ export default function BookingDetailScreen() {
   const { data: expert } = useExpert(booking?.expertId);
   const { mutate: cancel, isPending: cancelling } = useCancelBooking();
   const { mutate: completePayment, isPending: paying } = useCompletePayment();
+  const { data: myReview } = useMyReviewForBooking(id);
+  const { mutate: submitReview, isPending: submittingReview } = useSubmitReview();
 
   const [stage, setStage] = useState<CallStage>('idle');
   const [rating, setRating] = useState<1 | 2 | 3 | 4 | 5 | null>(null);
@@ -96,13 +99,33 @@ export default function BookingDetailScreen() {
     }
   };
 
-  const submitReview = () => {
-    Toast.show({
-      type: 'success',
-      text1: 'Thanks for the review',
-      text2: rating ? `You rated ${expert?.displayName ?? 'the expert'} ${rating}/5.` : '',
-    });
-    router.replace('/(tabs)/bookings');
+  const onSubmitReview = () => {
+    if (!rating) return;
+    submitReview(
+      {
+        bookingId: booking.id,
+        expertId: booking.expertId,
+        bookingStatus: booking.status,
+        rating,
+        comment: comment.trim() || null,
+      },
+      {
+        onSuccess: () => {
+          setStage('idle');
+          Toast.show({
+            type: 'success',
+            text1: 'Thanks for the review',
+            text2: `You rated ${expert?.displayName ?? 'the expert'} ${rating}/5.`,
+          });
+        },
+        onError: (err) =>
+          Toast.show({
+            type: 'error',
+            text1: 'Could not save review',
+            text2: err instanceof Error ? err.message : 'Unknown error',
+          }),
+      },
+    );
   };
 
   const status = statusBadge(booking.status);
@@ -116,6 +139,14 @@ export default function BookingDetailScreen() {
   const paymentIncomplete =
     booking.paymentStatus === 'pending' || booking.paymentStatus === 'failed';
   const needsPayment = isCustomer && bookingActive && paymentIncomplete;
+  const callOver = new Date(booking.slot.endIso).getTime() < Date.now();
+  // Customers can review after the call: right when they hang up (stage
+  // 'review'), or any time after the slot has passed on a non-cancelled booking.
+  const reviewEligible =
+    isCustomer &&
+    !myReview &&
+    booking.status !== 'cancelled' &&
+    (stage === 'review' || booking.status === 'completed' || (canJoin && callOver));
 
   return (
     <Screen>
@@ -187,7 +218,17 @@ export default function BookingDetailScreen() {
           </Card>
         )}
 
-        {stage === 'review' ? (
+        {myReview && (
+          <Card style={{ marginTop: spacing.lg }}>
+            <Text style={styles.sectionTitle}>Your review</Text>
+            <View style={{ marginVertical: spacing.sm }}>
+              <RatingStars value={myReview.rating} size={20} />
+            </View>
+            {myReview.comment ? <Text style={styles.cardBody}>{myReview.comment}</Text> : null}
+          </Card>
+        )}
+
+        {reviewEligible ? (
           <Card style={{ marginTop: spacing.lg }}>
             <Text style={styles.sectionTitle}>How was your call?</Text>
             <View style={{ marginVertical: spacing.md }}>
@@ -201,9 +242,14 @@ export default function BookingDetailScreen() {
               multiline
               style={styles.reviewInput}
             />
-            <Button title="Submit review" onPress={submitReview} disabled={!rating} />
+            <Button
+              title="Submit review"
+              onPress={onSubmitReview}
+              disabled={!rating}
+              loading={submittingReview}
+            />
           </Card>
-        ) : canJoin ? (
+        ) : canJoin && !callOver ? (
           <Card style={{ marginTop: spacing.lg }}>
             <Text style={styles.sectionTitle}>
               {booking.medium === 'video' ? 'Join the video call' : 'Start the phone call'}

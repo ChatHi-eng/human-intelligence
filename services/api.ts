@@ -106,6 +106,7 @@ type ReviewRow = {
   rating: 1 | 2 | 3 | 4 | 5;
   comment: string | null;
   created_at: string;
+  profiles?: { display_name: string; avatar_url: string | null } | null;
 };
 
 type ExpertWithRelations = ExpertProfileRow & {
@@ -195,6 +196,8 @@ const mapReview = (row: ReviewRow): Review => ({
   rating: row.rating,
   comment: row.comment,
   createdAt: row.created_at,
+  reviewerName: row.profiles?.display_name ?? null,
+  reviewerAvatarUrl: row.profiles?.avatar_url ?? null,
 });
 
 // Shared select string for Expert + relations.
@@ -561,11 +564,22 @@ export const fetchMyExpertBookings = async (
 export const fetchReviewsForExpert = async (expertId: string): Promise<Review[]> => {
   const { data, error } = await sb()
     .from('reviews')
-    .select('*')
+    .select('*, profiles(display_name, avatar_url)')
     .eq('expert_profile_id', expertId)
     .order('created_at', { ascending: false });
   if (error) throw error;
   return (data as ReviewRow[]).map(mapReview);
+};
+
+// The signed-in customer's review of a specific booking (or null).
+export const fetchMyReviewForBooking = async (bookingId: string): Promise<Review | null> => {
+  const { data, error } = await sb()
+    .from('reviews')
+    .select('*, profiles(display_name, avatar_url)')
+    .eq('booking_id', bookingId)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? mapReview(data as ReviewRow) : null;
 };
 
 export type CreateReviewInput = {
