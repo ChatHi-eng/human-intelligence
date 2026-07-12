@@ -102,10 +102,10 @@ export default function YouScreen() {
       ) : (
         <View style={styles.section}>
           <Card>
-            <Text style={styles.becomeTitle}>Offer your expertise</Text>
+            <Text style={styles.becomeTitle}>People pay for what you know</Text>
             <Text style={styles.becomeBody}>
-              Have knowledge others would pay for? Set up your expert profile and start taking
-              bookings.
+              Years of experience in anything — law, code, pipes, paint — is worth real money to
+              someone stuck. Set up your expert profile and start taking bookings.
             </Text>
             <Button
               title="Become an expert"

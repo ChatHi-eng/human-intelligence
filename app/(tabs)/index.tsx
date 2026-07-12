@@ -69,12 +69,12 @@ export default function DiscoverScreen() {
         <View style={{ flex: 1, gap: spacing.md, paddingTop: spacing.lg }}>
           <SectionHeader
             title="Talk to a human"
-            caption="Verified experts. Real video or phone advice — on your schedule."
+            caption="People who know, on call — verified experts by video or phone."
           />
           <EmptyState
             title="No experts yet"
-            description="Be the first — open your profile tab and tap Become an expert."
-            emoji="🧠"
+            description="Be the first human on Palam — open your You tab and tap Become an expert."
+            emoji="🌱"
           />
         </View>
       ) : (
@@ -86,7 +86,7 @@ export default function DiscoverScreen() {
             <View style={styles.header}>
               <SectionHeader
                 title="Talk to a human"
-                caption="Verified experts. Real video or phone advice — on your schedule."
+                caption="People who know, on call — verified experts by video or phone."
               />
               <View style={styles.searchRow}>
                 <TextInput

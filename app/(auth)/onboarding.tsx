@@ -9,11 +9,11 @@ export default function OnboardingScreen() {
   return (
     <Screen>
       <View style={styles.container}>
-        <Text style={styles.emoji}>🧠</Text>
-        <Text style={styles.title}>Real humans. Real expertise.</Text>
+        <Text style={styles.wordmark}>palam</Text>
+        <Text style={styles.title}>Talk to a human who knows.</Text>
         <Text style={styles.body}>
-          Talk to lawyers, therapists, coders, designers, and tradesmen — by video or phone. Paid
-          time, with verified credentials.
+          Real people — lawyers, therapists, coders, designers, tradesmen — on a video or phone
+          call, when you need them.
         </Text>
         <Button title="Get started" onPress={() => router.push('/(auth)/login')} fullWidth />
       </View>
@@ -23,7 +23,12 @@ export default function OnboardingScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: spacing.lg },
-  emoji: { fontSize: 64 },
+  wordmark: {
+    fontFamily: 'Manrope_700Bold',
+    fontSize: 44,
+    letterSpacing: -1,
+    color: colors.accent,
+  },
   title: { ...typography.display, color: colors.textPrimary, textAlign: 'center' },
   body: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
 });

@@ -123,8 +123,8 @@ export default function ExpertOnboardingScreen() {
           <Text style={styles.doneEmoji}>🎉</Text>
           <Text style={styles.doneTitle}>You&apos;re live</Text>
           <Text style={styles.doneBody}>
-            Your profile is on Discover. One thing left: customers can only book you once you open
-            up availability.
+            You&apos;re now one of the humans on Palam. One thing left: customers can only book you
+            once you open up availability.
           </Text>
           <Button
             title="Set your availability"

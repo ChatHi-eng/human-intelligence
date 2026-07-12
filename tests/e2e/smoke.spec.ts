@@ -17,7 +17,7 @@ test('app boots and renders the first screen', async ({ page }) => {
   // Wait for either canonical first-screen state. The 60s timeout covers the
   // cold Metro web bundle build.
   await expect(
-    page.getByText(/Real humans\. Real expertise\.|Setup needed/i).first(),
+    page.getByText(/Talk to a human who knows|Setup needed/i).first(),
   ).toBeVisible({ timeout: 90_000 });
 
   await page.screenshot({
