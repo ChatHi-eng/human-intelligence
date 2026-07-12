@@ -64,7 +64,7 @@ const variantStyles: Record<
   { container: ViewStyle; text: { color: string } }
 > = {
   primary: {
-    container: { backgroundColor: colors.textPrimary },
+    container: { backgroundColor: colors.accent },
     text: { color: '#FFFFFF' },
   },
   secondary: {

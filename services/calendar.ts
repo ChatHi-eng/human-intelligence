@@ -22,7 +22,7 @@ export const addBookingToDeviceCalendar = async (
       title: `Call with ${expertName}`,
       startDate: new Date(booking.slot.startIso),
       endDate: new Date(booking.slot.endIso),
-      notes: `Human Intelligence booking ${booking.id}`,
+      notes: `Palam booking ${booking.id}`,
     });
     return { eventId };
   } catch (err) {

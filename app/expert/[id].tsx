@@ -75,7 +75,7 @@ export default function ExpertProfileScreen() {
           {expert.ratingCount > 0 ? (
             <RatingStars value={expert.ratingAverage} count={expert.ratingCount} size={18} />
           ) : (
-            <Text style={styles.newHere}>New on Human Intelligence</Text>
+            <Text style={styles.newHere}>New on Palam</Text>
           )}
 
           {expert.howICanHelp ? (

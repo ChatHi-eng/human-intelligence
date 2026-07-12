@@ -1,3 +1,9 @@
+import {
+  Manrope_400Regular,
+  Manrope_600SemiBold,
+  Manrope_700Bold,
+  useFonts,
+} from '@expo-google-fonts/manrope';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -12,6 +18,11 @@ import { colors, spacing, typography } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    Manrope_400Regular,
+    Manrope_600SemiBold,
+    Manrope_700Bold,
+  });
   const queryClient = useMemo(
     () =>
       new QueryClient({
@@ -21,6 +32,7 @@ export default function RootLayout() {
       }),
     [],
   );
+  if (!fontsLoaded) return null;
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>

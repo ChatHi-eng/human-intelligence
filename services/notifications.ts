@@ -12,7 +12,7 @@ export const scheduleBookingReminder = async (booking: Booking, expertName: stri
     await Notifications.scheduleNotificationAsync({
       content: {
         title: `Call with ${expertName} in 10 min`,
-        body: 'Tap to open Human Intelligence and prepare for your call.',
+        body: 'Tap to open Palam and prepare for your call.',
         data: { bookingId: booking.id },
       },
       trigger: { type: 'date', date: trigger } as never,

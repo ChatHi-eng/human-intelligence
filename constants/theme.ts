@@ -1,18 +1,21 @@
+// Palam brand theme — deep green + mint on white, Manrope type.
+// Every screen/component pulls from here; no magic numbers in component files.
+
 export const colors = {
   background: '#FFFFFF',
-  surface: '#FAFAF7',
-  surfaceAlt: '#F2EFEA',
-  border: '#E8E4DC',
-  textPrimary: '#0F0F0F',
-  textSecondary: '#5C5A55',
-  textMuted: '#9A958C',
-  accent: '#E85D2A',
-  accentSoft: '#FDE7DC',
-  success: '#3F8F4A',
-  warning: '#D89B22',
-  danger: '#C8362B',
-  overlay: 'rgba(15,15,15,0.55)',
-  shadow: 'rgba(15,15,15,0.08)',
+  surface: '#F6F9F7',
+  surfaceAlt: '#EBF2EE',
+  border: '#DFE8E3',
+  textPrimary: '#12211B',
+  textSecondary: '#54655D',
+  textMuted: '#8A9A91',
+  accent: '#0F6E56',
+  accentSoft: '#E1F5EE',
+  success: '#1D9E75',
+  warning: '#BA7517',
+  danger: '#C0392B',
+  overlay: 'rgba(18,33,27,0.55)',
+  shadow: 'rgba(18,33,27,0.08)',
 } as const;
 
 export const spacing = {
@@ -33,14 +36,23 @@ export const radius = {
   pill: 999,
 } as const;
 
+// Manrope is loaded in app/_layout.tsx via @expo-google-fonts/manrope.
+// Font families encode weight (static font files), so tokens set the family
+// rather than fontWeight — combining both breaks weight selection on Android.
+export const fonts = {
+  regular: 'Manrope_400Regular',
+  semiBold: 'Manrope_600SemiBold',
+  bold: 'Manrope_700Bold',
+} as const;
+
 export const typography = {
-  display: { fontSize: 32, fontWeight: '700' as const, letterSpacing: -0.5 },
-  title: { fontSize: 24, fontWeight: '700' as const, letterSpacing: -0.3 },
-  heading: { fontSize: 18, fontWeight: '600' as const },
-  body: { fontSize: 15, fontWeight: '400' as const },
-  bodyStrong: { fontSize: 15, fontWeight: '600' as const },
-  caption: { fontSize: 13, fontWeight: '400' as const },
-  label: { fontSize: 12, fontWeight: '600' as const, letterSpacing: 0.4 },
+  display: { fontFamily: fonts.bold, fontSize: 32, letterSpacing: -0.5 },
+  title: { fontFamily: fonts.bold, fontSize: 24, letterSpacing: -0.3 },
+  heading: { fontFamily: fonts.semiBold, fontSize: 18 },
+  body: { fontFamily: fonts.regular, fontSize: 15 },
+  bodyStrong: { fontFamily: fonts.semiBold, fontSize: 15 },
+  caption: { fontFamily: fonts.regular, fontSize: 13 },
+  label: { fontFamily: fonts.semiBold, fontSize: 12, letterSpacing: 0.4 },
 } as const;
 
 export const shadow = {
@@ -60,5 +72,5 @@ export const shadow = {
   },
 } as const;
 
-export const theme = { colors, spacing, radius, typography, shadow } as const;
+export const theme = { colors, spacing, radius, typography, fonts, shadow } as const;
 export type Theme = typeof theme;
