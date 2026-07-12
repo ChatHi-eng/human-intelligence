@@ -14,6 +14,7 @@ import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useBooking, useCancelBooking, useCompletePayment } from '@/hooks/useBookings';
 import { useExpert } from '@/hooks/useExperts';
+import { useOpenConversation } from '@/hooks/useMessages';
 import { useMyReviewForBooking, useSubmitReview } from '@/hooks/useReviews';
 import { formatDateTime, minutesBetween } from '@/lib/date';
 import { formatCurrency } from '@/lib/format';
@@ -62,6 +63,7 @@ export default function BookingDetailScreen() {
   const { mutate: completePayment, isPending: paying } = useCompletePayment();
   const { data: myReview } = useMyReviewForBooking(id);
   const { mutate: submitReview, isPending: submittingReview } = useSubmitReview();
+  const { mutate: openConversation, isPending: openingChat } = useOpenConversation();
 
   const [stage, setStage] = useState<CallStage>('idle');
   const [rating, setRating] = useState<1 | 2 | 3 | 4 | 5 | null>(null);
@@ -182,6 +184,27 @@ export default function BookingDetailScreen() {
               {formatCurrency(booking.priceCents)} · {paymentLabel(booking.paymentStatus)}
             </Text>
           </View>
+          <Button
+            title={isExpert ? 'Message customer' : `Message ${expert?.displayName ?? 'expert'}`}
+            variant="secondary"
+            loading={openingChat}
+            onPress={() =>
+              openConversation(
+                { customerId: booking.customerId, expertId: booking.expertId },
+                {
+                  onSuccess: (conversationId) =>
+                    router.push({ pathname: '/chat/[id]', params: { id: conversationId } }),
+                  onError: (err) =>
+                    Toast.show({
+                      type: 'error',
+                      text1: 'Could not open chat',
+                      text2: err instanceof Error ? err.message : 'Unknown error',
+                    }),
+                },
+              )
+            }
+            style={{ marginTop: spacing.md }}
+          />
         </Card>
 
         {needsPayment && (

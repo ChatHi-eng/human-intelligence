@@ -11,8 +11,10 @@ import { RatingStars } from '@/components/ui/RatingStars';
 import { Screen } from '@/components/ui/Screen';
 import { industryById } from '@/constants/industries';
 import { colors, radius, shadow, spacing, typography } from '@/constants/theme';
+import Toast from 'react-native-toast-message';
 import { useAuth } from '@/hooks/useAuth';
 import { useExpert } from '@/hooks/useExperts';
+import { useOpenConversation } from '@/hooks/useMessages';
 import { useReviewsForExpert } from '@/hooks/useReviews';
 import { formatDay } from '@/lib/date';
 import { formatCurrency } from '@/lib/format';
@@ -23,6 +25,7 @@ export default function ExpertProfileScreen() {
   const { user } = useAuth();
   const { data: expert, isLoading } = useExpert(id);
   const { data: reviews } = useReviewsForExpert(id);
+  const { mutate: openConversation, isPending: openingChat } = useOpenConversation();
 
   if (isLoading && !expert) return <LoadingView label="Loading expert…" />;
   if (!expert) {
@@ -136,6 +139,29 @@ export default function ExpertProfileScreen() {
                 : 'No times available yet'}
           </Text>
         </View>
+        {!isSelf && (
+          <Button
+            title="Message"
+            variant="secondary"
+            loading={openingChat}
+            onPress={() => {
+              if (!user) return;
+              openConversation(
+                { customerId: user.id, expertId: expert.id },
+                {
+                  onSuccess: (conversationId) =>
+                    router.push({ pathname: '/chat/[id]', params: { id: conversationId } }),
+                  onError: (err) =>
+                    Toast.show({
+                      type: 'error',
+                      text1: 'Could not open chat',
+                      text2: err instanceof Error ? err.message : 'Unknown error',
+                    }),
+                },
+              );
+            }}
+          />
+        )}
         <Button
           title="Book session"
           onPress={() => router.push({ pathname: '/book/[id]', params: { id: expert.id } })}

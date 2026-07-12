@@ -18,6 +18,7 @@ import type {
   TimeSlot,
 } from '@/types/booking';
 import type { Review } from '@/types/review';
+import type { Conversation, Message } from '@/types/message';
 
 const sb = () => {
   const client = getSupabase();
@@ -598,5 +599,160 @@ export const createReview = async (input: CreateReviewInput): Promise<void> => {
     rating: input.rating,
     comment: input.comment ?? null,
   });
+  if (error) throw error;
+};
+
+// ---------- Messaging ----------
+
+type ConversationRow = {
+  id: string;
+  customer_id: string;
+  expert_profile_id: string;
+  last_message_at: string;
+  customer_last_read_at: string;
+  expert_last_read_at: string;
+  created_at: string;
+  customer: { display_name: string; avatar_url: string | null } | null;
+  expert: {
+    profile_id: string;
+    profiles: { display_name: string; avatar_url: string | null } | null;
+  } | null;
+  messages: { body: string; created_at: string; sender_id: string }[];
+};
+
+type MessageRow = {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  body: string;
+  created_at: string;
+};
+
+const CONVERSATION_SELECT = `
+  id, customer_id, expert_profile_id, last_message_at,
+  customer_last_read_at, expert_last_read_at, created_at,
+  customer:profiles!conversations_customer_id_fkey(display_name, avatar_url),
+  expert:expert_profiles!conversations_expert_profile_id_fkey(
+    profile_id, profiles(display_name, avatar_url)
+  ),
+  messages(body, created_at, sender_id)
+`;
+
+const mapConversation = (row: ConversationRow, viewerId: string): Conversation => {
+  const viewerIsCustomer = row.customer_id === viewerId;
+  const otherName = viewerIsCustomer
+    ? (row.expert?.profiles?.display_name ?? 'Expert')
+    : (row.customer?.display_name ?? 'Customer');
+  const otherAvatar = viewerIsCustomer
+    ? (row.expert?.profiles?.avatar_url ?? null)
+    : (row.customer?.avatar_url ?? null);
+  const last = row.messages?.[0] ?? null;
+  const myReadPointer = viewerIsCustomer ? row.customer_last_read_at : row.expert_last_read_at;
+  const unread = Boolean(
+    last && last.sender_id !== viewerId && last.created_at > myReadPointer,
+  );
+  return {
+    id: row.id,
+    customerId: row.customer_id,
+    expertId: row.expert_profile_id,
+    otherPartyName: otherName,
+    otherPartyAvatarUrl: otherAvatar,
+    lastMessageAt: row.last_message_at,
+    lastMessageBody: last?.body ?? null,
+    lastMessageSenderId: last?.sender_id ?? null,
+    unread,
+  };
+};
+
+const mapMessage = (row: MessageRow): Message => ({
+  id: row.id,
+  conversationId: row.conversation_id,
+  senderId: row.sender_id,
+  body: row.body,
+  createdAt: row.created_at,
+});
+
+export const fetchConversations = async (viewerId: string): Promise<Conversation[]> => {
+  const { data, error } = await sb()
+    .from('conversations')
+    .select(CONVERSATION_SELECT)
+    .or(`customer_id.eq.${viewerId},expert_profile_id.eq.${viewerId}`)
+    .order('last_message_at', { ascending: false })
+    .order('created_at', { referencedTable: 'messages', ascending: false })
+    .limit(1, { referencedTable: 'messages' });
+  if (error) throw error;
+  return (data as unknown as ConversationRow[]).map((r) => mapConversation(r, viewerId));
+};
+
+export const fetchConversation = async (
+  id: string,
+  viewerId: string,
+): Promise<Conversation | null> => {
+  const { data, error } = await sb()
+    .from('conversations')
+    .select(CONVERSATION_SELECT)
+    .eq('id', id)
+    .order('created_at', { referencedTable: 'messages', ascending: false })
+    .limit(1, { referencedTable: 'messages' })
+    .maybeSingle();
+  if (error) throw error;
+  return data ? mapConversation(data as unknown as ConversationRow, viewerId) : null;
+};
+
+// One conversation per customer↔expert pair, created on first contact.
+export const getOrCreateConversation = async (
+  customerId: string,
+  expertId: string,
+): Promise<string> => {
+  const client = sb();
+  const { data: existing, error: findError } = await client
+    .from('conversations')
+    .select('id')
+    .eq('customer_id', customerId)
+    .eq('expert_profile_id', expertId)
+    .maybeSingle();
+  if (findError) throw findError;
+  if (existing) return existing.id;
+  const { data, error } = await client
+    .from('conversations')
+    .insert({ customer_id: customerId, expert_profile_id: expertId })
+    .select('id')
+    .single();
+  if (error) throw error;
+  return data.id as string;
+};
+
+export const fetchMessages = async (conversationId: string): Promise<Message[]> => {
+  const { data, error } = await sb()
+    .from('messages')
+    .select('*')
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: false })
+    .limit(200);
+  if (error) throw error;
+  return (data as MessageRow[]).map(mapMessage);
+};
+
+export const sendMessage = async (
+  conversationId: string,
+  senderId: string,
+  body: string,
+): Promise<void> => {
+  const { error } = await sb().from('messages').insert({
+    conversation_id: conversationId,
+    sender_id: senderId,
+    body,
+  });
+  if (error) throw error;
+};
+
+export const markConversationRead = async (
+  conversationId: string,
+  viewerIsCustomer: boolean,
+): Promise<void> => {
+  const patch = viewerIsCustomer
+    ? { customer_last_read_at: new Date().toISOString() }
+    : { expert_last_read_at: new Date().toISOString() };
+  const { error } = await sb().from('conversations').update(patch).eq('id', conversationId);
   if (error) throw error;
 };

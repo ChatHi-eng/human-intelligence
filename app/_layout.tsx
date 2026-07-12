@@ -49,6 +49,10 @@ export default function RootLayout() {
                   options={{ title: 'Book a session', presentation: 'modal' }}
                 />
                 <Stack.Screen
+                  name="chat/[id]"
+                  options={{ title: 'Chat', presentation: 'card' }}
+                />
+                <Stack.Screen
                   name="expert-profile-edit"
                   options={{ title: 'Expert profile', presentation: 'modal' }}
                 />
