@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { RatingStars } from '@/components/ui/RatingStars';
 import { Screen } from '@/components/ui/Screen';
+import { MESSAGING_ENABLED } from '@/constants/featureFlags';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useBooking, useCancelBooking, useCompletePayment } from '@/hooks/useBookings';
@@ -184,6 +185,7 @@ export default function BookingDetailScreen() {
               {formatCurrency(booking.priceCents)} · {paymentLabel(booking.paymentStatus)}
             </Text>
           </View>
+          {MESSAGING_ENABLED && (
           <Button
             title={isExpert ? 'Message customer' : `Message ${expert?.displayName ?? 'expert'}`}
             variant="secondary"
@@ -205,6 +207,7 @@ export default function BookingDetailScreen() {
             }
             style={{ marginTop: spacing.md }}
           />
+          )}
         </Card>
 
         {needsPayment && (

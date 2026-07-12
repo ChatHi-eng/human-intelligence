@@ -1,4 +1,5 @@
 import { Tabs } from 'expo-router';
+import { MESSAGING_ENABLED } from '@/constants/featureFlags';
 import { colors } from '@/constants/theme';
 import { usePendingRequests } from '@/hooks/useBookings';
 import { useMyExpertProfile } from '@/hooks/useExperts';
@@ -22,7 +23,10 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="index" options={{ title: 'Discover' }} />
       <Tabs.Screen name="bookings" options={{ title: 'Bookings' }} />
-      <Tabs.Screen name="messages" options={{ title: 'Messages' }} />
+      <Tabs.Screen
+        name="messages"
+        options={{ title: 'Messages', href: MESSAGING_ENABLED ? '/messages' : null }}
+      />
       <Tabs.Screen
         name="studio"
         options={{
