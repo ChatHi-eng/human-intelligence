@@ -2,7 +2,7 @@ import { FlatList, StyleSheet, View } from 'react-native';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { ExpertCard } from '@/components/expert/ExpertCard';
-import { spacing } from '@/constants/theme';
+import { colors, spacing } from '@/constants/theme';
 import type { Expert } from '@/types/user';
 
 export type ExpertListProps = {
@@ -12,7 +12,8 @@ export type ExpertListProps = {
   ListHeaderComponent?: React.ReactElement;
 };
 
-// Two-column portrait grid — people-first discovery.
+// Dense people-list — compact rows with hairline separators so many experts
+// fit per screen.
 export const ExpertList = ({
   experts,
   isLoading,
@@ -36,12 +37,10 @@ export const ExpertList = ({
     <FlatList
       data={experts}
       keyExtractor={(e) => e.id}
-      numColumns={2}
-      columnWrapperStyle={styles.column}
       renderItem={({ item }) => (
         <ExpertCard expert={item} onPress={() => onPressExpert(item)} />
       )}
-      ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
+      ItemSeparatorComponent={Separator}
       ListHeaderComponent={ListHeaderComponent}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
@@ -49,8 +48,14 @@ export const ExpertList = ({
   );
 };
 
+const Separator = () => <View style={styles.separator} />;
+
 const styles = StyleSheet.create({
   content: { paddingBottom: spacing.xxxl },
-  column: { gap: spacing.md },
+  separator: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginLeft: 64 + spacing.md,
+  },
   empty: { gap: spacing.lg },
 });
