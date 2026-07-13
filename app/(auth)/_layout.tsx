@@ -1,5 +1,5 @@
 import { Stack } from 'expo-router';
-import { colors } from '@/constants/theme';
+import { colors, fonts } from '@/constants/theme';
 
 export default function AuthLayout() {
   return (
@@ -7,7 +7,7 @@ export default function AuthLayout() {
       screenOptions={{
         headerShadowVisible: false,
         headerStyle: { backgroundColor: colors.background },
-        headerTitleStyle: { color: colors.textPrimary, fontWeight: '700' },
+        headerTitleStyle: { color: colors.textPrimary, fontFamily: fonts.bold, fontSize: 18 },
       }}
     >
       <Stack.Screen name="login" options={{ title: 'Sign in' }} />

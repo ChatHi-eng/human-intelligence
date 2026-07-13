@@ -14,7 +14,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { LoadingView } from '@/components/ui/LoadingView';
-import { colors, spacing, typography } from '@/constants/theme';
+import { colors, fonts, spacing, typography } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 
 export default function RootLayout() {
@@ -43,7 +43,14 @@ export default function RootLayout() {
               <Stack
                 screenOptions={{
                   headerShadowVisible: false,
-                  contentStyle: { backgroundColor: '#FFFFFF' },
+                  contentStyle: { backgroundColor: colors.background },
+                  headerStyle: { backgroundColor: colors.background },
+                  headerTintColor: colors.textPrimary,
+                  headerTitleStyle: {
+                    color: colors.textPrimary,
+                    fontFamily: fonts.bold,
+                    fontSize: 18,
+                  },
                 }}
               >
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
