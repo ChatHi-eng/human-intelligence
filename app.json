@@ -11,6 +11,7 @@
       "icon": "./assets/expo.icon"
     },
     "android": {
+      "package": "com.palamapp.palam",
       "adaptiveIcon": {
         "backgroundColor": "#E1F5EE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -41,6 +42,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "367bfff7-3a89-4eb8-9297-a20bff037f34"
+      }
+    },
+    "owner": "vkinatukara"
   }
 }
