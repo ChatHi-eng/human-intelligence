@@ -90,7 +90,12 @@ serve(async (req) => {
     .eq('profile_id', booking.expert_profile_id)
     .maybeSingle();
 
-  const PLATFORM_FEE_PCT = 0.15;
+  // Platform cut — configurable via the PLATFORM_FEE_PCT Supabase secret
+  // (e.g. "0.15" = 15%). Clamped to 0–50% so a typo'd secret can't take the
+  // whole payment. Keep constants/business.ts in sync for the client display.
+  const rawFee = Number(Deno.env.get('PLATFORM_FEE_PCT') ?? '0.15');
+  const PLATFORM_FEE_PCT =
+    Number.isFinite(rawFee) && rawFee >= 0 && rawFee <= 0.5 ? rawFee : 0.15;
   const applicationFeeCents = Math.floor(booking.price_cents * PLATFORM_FEE_PCT);
   const canSplit =
     expert?.stripe_connect_account_id && expert.stripe_connect_payouts_enabled;

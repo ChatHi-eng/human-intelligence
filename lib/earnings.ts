@@ -1,10 +1,10 @@
+import { PLATFORM_FEE_PCT } from '@/constants/business';
 import type { Booking, EarningsBucket, PaymentStatus } from '@/types/booking';
 
 const EARNED_STATUSES: PaymentStatus[] = ['authorized', 'captured'];
-const PLATFORM_FEE = 0.15;
 
 const payoutOf = (grossCents: number) =>
-  Math.floor(grossCents * (1 - PLATFORM_FEE));
+  Math.floor(grossCents * (1 - PLATFORM_FEE_PCT));
 
 const startOfDay = (d: Date) => {
   const copy = new Date(d);
