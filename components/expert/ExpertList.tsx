@@ -12,6 +12,7 @@ export type ExpertListProps = {
   ListHeaderComponent?: React.ReactElement;
 };
 
+// Two-column portrait grid — people-first discovery.
 export const ExpertList = ({
   experts,
   isLoading,
@@ -35,8 +36,12 @@ export const ExpertList = ({
     <FlatList
       data={experts}
       keyExtractor={(e) => e.id}
-      renderItem={({ item }) => <ExpertCard expert={item} onPress={() => onPressExpert(item)} />}
-      ItemSeparatorComponent={() => <View style={{ height: spacing.lg }} />}
+      numColumns={2}
+      columnWrapperStyle={styles.column}
+      renderItem={({ item }) => (
+        <ExpertCard expert={item} onPress={() => onPressExpert(item)} />
+      )}
+      ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
       ListHeaderComponent={ListHeaderComponent}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
@@ -45,6 +50,7 @@ export const ExpertList = ({
 };
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: spacing.xxxl, gap: 0 },
+  content: { paddingBottom: spacing.xxxl },
+  column: { gap: spacing.md },
   empty: { gap: spacing.lg },
 });

@@ -1,11 +1,8 @@
 import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
-import { RatingStars } from '@/components/ui/RatingStars';
 import { colors, radius, shadow, spacing, typography } from '@/constants/theme';
-import { industryById } from '@/constants/industries';
-import { formatCurrency } from '@/lib/format';
+import { formatCurrency, formatRating, initials } from '@/lib/format';
 import type { Expert } from '@/types/user';
 
 export type ExpertCardProps = {
@@ -13,49 +10,55 @@ export type ExpertCardProps = {
   onPress?: () => void;
 };
 
+// Portrait-first card for the Discover grid — the person's photo IS the card.
+// No cover banners; falls back to big initials on brand mint when there's no
+// profile photo yet.
 export const ExpertCard = ({ expert, onPress }: ExpertCardProps) => {
-  const industry = industryById(expert.industryId);
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
-      {expert.coverImageUrl ? (
-        <Image
-          source={{ uri: expert.coverImageUrl }}
-          style={styles.cover}
-          transition={200}
-          contentFit="cover"
-        />
-      ) : (
-        <View style={[styles.cover, styles.coverFallback]}>
-          <Text style={styles.coverEmoji}>{industry?.emoji ?? '🌱'}</Text>
-        </View>
-      )}
-      {/* The human is the product — always show a face (or initials) even
-          when there's no cover photo. */}
-      <View style={styles.avatarWrap}>
-        <Avatar uri={expert.avatarUrl} name={expert.displayName} size={56} />
+      <View style={styles.photoWrap}>
+        {expert.avatarUrl ? (
+          <Image
+            source={{ uri: expert.avatarUrl }}
+            style={styles.photo}
+            transition={200}
+            contentFit="cover"
+          />
+        ) : (
+          <View style={[styles.photo, styles.photoFallback]}>
+            <Text style={styles.photoInitials}>{initials(expert.displayName)}</Text>
+          </View>
+        )}
+        {expert.verified ? (
+          <View style={styles.verifiedWrap}>
+            <Badge label="Verified" tone="success" />
+          </View>
+        ) : null}
       </View>
       <View style={styles.body}>
-        <View style={styles.headerRow}>
-          {industry ? (
-            <Badge label={`${industry.emoji}  ${industry.label}`} tone="neutral" />
-          ) : null}
-          {expert.verified ? <Badge label="Verified" tone="success" /> : null}
-        </View>
-        <Text style={styles.name}>{expert.displayName}</Text>
+        <Text style={styles.name} numberOfLines={1}>
+          {expert.displayName}
+        </Text>
         <Text style={styles.headline} numberOfLines={2}>
           {expert.headline}
         </Text>
-        <View style={styles.footerRow}>
+        <Text style={styles.footer} numberOfLines={1}>
           {expert.ratingCount > 0 ? (
-            <RatingStars value={expert.ratingAverage} count={expert.ratingCount} />
+            <>
+              <Text style={styles.star}>★ </Text>
+              <Text style={styles.rating}>
+                {formatRating(expert.ratingAverage)} ({expert.ratingCount})
+              </Text>
+            </>
           ) : (
-            <Text style={styles.newLabel}>New on Palam</Text>
+            <Text style={styles.newLabel}>New</Text>
           )}
+          <Text style={styles.dot}> · </Text>
           <Text style={styles.rate}>{formatCurrency(expert.hourlyRate)}/hr</Text>
-        </View>
+        </Text>
       </View>
     </Pressable>
   );
@@ -63,45 +66,35 @@ export const ExpertCard = ({ expert, onPress }: ExpertCardProps) => {
 
 const styles = StyleSheet.create({
   card: {
+    flex: 1,
     backgroundColor: colors.background,
-    borderRadius: radius.xl,
+    borderRadius: radius.lg,
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     ...shadow.card,
   },
   pressed: { opacity: 0.92, transform: [{ scale: 0.99 }] },
-  cover: { width: '100%', height: 160, backgroundColor: colors.surfaceAlt },
-  coverFallback: {
+  photoWrap: { position: 'relative' },
+  photo: { width: '100%', aspectRatio: 1, backgroundColor: colors.surfaceAlt },
+  photoFallback: {
     backgroundColor: colors.accentSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  coverEmoji: { fontSize: 48 },
-  avatarWrap: {
-    position: 'absolute',
-    top: 160 - 28,
-    left: spacing.lg,
-    borderRadius: 999,
-    borderWidth: 3,
-    borderColor: colors.background,
-    backgroundColor: colors.background,
-    zIndex: 1,
+  photoInitials: {
+    fontFamily: 'Manrope_700Bold',
+    fontSize: 40,
+    color: colors.accent,
   },
-  body: { padding: spacing.lg, paddingTop: spacing.xl + spacing.sm, gap: spacing.sm },
-  headerRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    justifyContent: 'flex-end',
-  },
-  name: { ...typography.heading, color: colors.textPrimary },
-  headline: { ...typography.body, color: colors.textSecondary },
-  footerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: spacing.xs,
-  },
+  verifiedWrap: { position: 'absolute', top: spacing.sm, right: spacing.sm },
+  body: { padding: spacing.md, gap: 2 },
+  name: { ...typography.bodyStrong, color: colors.textPrimary },
+  headline: { ...typography.caption, color: colors.textSecondary, minHeight: 34 },
+  footer: { ...typography.caption, color: colors.textPrimary, marginTop: spacing.xs },
+  star: { color: colors.accent },
+  rating: { ...typography.caption, color: colors.textPrimary },
   newLabel: { ...typography.caption, color: colors.textMuted },
-  rate: { ...typography.bodyStrong, color: colors.textPrimary },
+  dot: { color: colors.textMuted },
+  rate: { ...typography.caption, color: colors.textPrimary },
 });

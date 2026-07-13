@@ -10,7 +10,7 @@ import { Screen } from '@/components/ui/Screen';
 import { industries } from '@/constants/industries';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useMyExpertProfile, useUpsertMyExpertProfile } from '@/hooks/useExperts';
-import { useUploadImage } from '@/hooks/useProfile';
+import { useUpdateMyProfile, useUploadImage } from '@/hooks/useProfile';
 
 const STEPS = ['Field', 'Pitch', 'Pricing', 'Photo'] as const;
 
@@ -19,6 +19,7 @@ export default function ExpertOnboardingScreen() {
   const { data: existing, isLoading } = useMyExpertProfile();
   const { mutate: upsert, isPending: saving } = useUpsertMyExpertProfile();
   const { mutateAsync: upload, isPending: uploading } = useUploadImage();
+  const { mutateAsync: updateProfile } = useUpdateMyProfile();
 
   const [step, setStep] = useState(0);
   const [done, setDone] = useState(false);
@@ -27,13 +28,14 @@ export default function ExpertOnboardingScreen() {
   const [howICanHelp, setHowICanHelp] = useState('');
   const [rateDollars, setRateDollars] = useState('');
   const [years, setYears] = useState('');
-  const [coverImageUrl, setCoverImageUrl] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
 
   if (isLoading) return <LoadingView label="Loading…" />;
   // Already an expert → this wizard isn't for you; edit instead.
   if (existing && !done) return <Redirect href="/expert-profile-edit" />;
 
-  const pickCover = async () => {
+  // Discover features the profile photo, so that's what the wizard asks for.
+  const pickPhoto = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (perm.status !== 'granted') {
       Toast.show({ type: 'error', text1: 'Photo permission needed' });
@@ -42,7 +44,7 @@ export default function ExpertOnboardingScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
-      aspect: [16, 9],
+      aspect: [1, 1],
       quality: 0.85,
     });
     if (result.canceled) return;
@@ -50,11 +52,12 @@ export default function ExpertOnboardingScreen() {
     if (!asset) return;
     try {
       const url = await upload({
-        bucket: 'cover-images',
+        bucket: 'avatars',
         uri: asset.uri,
         mimeType: asset.mimeType ?? 'image/jpeg',
       });
-      setCoverImageUrl(url);
+      await updateProfile({ avatarUrl: url });
+      setAvatarUrl(url);
     } catch (err) {
       Toast.show({
         type: 'error',
@@ -101,7 +104,6 @@ export default function ExpertOnboardingScreen() {
         headline: headline.trim(),
         hourlyRateCents: Math.round(Number(rateDollars) * 100),
         yearsExperience: Math.floor(Number(years)),
-        coverImageUrl: coverImageUrl || null,
         howICanHelp: howICanHelp.trim() || null,
       },
       {
@@ -242,19 +244,22 @@ export default function ExpertOnboardingScreen() {
 
         {step === 3 && (
           <>
-            <Text style={styles.title}>Add a cover photo</Text>
+            <Text style={styles.title}>Add a profile photo</Text>
             <Text style={styles.caption}>
-              Profiles with a photo get booked more. Skippable — you can add one later.
+              Your face is your card on Discover — experts with a photo get booked far more.
+              Skippable, but strongly recommended.
             </Text>
-            <Pressable onPress={pickCover} style={styles.coverPicker}>
-              {coverImageUrl ? (
-                <Image source={{ uri: coverImageUrl }} style={styles.coverImage} contentFit="cover" />
-              ) : (
-                <Text style={styles.coverPlaceholder}>
-                  {uploading ? 'Uploading…' : 'Tap to choose a photo'}
-                </Text>
-              )}
-            </Pressable>
+            <View style={styles.photoRow}>
+              <Pressable onPress={pickPhoto} style={styles.photoPicker}>
+                {avatarUrl ? (
+                  <Image source={{ uri: avatarUrl }} style={styles.photoImage} contentFit="cover" />
+                ) : (
+                  <Text style={styles.photoPlaceholder}>
+                    {uploading ? 'Uploading…' : 'Tap to add'}
+                  </Text>
+                )}
+              </Pressable>
+            </View>
           </>
         )}
       </ScrollView>
@@ -313,18 +318,20 @@ const styles = StyleSheet.create({
   industryEmoji: { fontSize: 28 },
   industryLabel: { ...typography.bodyStrong, color: colors.textPrimary },
   industryLabelActive: { color: '#FFFFFF' },
-  coverPicker: {
-    height: 180,
-    borderRadius: radius.lg,
-    backgroundColor: colors.surfaceAlt,
+  photoRow: { alignItems: 'center', paddingVertical: spacing.lg },
+  photoPicker: {
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: colors.accentSoft,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  coverImage: { width: '100%', height: '100%' },
-  coverPlaceholder: { ...typography.body, color: colors.textMuted },
+  photoImage: { width: '100%', height: '100%' },
+  photoPlaceholder: { ...typography.body, color: colors.accent },
   footer: {
     flexDirection: 'row',
     gap: spacing.md,
