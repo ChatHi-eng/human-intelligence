@@ -1,5 +1,6 @@
 import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { RatingStars } from '@/components/ui/RatingStars';
 import { colors, radius, shadow, spacing, typography } from '@/constants/theme';
@@ -28,9 +29,14 @@ export const ExpertCard = ({ expert, onPress }: ExpertCardProps) => {
         />
       ) : (
         <View style={[styles.cover, styles.coverFallback]}>
-          <Text style={styles.coverEmoji}>{industry?.emoji ?? '🧠'}</Text>
+          <Text style={styles.coverEmoji}>{industry?.emoji ?? '🌱'}</Text>
         </View>
       )}
+      {/* The human is the product — always show a face (or initials) even
+          when there's no cover photo. */}
+      <View style={styles.avatarWrap}>
+        <Avatar uri={expert.avatarUrl} name={expert.displayName} size={56} />
+      </View>
       <View style={styles.body}>
         <View style={styles.headerRow}>
           {industry ? (
@@ -43,7 +49,11 @@ export const ExpertCard = ({ expert, onPress }: ExpertCardProps) => {
           {expert.headline}
         </Text>
         <View style={styles.footerRow}>
-          <RatingStars value={expert.ratingAverage} count={expert.ratingCount} />
+          {expert.ratingCount > 0 ? (
+            <RatingStars value={expert.ratingAverage} count={expert.ratingCount} />
+          ) : (
+            <Text style={styles.newLabel}>New on Palam</Text>
+          )}
           <Text style={styles.rate}>{formatCurrency(expert.hourlyRate)}/hr</Text>
         </View>
       </View>
@@ -61,15 +71,29 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   pressed: { opacity: 0.92, transform: [{ scale: 0.99 }] },
-  cover: { width: '100%', height: 180, backgroundColor: colors.surfaceAlt },
+  cover: { width: '100%', height: 160, backgroundColor: colors.surfaceAlt },
   coverFallback: {
     backgroundColor: colors.accentSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  coverEmoji: { fontSize: 56 },
-  body: { padding: spacing.lg, gap: spacing.sm },
-  headerRow: { flexDirection: 'row', gap: spacing.sm },
+  coverEmoji: { fontSize: 48 },
+  avatarWrap: {
+    position: 'absolute',
+    top: 160 - 28,
+    left: spacing.lg,
+    borderRadius: 999,
+    borderWidth: 3,
+    borderColor: colors.background,
+    backgroundColor: colors.background,
+    zIndex: 1,
+  },
+  body: { padding: spacing.lg, paddingTop: spacing.xl + spacing.sm, gap: spacing.sm },
+  headerRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'flex-end',
+  },
   name: { ...typography.heading, color: colors.textPrimary },
   headline: { ...typography.body, color: colors.textSecondary },
   footerRow: {
@@ -78,5 +102,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: spacing.xs,
   },
+  newLabel: { ...typography.caption, color: colors.textMuted },
   rate: { ...typography.bodyStrong, color: colors.textPrimary },
 });
