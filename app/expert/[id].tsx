@@ -19,6 +19,7 @@ import { useOpenConversation } from '@/hooks/useMessages';
 import { useReviewsForExpert } from '@/hooks/useReviews';
 import { formatDay } from '@/lib/date';
 import { formatCurrency } from '@/lib/format';
+import { generateSlots } from '@/lib/slots';
 
 export default function ExpertProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -38,8 +39,10 @@ export default function ExpertProfileScreen() {
   }
 
   const industry = industryById(expert.industryId);
+  // Mirror what the booking screen will actually offer: stale one-off dates
+  // (or windows that only produce past times) must not light up the Book bar.
   const hasAvailability =
-    expert.availability.length > 0 || expert.availabilityDates.length > 0;
+    generateSlots(expert.availability, expert.availabilityDates, []).length > 0;
   const isSelf = user?.id === expert.id;
 
   return (

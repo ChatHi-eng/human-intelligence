@@ -24,13 +24,15 @@ export default function ExpertEarningsScreen() {
   return (
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <SectionHeader title="Earnings" caption="Daily / weekly / monthly. Payouts via Stripe Connect (stub)." />
+        <SectionHeader title="Earnings" caption="Daily / weekly / monthly. Payouts arrive via Stripe." />
         <View style={styles.row}>
           {buckets?.map((b) => (
             <Card key={b.periodLabel} style={{ flex: 1 }}>
               <Text style={styles.label}>{b.periodLabel}</Text>
               <Text style={styles.value}>{formatCurrency(b.payoutCents)}</Text>
-              <Text style={styles.meta}>{b.bookingCount} bookings</Text>
+              <Text style={styles.meta}>
+                {b.bookingCount} booking{b.bookingCount === 1 ? '' : 's'}
+              </Text>
             </Card>
           ))}
         </View>

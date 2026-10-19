@@ -11,6 +11,8 @@ import { fetchMyProfile } from '@/services/api';
 
 type AuthState = {
   user: Profile | null;
+  /** Signed-in email from the auth session (profiles table doesn't store it). */
+  email: string | null;
   isHydrated: boolean;
   configError: string | null;
   hydrate: () => Promise<void>;
@@ -42,6 +44,7 @@ const loadUserFromSession = async (session: Session | null): Promise<Profile | n
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
+  email: null,
   isHydrated: false,
   configError: null,
 
@@ -57,11 +60,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const session = await getCurrentSession();
       const user = await loadUserFromSession(session);
-      set({ user, isHydrated: true, configError: null });
+      set({ user, email: session?.user.email ?? null, isHydrated: true, configError: null });
       unsubscribe?.();
       unsubscribe = subscribeToAuthChanges(async (next) => {
         const refreshed = await loadUserFromSession(next);
-        set({ user: refreshed });
+        set({ user: refreshed, email: next?.user.email ?? null });
       });
     } catch (err) {
       set({
@@ -73,7 +76,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signOut: async () => {
     await signOutFromSupabase();
-    set({ user: null });
+    set({ user: null, email: null });
   },
 
   refreshProfile: async () => {

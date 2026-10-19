@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { Screen } from '@/components/ui/Screen';
 import { colors, radius, spacing, typography } from '@/constants/theme';
+import { useAuth } from '@/hooks/useAuth';
 import { useCreateBooking, useExpertActiveBookings } from '@/hooks/useBookings';
 import { useExpert } from '@/hooks/useExperts';
 import { formatTime } from '@/lib/date';
@@ -26,6 +27,7 @@ const dayChipLabel = (dateKey: string): { weekday: string; day: string } => {
 export default function BookScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { user } = useAuth();
   const { data: expert, isLoading } = useExpert(id);
   const { data: busy } = useExpertActiveBookings(id);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -49,6 +51,17 @@ export default function BookScreen() {
     return (
       <Screen>
         <EmptyState title="Expert not found" emoji="🤷" />
+      </Screen>
+    );
+  }
+  if (user?.id === expert.id) {
+    return (
+      <Screen>
+        <EmptyState
+          title="This is your own profile"
+          description="You can't book a session with yourself. Share your profile so customers can."
+          emoji="🪞"
+        />
       </Screen>
     );
   }

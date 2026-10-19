@@ -2,8 +2,6 @@ import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Calendar, type DateData } from 'react-native-calendars';
 import { BookingCard } from '@/components/booking/BookingCard';
-import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Screen } from '@/components/ui/Screen';
 import { SectionHeader } from '@/components/ui/SectionHeader';
@@ -11,7 +9,6 @@ import { colors, spacing, typography } from '@/constants/theme';
 import { useMyBookings } from '@/hooks/useBookings';
 import { useExperts } from '@/hooks/useExperts';
 import { isoDateKey } from '@/lib/date';
-import { connectGoogleCalendar } from '@/services/calendar';
 
 export default function ExpertCalendarScreen() {
   const { data: bookings } = useMyBookings();
@@ -52,7 +49,7 @@ export default function ExpertCalendarScreen() {
           {dayBookings.length === 0 ? (
             <EmptyState
               title="No bookings this day"
-              description="Open more availability or sync your Google Calendar."
+              description="Open more availability to get booked."
               emoji="🗓️"
             />
           ) : (
@@ -62,17 +59,6 @@ export default function ExpertCalendarScreen() {
               ))}
             </View>
           )}
-          <Card style={{ marginTop: spacing.lg }}>
-            <Text style={styles.cardTitle}>Sync with Google Calendar</Text>
-            <Text style={styles.cardBody}>
-              Two-way sync will mirror bookings with your Google calendar. Currently stubbed.
-            </Text>
-            <Button
-              title="Connect Google Calendar"
-              variant="secondary"
-              onPress={() => void connectGoogleCalendar()}
-            />
-          </Card>
         </View>
       </ScrollView>
     </Screen>
@@ -83,6 +69,4 @@ const styles = StyleSheet.create({
   scroll: { paddingBottom: spacing.xxxl },
   padded: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, gap: spacing.md },
   sectionTitle: { ...typography.heading, color: colors.textPrimary, marginTop: spacing.lg },
-  cardTitle: { ...typography.bodyStrong, color: colors.textPrimary, marginBottom: spacing.xs },
-  cardBody: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.md },
 });

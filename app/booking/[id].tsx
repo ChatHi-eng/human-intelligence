@@ -304,8 +304,8 @@ export default function BookingDetailScreen() {
           <Card style={{ marginTop: spacing.lg }}>
             <Text style={styles.sectionTitle}>Need to cancel?</Text>
             <Text style={styles.cardBody}>
-              Cancelling now releases the time slot. Refunds get processed automatically once Stripe
-              is wired up.
+              Cancelling now releases the time slot. If you&apos;ve already paid, your card is
+              refunded automatically.
             </Text>
             <Button
               title="Cancel booking"

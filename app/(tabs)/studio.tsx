@@ -120,7 +120,7 @@ export default function StudioScreen() {
           <View style={styles.earningsRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>{monthly ? formatCurrency(monthly.payoutCents) : '—'}</Text>
-              <Text style={styles.cardCaption}>This month • {monthly?.bookingCount ?? 0} bookings</Text>
+              <Text style={styles.cardCaption}>This month • {monthly?.bookingCount ?? 0} booking{(monthly?.bookingCount ?? 0) === 1 ? '' : 's'}</Text>
             </View>
             <Button
               title="View breakdown"

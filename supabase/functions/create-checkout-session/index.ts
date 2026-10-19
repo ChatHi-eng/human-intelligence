@@ -116,7 +116,7 @@ serve(async (req) => {
           currency: 'usd',
           unit_amount: booking.price_cents,
           product_data: {
-            name: 'Human Intelligence session',
+            name: 'Palam session',
             description: `Booking ${booking.id}`,
           },
         },

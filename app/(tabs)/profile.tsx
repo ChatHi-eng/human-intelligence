@@ -16,7 +16,7 @@ import { formatCurrency } from '@/lib/format';
 
 export default function YouScreen() {
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { user, email, signOut } = useAuth();
   const { data: expertProfile, isLoading: expertLoading } = useMyExpertProfile();
 
   if (!user) return <LoadingView label="Loading…" />;
@@ -31,7 +31,7 @@ export default function YouScreen() {
           <Avatar uri={user.avatarUrl} name={user.displayName} size={64} />
           <View style={{ flex: 1 }}>
             <Text style={styles.name}>{user.displayName}</Text>
-            <Text style={styles.email}>{userLabel(user)}</Text>
+            <Text style={styles.email}>{email ?? `Account #${user.id.slice(0, 6)}`}</Text>
           </View>
         </View>
         <Button
@@ -122,13 +122,6 @@ export default function YouScreen() {
       </View>
     </Screen>
   );
-}
-
-function userLabel(user: { displayName: string; id: string }): string {
-  // Placeholder for showing email; auth store already resolves displayName from
-  // profile.display_name, so email lives on user.email in the underlying session.
-  // The Profile type here doesn't carry email, so show a subdued placeholder for now.
-  return `Account #${user.id.slice(0, 6)}`;
 }
 
 const styles = StyleSheet.create({
