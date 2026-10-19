@@ -46,15 +46,3 @@ export const openCallRoom = async (
   return { type: 'unknown' };
 };
 
-// Kept for the (still-stubbed) native call screen. Once we move to a dev build
-// and install the Daily React Native SDK, this becomes a real CallObject
-// subscription. For now it's a no-op so the existing UI code compiles.
-export const joinCall = (_room: CallRoom, onEvent: (e: CallEvent) => void) => {
-  const t = setTimeout(() => onEvent({ type: 'joined' }), 300);
-  return {
-    leave: () => {
-      clearTimeout(t);
-      onEvent({ type: 'left' });
-    },
-  };
-};
