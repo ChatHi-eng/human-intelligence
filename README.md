@@ -185,6 +185,23 @@ The app launches experts-first: anyone can **apply** to be an expert, but only a
 - `approved` experts appear on Discover immediately and get the full Studio (availability, requests, earnings, Stripe payouts). `pending` applicants see an "application under review" card in Studio; `rejected` sees a polite closed state.
 - **When you're ready for customers,** flip `CUSTOMER_BOOKING_ENABLED` to `true` in `constants/featureFlags.ts`: the Book session bar, the booking screen, and the customer-facing welcome copy all come back.
 
+### Application email alerts
+
+Get an email the moment someone applies, and send applicants a welcome when you approve them. One-time setup, in order:
+
+1. **Create a free Resend account.** [resend.com](https://resend.com) → sign up.
+2. **Create an API key.** Resend dashboard → **API Keys** → **Create API Key** → copy it (starts with `re_`).
+3. **Set the Edge Function secrets.** Supabase → Edge Functions → Secrets → add:
+   ```
+   RESEND_API_KEY=<your-resend-key>
+   WEBHOOK_SECRET=<any-long-random-string>
+   APPLICATION_ALERT_EMAIL=<where-alerts-go>   # optional
+   ```
+4. **Deploy the function.** Supabase → Edge Functions → Deploy a new function → name: `notify-application` → paste from `supabase/functions/notify-application/index.ts` → **Verify JWT OFF** → Deploy.
+5. **Apply migration `0010_application_webhook.sql`** (Supabase → SQL Editor) — first replace `__WEBHOOK_SECRET__` in the file with the exact same value you set as `WEBHOOK_SECRET` in step 3.
+
+New-application alerts land at `APPLICATION_ALERT_EMAIL` right away. The **approval welcome email** only reaches real applicants once you verify a domain in Resend (Resend → Domains) and switch the `from` address in the function to that domain — Resend's built-in test sender can only email the account owner. Until then, approval emails to anyone else fail quietly (logged, never retried).
+
 ## Scripts
 
 | Command | What it does |
