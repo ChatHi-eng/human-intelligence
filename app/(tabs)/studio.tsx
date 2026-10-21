@@ -31,8 +31,38 @@ export default function StudioScreen() {
   const { data: earnings } = useEarningsBuckets();
 
   if (expertLoading) return <LoadingView label="Loading Studio…" />;
-  // Studio is only for experts. Non-experts get sent to the onboarding wizard.
+  // Studio is only for experts. Non-experts get sent to the application wizard.
   if (!expertProfile) return <Redirect href="/expert-onboarding" />;
+
+  // Supply-first: applicants see their review status instead of the workspace.
+  // Availability, requests, and earnings only unlock once the owner approves.
+  if (expertProfile.status === 'pending') {
+    const firstName = expertProfile.displayName.split(' ')[0] ?? expertProfile.displayName;
+    return (
+      <Screen>
+        <View style={styles.statusWrap}>
+          <EmptyState
+            title="Application under review"
+            description={`Thanks for applying, ${firstName}. We personally review every expert — you'll hear back within 2–3 days. The moment you're approved, your Studio unlocks with availability, bookings, and earnings.`}
+            emoji="⏳"
+          />
+        </View>
+      </Screen>
+    );
+  }
+  if (expertProfile.status === 'rejected') {
+    return (
+      <Screen>
+        <View style={styles.statusWrap}>
+          <EmptyState
+            title="We couldn't approve your application"
+            description="Thanks for your interest in Palam. We weren't able to approve your application this time. If your situation changes — or you think we got it wrong — get in touch and we'll gladly take another look."
+            emoji="💌"
+          />
+        </View>
+      </Screen>
+    );
+  }
 
   const today = isoDateKey(new Date().toISOString());
   const asExpert = (bookings ?? []).filter((b) => b.expertId === expertProfile.id);
@@ -59,7 +89,11 @@ export default function StudioScreen() {
         </View>
 
         <View style={styles.stats}>
-          <StatCard label="Today" value={String(todays.length)} caption={todays.length === 1 ? 'call' : 'calls'} />
+          <StatCard
+            label="Today"
+            value={String(todays.length)}
+            caption={todays.length === 1 ? 'call' : 'calls'}
+          />
           <StatCard
             label="Requests"
             value={String(pending.length)}
@@ -97,7 +131,12 @@ export default function StudioScreen() {
           />
         ) : (
           todays.map((b) => (
-            <BookingCard key={b.id} booking={b} expert={expertProfile} onPress={() => router.push(`/booking/${b.id}`)} />
+            <BookingCard
+              key={b.id}
+              booking={b}
+              expert={expertProfile}
+              onPress={() => router.push(`/booking/${b.id}`)}
+            />
           ))
         )}
 
@@ -125,8 +164,13 @@ export default function StudioScreen() {
         <Card>
           <View style={styles.earningsRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>{monthly ? formatCurrency(monthly.payoutCents) : '—'}</Text>
-              <Text style={styles.cardCaption}>This month • {monthly?.bookingCount ?? 0} booking{(monthly?.bookingCount ?? 0) === 1 ? '' : 's'}</Text>
+              <Text style={styles.cardTitle}>
+                {monthly ? formatCurrency(monthly.payoutCents) : '—'}
+              </Text>
+              <Text style={styles.cardCaption}>
+                This month • {monthly?.bookingCount ?? 0} booking
+                {(monthly?.bookingCount ?? 0) === 1 ? '' : 's'}
+              </Text>
             </View>
             <Button
               title="View breakdown"
@@ -153,8 +197,7 @@ const RequestCard = ({ booking, onOpen }: { booking: Booking; onOpen: () => void
           <Text style={styles.requestMeta}>{formatDateTime(booking.slot.startIso)}</Text>
           <Text style={styles.requestMeta}>
             {minutesBetween(booking.slot.startIso, booking.slot.endIso)} min ·{' '}
-            {booking.medium === 'video' ? 'Video' : 'Phone'} ·{' '}
-            {formatCurrency(booking.priceCents)}
+            {booking.medium === 'video' ? 'Video' : 'Phone'} · {formatCurrency(booking.priceCents)}
           </Text>
         </View>
         <Badge label="Requested" tone="warning" />
@@ -230,7 +273,13 @@ const StatCard = ({
 
 const styles = StyleSheet.create({
   scroll: { paddingTop: spacing.lg, paddingBottom: spacing.xxxl, gap: spacing.md },
-  heroRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, marginBottom: spacing.lg },
+  statusWrap: { flex: 1, justifyContent: 'center' },
+  heroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.lg,
+    marginBottom: spacing.lg,
+  },
   heroLabel: { ...typography.label, color: colors.textSecondary },
   heroTitle: { ...typography.title, color: colors.textPrimary },
   heroSubtitle: { ...typography.body, color: colors.textSecondary },

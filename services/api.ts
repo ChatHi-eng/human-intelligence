@@ -8,15 +8,10 @@ import type {
   BackgroundType,
   Credential,
   Expert,
+  ExpertStatus,
   Profile,
 } from '@/types/user';
-import type {
-  Booking,
-  BookingStatus,
-  CallMedium,
-  PaymentStatus,
-  TimeSlot,
-} from '@/types/booking';
+import type { Booking, BookingStatus, CallMedium, PaymentStatus, TimeSlot } from '@/types/booking';
 import type { Review } from '@/types/review';
 import type { Conversation, Message } from '@/types/message';
 
@@ -43,6 +38,8 @@ type ProfileRow = {
 
 type ExpertProfileRow = {
   profile_id: string;
+  status: ExpertStatus;
+  linkedin_url: string | null;
   industry_id: string;
   headline: string;
   hourly_rate_cents: number;
@@ -155,6 +152,8 @@ const mapExpert = (row: ExpertWithRelations): Expert | null => {
   return {
     id: row.profile_id,
     role: 'expert',
+    status: row.status,
+    linkedinUrl: row.linkedin_url,
     displayName: row.profiles.display_name,
     avatarUrl: row.profiles.avatar_url,
     bio: row.profiles.bio,
@@ -203,7 +202,7 @@ const mapReview = (row: ReviewRow): Review => ({
 
 // Shared select string for Expert + relations.
 const EXPERT_SELECT = `
-  profile_id, industry_id, headline, hourly_rate_cents, years_experience,
+  profile_id, status, linkedin_url, industry_id, headline, hourly_rate_cents, years_experience,
   verified, cover_image_url, rating_average, rating_count, how_i_can_help,
   stripe_connect_account_id, stripe_connect_payouts_enabled, created_at, updated_at,
   profiles!inner(id, display_name, avatar_url, bio, created_at, updated_at),
@@ -287,6 +286,8 @@ export const fetchExperts = async (filters: ExpertsFilters = {}): Promise<Expert
   let q = sb()
     .from('expert_profiles')
     .select(EXPERT_SELECT)
+    // Supply-first launch: only owner-approved experts appear on Discover.
+    .eq('status', 'approved')
     .order('rating_average', { ascending: false });
   if (filters.industryId) q = q.eq('industry_id', filters.industryId);
   if (typeof filters.minRating === 'number') q = q.gte('rating_average', filters.minRating);
@@ -324,23 +325,28 @@ export type ExpertProfileInput = {
   yearsExperience: number;
   coverImageUrl?: string | null;
   howICanHelp?: string | null;
+  linkedinUrl?: string | null;
 };
 
 export const upsertMyExpertProfile = async (
   userId: string,
   input: ExpertProfileInput,
 ): Promise<void> => {
-  const { error } = await sb()
-    .from('expert_profiles')
-    .upsert({
-      profile_id: userId,
-      industry_id: input.industryId,
-      headline: input.headline,
-      hourly_rate_cents: input.hourlyRateCents,
-      years_experience: input.yearsExperience,
-      cover_image_url: input.coverImageUrl ?? null,
-      how_i_can_help: input.howICanHelp ?? null,
-    });
+  const row: Record<string, unknown> = {
+    profile_id: userId,
+    industry_id: input.industryId,
+    headline: input.headline,
+    hourly_rate_cents: input.hourlyRateCents,
+    years_experience: input.yearsExperience,
+    cover_image_url: input.coverImageUrl ?? null,
+    how_i_can_help: input.howICanHelp ?? null,
+  };
+  // Only the application wizard sends linkedinUrl — leave it untouched on
+  // ordinary profile edits so re-saving never wipes the applicant's link.
+  // status is never written from the client: new rows default to 'pending'
+  // and only the owner flips it in the Supabase table editor.
+  if (input.linkedinUrl !== undefined) row.linkedin_url = input.linkedinUrl;
+  const { error } = await sb().from('expert_profiles').upsert(row);
   if (error) throw error;
 };
 
@@ -359,18 +365,17 @@ export type BackgroundEntryInput = {
   endYear?: number | null;
 };
 
-export const addCredential = async (
-  expertId: string,
-  c: BackgroundEntryInput,
-): Promise<void> => {
-  const { error } = await sb().from('credentials').insert({
-    expert_profile_id: expertId,
-    type: c.type,
-    title: c.title,
-    issuer: c.issuer,
-    year: c.year,
-    end_year: c.endYear ?? null,
-  });
+export const addCredential = async (expertId: string, c: BackgroundEntryInput): Promise<void> => {
+  const { error } = await sb()
+    .from('credentials')
+    .insert({
+      expert_profile_id: expertId,
+      type: c.type,
+      title: c.title,
+      issuer: c.issuer,
+      year: c.year,
+      end_year: c.endYear ?? null,
+    });
   if (error) throw error;
 };
 
@@ -436,11 +441,7 @@ export const fetchMyBookings = async (userId: string): Promise<Booking[]> => {
 };
 
 export const fetchBooking = async (id: string): Promise<Booking | null> => {
-  const { data, error } = await sb()
-    .from('bookings')
-    .select('*')
-    .eq('id', id)
-    .maybeSingle();
+  const { data, error } = await sb().from('bookings').select('*').eq('id', id).maybeSingle();
   if (error) throw error;
   return data ? mapBooking(data as BookingRow) : null;
 };
@@ -479,10 +480,7 @@ export const updateBookingStatus = async (id: string, status: BookingStatus): Pr
 };
 
 export const acceptBooking = async (id: string): Promise<void> => {
-  const { error } = await sb()
-    .from('bookings')
-    .update({ status: 'confirmed' })
-    .eq('id', id);
+  const { error } = await sb().from('bookings').update({ status: 'confirmed' }).eq('id', id);
   if (error) throw error;
 };
 
@@ -503,9 +501,7 @@ export const cancelBooking = async (id: string, reason?: string): Promise<void> 
 };
 
 // Pending requests for an expert to act on.
-export const fetchPendingRequestsForExpert = async (
-  userId: string,
-): Promise<Booking[]> => {
+export const fetchPendingRequestsForExpert = async (userId: string): Promise<Booking[]> => {
   const { data, error } = await sb()
     .from('bookings')
     .select('*')
@@ -592,13 +588,15 @@ export type CreateReviewInput = {
 };
 
 export const createReview = async (input: CreateReviewInput): Promise<void> => {
-  const { error } = await sb().from('reviews').insert({
-    booking_id: input.bookingId,
-    customer_id: input.customerId,
-    expert_profile_id: input.expertId,
-    rating: input.rating,
-    comment: input.comment ?? null,
-  });
+  const { error } = await sb()
+    .from('reviews')
+    .insert({
+      booking_id: input.bookingId,
+      customer_id: input.customerId,
+      expert_profile_id: input.expertId,
+      rating: input.rating,
+      comment: input.comment ?? null,
+    });
   if (error) throw error;
 };
 
@@ -648,9 +646,7 @@ const mapConversation = (row: ConversationRow, viewerId: string): Conversation =
     : (row.customer?.avatar_url ?? null);
   const last = row.messages?.[0] ?? null;
   const myReadPointer = viewerIsCustomer ? row.customer_last_read_at : row.expert_last_read_at;
-  const unread = Boolean(
-    last && last.sender_id !== viewerId && last.created_at > myReadPointer,
-  );
+  const unread = Boolean(last && last.sender_id !== viewerId && last.created_at > myReadPointer);
   return {
     id: row.id,
     customerId: row.customer_id,

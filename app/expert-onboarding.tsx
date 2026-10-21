@@ -26,13 +26,19 @@ export default function ExpertOnboardingScreen() {
   const [industryId, setIndustryId] = useState('');
   const [headline, setHeadline] = useState('');
   const [howICanHelp, setHowICanHelp] = useState('');
+  const [linkedinUrl, setLinkedinUrl] = useState('');
   const [rateDollars, setRateDollars] = useState('');
   const [years, setYears] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
 
   if (isLoading) return <LoadingView label="Loading…" />;
-  // Already an expert → this wizard isn't for you; edit instead.
-  if (existing && !done) return <Redirect href="/expert-profile-edit" />;
+  // Already applied → this wizard isn't for you. Approved experts edit their
+  // live profile; pending/rejected applicants see their status in Studio.
+  if (existing && !done) {
+    return (
+      <Redirect href={existing.status === 'approved' ? '/expert-profile-edit' : '/(tabs)/studio'} />
+    );
+  }
 
   // Discover features the profile photo, so that's what the wizard asks for.
   const pickPhoto = async () => {
@@ -97,7 +103,7 @@ export default function ExpertOnboardingScreen() {
       setStep(step + 1);
       return;
     }
-    // Final step → create the profile.
+    // Final step → submit the application (new rows start status='pending').
     upsert(
       {
         industryId,
@@ -105,6 +111,7 @@ export default function ExpertOnboardingScreen() {
         hourlyRateCents: Math.round(Number(rateDollars) * 100),
         yearsExperience: Math.floor(Number(years)),
         howICanHelp: howICanHelp.trim() || null,
+        linkedinUrl: linkedinUrl.trim() || null,
       },
       {
         onSuccess: () => setDone(true),
@@ -122,23 +129,14 @@ export default function ExpertOnboardingScreen() {
     return (
       <Screen>
         <View style={styles.doneWrap}>
-          <Text style={styles.doneEmoji}>🎉</Text>
-          <Text style={styles.doneTitle}>You&apos;re live</Text>
+          <Text style={styles.doneEmoji}>📨</Text>
+          <Text style={styles.doneTitle}>Application received</Text>
           <Text style={styles.doneBody}>
-            You&apos;re now one of the humans on Palam. One thing left: customers can only book you
-            once you open up availability.
+            We personally review every expert on Palam — a real human reads every application.
+            You&apos;ll hear back within 2–3 days, and the moment you&apos;re approved your Studio
+            unlocks so you can open up availability.
           </Text>
-          <Button
-            title="Set your availability"
-            onPress={() => router.replace('/expert-profile-edit')}
-            fullWidth
-          />
-          <Button
-            title="Go to Studio"
-            variant="ghost"
-            onPress={() => router.replace('/(tabs)/studio')}
-            fullWidth
-          />
+          <Button title="Go to Studio" onPress={() => router.replace('/(tabs)/studio')} fullWidth />
         </View>
       </Screen>
     );
@@ -203,13 +201,27 @@ export default function ExpertOnboardingScreen() {
             />
             <Text style={styles.label}>How can you help? (optional, recommended)</Text>
             <TextInput
-              placeholder={'Who are you for, and what problems do you solve?\n• 1:1 strategy calls\n• Portfolio reviews'}
+              placeholder={
+                'Who are you for, and what problems do you solve?\n• 1:1 strategy calls\n• Portfolio reviews'
+              }
               placeholderTextColor={colors.textMuted}
               value={howICanHelp}
               onChangeText={setHowICanHelp}
               multiline
               style={[styles.input, styles.longInput]}
               maxLength={1500}
+            />
+            <Text style={styles.label}>LinkedIn URL (optional, speeds up review)</Text>
+            <TextInput
+              placeholder="https://linkedin.com/in/you"
+              placeholderTextColor={colors.textMuted}
+              value={linkedinUrl}
+              onChangeText={setLinkedinUrl}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              style={styles.input}
+              maxLength={300}
             />
           </>
         )}
@@ -266,12 +278,22 @@ export default function ExpertOnboardingScreen() {
 
       <View style={styles.footer}>
         {step > 0 ? (
-          <Button title="Back" variant="ghost" onPress={() => setStep(step - 1)} style={{ flex: 1 }} />
+          <Button
+            title="Back"
+            variant="ghost"
+            onPress={() => setStep(step - 1)}
+            style={{ flex: 1 }}
+          />
         ) : (
-          <Button title="Cancel" variant="ghost" onPress={() => router.back()} style={{ flex: 1 }} />
+          <Button
+            title="Cancel"
+            variant="ghost"
+            onPress={() => router.back()}
+            style={{ flex: 1 }}
+          />
         )}
         <Button
-          title={step === STEPS.length - 1 ? 'Go live' : 'Next'}
+          title={step === STEPS.length - 1 ? 'Submit application' : 'Next'}
           onPress={onNext}
           loading={saving}
           style={{ flex: 2 }}

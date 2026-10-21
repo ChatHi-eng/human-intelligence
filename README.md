@@ -176,6 +176,15 @@ DAILY_API_KEY=<paste-your-daily-api-key>
 
 **6. Test.** Book a video session (test card `4242 4242 4242 4242`), pay, expert accepts. On the booking detail page, tap **Join call** → an in-app browser opens at `https://<your-team>.daily.co/hi-<booking-id-prefix>`. Allow camera/mic. You're in.
 
+## Supply-first launch — reviewing expert applications
+
+The app launches experts-first: anyone can **apply** to be an expert, but only approved experts appear on Discover, and customer booking is off until the doors open.
+
+- **Apply migration `0009_expert_application_status.sql`** (Supabase → SQL Editor) before shipping a build with this code — the app now selects the `status` column on every expert query. Existing experts are backfilled to `approved`; new applications start as `pending`.
+- **To review an application:** Supabase dashboard → **Table Editor** → `expert_profiles` → filter `status = pending`. Check the `headline`, `how_i_can_help`, and `linkedin_url` columns (and the matching row in `profiles` for the person's name), then set `status` to `approved` or `rejected`. That's the whole admin flow — no admin UI.
+- `approved` experts appear on Discover immediately and get the full Studio (availability, requests, earnings, Stripe payouts). `pending` applicants see an "application under review" card in Studio; `rejected` sees a polite closed state.
+- **When you're ready for customers,** flip `CUSTOMER_BOOKING_ENABLED` to `true` in `constants/featureFlags.ts`: the Book session bar, the booking screen, and the customer-facing welcome copy all come back.
+
 ## Scripts
 
 | Command | What it does |

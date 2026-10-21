@@ -1,7 +1,8 @@
 import { expect, test } from '@playwright/test';
 
 // Single smoke test — proves the app boots through the AuthGate to a real screen.
-// Whether the user lands on the onboarding screen (Supabase configured) or the
+// Whether the user lands on the welcome screen (expert-first copy while
+// CUSTOMER_BOOKING_ENABLED is false, customer copy once it flips) or the
 // 'Setup needed' fallback (no env vars), both prove that React Native Web,
 // expo-router, Zustand hydrate, and the theme system are all functional.
 test('app boots and renders the first screen', async ({ page }) => {
@@ -17,7 +18,7 @@ test('app boots and renders the first screen', async ({ page }) => {
   // Wait for either canonical first-screen state. The 60s timeout covers the
   // cold Metro web bundle build.
   await expect(
-    page.getByText(/Talk to a human who knows|Setup needed/i).first(),
+    page.getByText(/Get paid for what you know|Talk to a human who knows|Setup needed/i).first(),
   ).toBeVisible({ timeout: 90_000 });
 
   await page.screenshot({

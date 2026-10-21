@@ -37,8 +37,14 @@ export type AvailabilityDate = {
   endMinute: number;
 };
 
+// Application review state. New expert applications start 'pending' and only
+// 'approved' experts appear on Discover; the owner flips this in Supabase.
+export type ExpertStatus = 'pending' | 'approved' | 'rejected';
+
 export type Expert = Profile & {
   role: 'expert';
+  status: ExpertStatus;
+  linkedinUrl: string | null;
   industryId: string;
   headline: string;
   hourlyRate: number;

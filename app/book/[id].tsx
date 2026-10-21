@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { Screen } from '@/components/ui/Screen';
-import { PHONE_SESSIONS_ENABLED } from '@/constants/featureFlags';
+import { CUSTOMER_BOOKING_ENABLED, PHONE_SESSIONS_ENABLED } from '@/constants/featureFlags';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useCreateBooking, useExpertActiveBookings } from '@/hooks/useBookings';
@@ -46,6 +46,20 @@ export default function BookScreen() {
   const dateKeys = useMemo(() => Object.keys(slotsByDate).sort(), [slotsByDate]);
   const activeDate = selectedDate ?? dateKeys[0] ?? null;
   const timesForDay = activeDate ? (slotsByDate[activeDate] ?? []) : [];
+
+  // Supply-first launch: experts are joining, customers can't pay yet. The
+  // route stays blocked even via deep link until the flag flips.
+  if (!CUSTOMER_BOOKING_ENABLED) {
+    return (
+      <Screen>
+        <EmptyState
+          title="Booking opens soon"
+          description="Palam is welcoming its founding experts first. Booking a session will open here shortly — stay tuned."
+          emoji="🌱"
+        />
+      </Screen>
+    );
+  }
 
   if (isLoading && !expert) return <LoadingView label="Loading…" />;
   if (!expert) {

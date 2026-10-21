@@ -9,7 +9,11 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { RatingStars } from '@/components/ui/RatingStars';
 import { Screen } from '@/components/ui/Screen';
-import { MESSAGING_ENABLED, PHONE_SESSIONS_ENABLED } from '@/constants/featureFlags';
+import {
+  CUSTOMER_BOOKING_ENABLED,
+  MESSAGING_ENABLED,
+  PHONE_SESSIONS_ENABLED,
+} from '@/constants/featureFlags';
 import { industryById } from '@/constants/industries';
 import { colors, radius, shadow, spacing, typography } from '@/constants/theme';
 import Toast from 'react-native-toast-message';
@@ -30,7 +34,9 @@ export default function ExpertProfileScreen() {
   const { mutate: openConversation, isPending: openingChat } = useOpenConversation();
 
   if (isLoading && !expert) return <LoadingView label="Loading expert…" />;
-  if (!expert) {
+  // Unapproved experts are invisible to everyone but themselves (so an
+  // applicant can still preview their own profile while under review).
+  if (!expert || (expert.status !== 'approved' && user?.id !== expert.id)) {
     return (
       <Screen>
         <EmptyState title="Expert not found" emoji="🤷" />
@@ -108,14 +114,16 @@ export default function ExpertProfileScreen() {
 
           {reviews && reviews.length > 0 ? (
             <>
-              <Text style={styles.sectionTitle}>
-                Reviews ({expert.ratingCount})
-              </Text>
+              <Text style={styles.sectionTitle}>Reviews ({expert.ratingCount})</Text>
               <View style={{ gap: spacing.sm }}>
                 {reviews.map((r) => (
                   <View key={r.id} style={styles.reviewCard}>
                     <View style={styles.reviewHeader}>
-                      <Avatar uri={r.reviewerAvatarUrl} name={r.reviewerName ?? 'Customer'} size={32} />
+                      <Avatar
+                        uri={r.reviewerAvatarUrl}
+                        name={r.reviewerName ?? 'Customer'}
+                        size={32}
+                      />
                       <View style={{ flex: 1 }}>
                         <Text style={styles.reviewName}>{r.reviewerName ?? 'Customer'}</Text>
                         <Text style={styles.reviewDate}>{formatDay(r.createdAt)}</Text>
@@ -131,49 +139,52 @@ export default function ExpertProfileScreen() {
         </View>
       </ScrollView>
 
-      {/* Sticky booking bar — the single CTA for the whole page. */}
-      <View style={styles.bookBar}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.bookRate}>{formatCurrency(expert.hourlyRate)}/hr</Text>
-          <Text style={styles.bookHint}>
-            {isSelf
-              ? 'This is your public profile'
-              : hasAvailability
-                ? PHONE_SESSIONS_ENABLED
-                  ? '30-minute sessions · video or phone'
-                  : '30-minute video sessions'
-                : 'No times available yet'}
-          </Text>
-        </View>
-        {!isSelf && MESSAGING_ENABLED && (
+      {/* Sticky booking bar — the single CTA for the whole page. Hidden
+          entirely while customer booking is off (supply-first launch). */}
+      {CUSTOMER_BOOKING_ENABLED && (
+        <View style={styles.bookBar}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.bookRate}>{formatCurrency(expert.hourlyRate)}/hr</Text>
+            <Text style={styles.bookHint}>
+              {isSelf
+                ? 'This is your public profile'
+                : hasAvailability
+                  ? PHONE_SESSIONS_ENABLED
+                    ? '30-minute sessions · video or phone'
+                    : '30-minute video sessions'
+                  : 'No times available yet'}
+            </Text>
+          </View>
+          {!isSelf && MESSAGING_ENABLED && (
+            <Button
+              title="Message"
+              variant="secondary"
+              loading={openingChat}
+              onPress={() => {
+                if (!user) return;
+                openConversation(
+                  { customerId: user.id, expertId: expert.id },
+                  {
+                    onSuccess: (conversationId) =>
+                      router.push({ pathname: '/chat/[id]', params: { id: conversationId } }),
+                    onError: (err) =>
+                      Toast.show({
+                        type: 'error',
+                        text1: 'Could not open chat',
+                        text2: err instanceof Error ? err.message : 'Unknown error',
+                      }),
+                  },
+                );
+              }}
+            />
+          )}
           <Button
-            title="Message"
-            variant="secondary"
-            loading={openingChat}
-            onPress={() => {
-              if (!user) return;
-              openConversation(
-                { customerId: user.id, expertId: expert.id },
-                {
-                  onSuccess: (conversationId) =>
-                    router.push({ pathname: '/chat/[id]', params: { id: conversationId } }),
-                  onError: (err) =>
-                    Toast.show({
-                      type: 'error',
-                      text1: 'Could not open chat',
-                      text2: err instanceof Error ? err.message : 'Unknown error',
-                    }),
-                },
-              );
-            }}
+            title="Book session"
+            onPress={() => router.push({ pathname: '/book/[id]', params: { id: expert.id } })}
+            disabled={isSelf || !hasAvailability}
           />
-        )}
-        <Button
-          title="Book session"
-          onPress={() => router.push({ pathname: '/book/[id]', params: { id: expert.id } })}
-          disabled={isSelf || !hasAvailability}
-        />
-      </View>
+        </View>
+      )}
     </Screen>
   );
 }

@@ -10,3 +10,10 @@ export const MESSAGING_ENABLED = false;
 // booking and drops "or phone" from marketing copy. Existing phone bookings
 // still render. Flip to true once a real dialer/Twilio flow ships.
 export const PHONE_SESSIONS_ENABLED = false;
+
+// Customer booking — decided 2026-10-20 to launch supply-first: experts join
+// and get vetted before customers can pay. Hides the Book session bar on
+// expert profiles, blocks the /book/[id] route ("Booking opens soon"), and
+// switches the welcome screen to expert-recruitment copy. Discover stays
+// visible as a roster. Flip to true to open the doors to customers.
+export const CUSTOMER_BOOKING_ENABLED = false;

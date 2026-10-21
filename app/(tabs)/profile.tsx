@@ -45,7 +45,16 @@ export default function YouScreen() {
       {/* ---------- Expert card OR Become an expert ---------- */}
       {expertLoading ? null : expertProfile ? (
         <View style={styles.section}>
-          <SectionHeader title="Your expert profile" caption="Customers see this on Discover." />
+          <SectionHeader
+            title="Your expert profile"
+            caption={
+              expertProfile.status === 'approved'
+                ? 'Customers see this on Discover.'
+                : expertProfile.status === 'pending'
+                  ? 'Application under review — not on Discover yet.'
+                  : 'Application closed — not visible on Discover.'
+            }
+          />
           <Card>
             <View style={styles.expertHeader}>
               <View style={{ flex: 1, gap: 4 }}>
@@ -66,9 +75,7 @@ export default function YouScreen() {
                   {expertProfile.verified && <Badge label="Verified" tone="success" />}
                   <Badge
                     label={
-                      expertProfile.stripeConnectPayoutsEnabled
-                        ? 'Payouts on'
-                        : 'Payouts pending'
+                      expertProfile.stripeConnectPayoutsEnabled ? 'Payouts on' : 'Payouts pending'
                     }
                     tone={expertProfile.stripeConnectPayoutsEnabled ? 'success' : 'warning'}
                   />
@@ -132,7 +139,12 @@ const styles = StyleSheet.create({
   expertHeader: { gap: spacing.sm },
   expertHeadline: { ...typography.bodyStrong, color: colors.textPrimary },
   expertMeta: { ...typography.caption, color: colors.textSecondary },
-  expertBadgeRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap', marginTop: spacing.xs },
+  expertBadgeRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    flexWrap: 'wrap',
+    marginTop: spacing.xs,
+  },
   emptyRating: { ...typography.caption, color: colors.textMuted, marginTop: spacing.xs },
   expertActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   becomeTitle: { ...typography.heading, color: colors.textPrimary },
