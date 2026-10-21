@@ -111,7 +111,13 @@ export default function StudioScreen() {
           <Button
             title="Manage availability"
             variant="secondary"
+            onPress={() => router.push('/expert-profile-edit')}
+          />
+          <Button
+            title="View booking calendar"
+            variant="ghost"
             onPress={() => router.push('/studio/calendar')}
+            style={{ marginTop: spacing.sm }}
           />
         </Card>
 
