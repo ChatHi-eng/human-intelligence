@@ -14,10 +14,10 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Screen } from '@/components/ui/Screen';
 import { SectionHeader } from '@/components/ui/SectionHeader';
-import { PHONE_SESSIONS_ENABLED } from '@/constants/featureFlags';
+import { CUSTOMER_BOOKING_ENABLED, PHONE_SESSIONS_ENABLED } from '@/constants/featureFlags';
 import { industries } from '@/constants/industries';
 import { colors, radius, spacing, typography } from '@/constants/theme';
-import { useExperts } from '@/hooks/useExperts';
+import { useExperts, useMyExpertProfile } from '@/hooks/useExperts';
 
 const DISCOVER_CAPTION = PHONE_SESSIONS_ENABLED
   ? 'People who know, on call — verified experts by video or phone.'
@@ -58,6 +58,22 @@ export default function DiscoverScreen() {
     maxHourlyRateCents: filters.maxHourlyRateCents,
   });
 
+  // Supply-first launch: anyone signed in without an expert application gets a
+  // front-and-center path into it (the You tab entry stays, but is buried).
+  const { data: myExpert, isFetched: myExpertFetched } = useMyExpertProfile();
+  const showApplyCard = !CUSTOMER_BOOKING_ENABLED && myExpertFetched && !myExpert;
+
+  const applyCard = showApplyCard ? (
+    <Pressable onPress={() => router.push('/expert-onboarding')} style={styles.applyCard}>
+      <Text style={styles.applyTitle}>Become a founding expert</Text>
+      <Text style={styles.applyBody}>
+        Set your own rate and get paid for 30-minute video sessions. Applying takes about 2
+        minutes.
+      </Text>
+      <Text style={styles.applyCta}>Start your application →</Text>
+    </Pressable>
+  ) : null;
+
   const noFiltersActive =
     !filters.industryId &&
     !filters.query &&
@@ -76,9 +92,10 @@ export default function DiscoverScreen() {
             title="Talk to a human"
             caption={DISCOVER_CAPTION}
           />
+          {applyCard}
           <EmptyState
             title="No experts yet"
-            description="Be the first human on Palam — open your You tab and tap Become an expert."
+            description="Be the first human on Palam — your application takes about 2 minutes."
             emoji="🌱"
           />
         </View>
@@ -93,6 +110,7 @@ export default function DiscoverScreen() {
                 title="Talk to a human"
                 caption={DISCOVER_CAPTION}
               />
+              {applyCard}
               <View style={styles.searchRow}>
                 <TextInput
                   placeholder="Search by expertise, name…"
@@ -228,6 +246,15 @@ const FilterSheet = ({
 
 const styles = StyleSheet.create({
   header: { paddingTop: spacing.lg, gap: spacing.md, marginBottom: spacing.md },
+  applyCard: {
+    backgroundColor: colors.accentSoft,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.xs,
+  },
+  applyTitle: { ...typography.heading, color: colors.textPrimary },
+  applyBody: { ...typography.body, color: colors.textSecondary },
+  applyCta: { ...typography.bodyStrong, color: colors.accent, marginTop: spacing.xs },
   searchRow: { flexDirection: 'row', gap: spacing.sm },
   search: {
     flex: 1,

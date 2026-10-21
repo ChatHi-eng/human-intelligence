@@ -4,8 +4,11 @@ import { StyleSheet, Text, TextInput, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { Button } from '@/components/ui/Button';
 import { Screen } from '@/components/ui/Screen';
+import { CUSTOMER_BOOKING_ENABLED } from '@/constants/featureFlags';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
+import { fetchExpert } from '@/services/api';
+import { getCurrentSession } from '@/services/supabase';
 
 type Stage = 'enter-email' | 'enter-code';
 
@@ -52,6 +55,19 @@ export default function LoginScreen() {
       await verifyEmailOtp(email.trim(), trimmedCode);
       Toast.show({ type: 'success', text1: 'Signed in' });
       router.replace('/(tabs)');
+      // Supply-first launch: a sign-in with no expert application yet is almost
+      // certainly a prospective expert — walk them straight into the
+      // application. Tabs stay beneath it, so Cancel lands on Discover.
+      if (!CUSTOMER_BOOKING_ENABLED) {
+        try {
+          const session = await getCurrentSession();
+          if (session && !(await fetchExpert(session.user.id))) {
+            router.push('/expert-onboarding');
+          }
+        } catch {
+          // The nudge is best-effort — never block sign-in on it.
+        }
+      }
     } catch (err) {
       Toast.show({
         type: 'error',
