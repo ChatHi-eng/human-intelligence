@@ -14,9 +14,14 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Screen } from '@/components/ui/Screen';
 import { SectionHeader } from '@/components/ui/SectionHeader';
+import { PHONE_SESSIONS_ENABLED } from '@/constants/featureFlags';
 import { industries } from '@/constants/industries';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useExperts } from '@/hooks/useExperts';
+
+const DISCOVER_CAPTION = PHONE_SESSIONS_ENABLED
+  ? 'People who know, on call — verified experts by video or phone.'
+  : 'People who know, on call — verified experts on video.';
 
 type Filters = {
   industryId?: string;
@@ -69,7 +74,7 @@ export default function DiscoverScreen() {
         <View style={{ flex: 1, gap: spacing.md, paddingTop: spacing.lg }}>
           <SectionHeader
             title="Talk to a human"
-            caption="People who know, on call — verified experts by video or phone."
+            caption={DISCOVER_CAPTION}
           />
           <EmptyState
             title="No experts yet"
@@ -86,7 +91,7 @@ export default function DiscoverScreen() {
             <View style={styles.header}>
               <SectionHeader
                 title="Talk to a human"
-                caption="People who know, on call — verified experts by video or phone."
+                caption={DISCOVER_CAPTION}
               />
               <View style={styles.searchRow}>
                 <TextInput

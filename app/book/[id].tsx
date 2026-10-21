@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { Screen } from '@/components/ui/Screen';
+import { PHONE_SESSIONS_ENABLED } from '@/constants/featureFlags';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useCreateBooking, useExpertActiveBookings } from '@/hooks/useBookings';
@@ -158,21 +159,25 @@ export default function BookScreen() {
               })}
             </View>
 
-            <Text style={styles.label}>How would you like to talk?</Text>
-            <View style={styles.mediumRow}>
-              <Button
-                title="Video"
-                variant={medium === 'video' ? 'primary' : 'secondary'}
-                onPress={() => setMedium('video')}
-                style={{ flex: 1 }}
-              />
-              <Button
-                title="Phone"
-                variant={medium === 'phone' ? 'primary' : 'secondary'}
-                onPress={() => setMedium('phone')}
-                style={{ flex: 1 }}
-              />
-            </View>
+            {PHONE_SESSIONS_ENABLED && (
+              <>
+                <Text style={styles.label}>How would you like to talk?</Text>
+                <View style={styles.mediumRow}>
+                  <Button
+                    title="Video"
+                    variant={medium === 'video' ? 'primary' : 'secondary'}
+                    onPress={() => setMedium('video')}
+                    style={{ flex: 1 }}
+                  />
+                  <Button
+                    title="Phone"
+                    variant={medium === 'phone' ? 'primary' : 'secondary'}
+                    onPress={() => setMedium('phone')}
+                    style={{ flex: 1 }}
+                  />
+                </View>
+              </>
+            )}
 
             <View style={{ marginTop: spacing.lg }}>
               <PaymentSheet

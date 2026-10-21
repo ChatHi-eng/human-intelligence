@@ -9,7 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { RatingStars } from '@/components/ui/RatingStars';
 import { Screen } from '@/components/ui/Screen';
-import { MESSAGING_ENABLED } from '@/constants/featureFlags';
+import { MESSAGING_ENABLED, PHONE_SESSIONS_ENABLED } from '@/constants/featureFlags';
 import { industryById } from '@/constants/industries';
 import { colors, radius, shadow, spacing, typography } from '@/constants/theme';
 import Toast from 'react-native-toast-message';
@@ -139,7 +139,9 @@ export default function ExpertProfileScreen() {
             {isSelf
               ? 'This is your public profile'
               : hasAvailability
-                ? '30-minute sessions · video or phone'
+                ? PHONE_SESSIONS_ENABLED
+                  ? '30-minute sessions · video or phone'
+                  : '30-minute video sessions'
                 : 'No times available yet'}
           </Text>
         </View>

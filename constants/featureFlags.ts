@@ -4,3 +4,9 @@
 // Message buttons. (Migration 0008_messaging.sql must be applied in Supabase
 // before enabling.)
 export const MESSAGING_ENABLED = false;
+
+// Phone sessions — decided 2026-10-20 to launch video-only: the phone medium
+// was bookable but no call mechanism exists yet. Hides the Phone option at
+// booking and drops "or phone" from marketing copy. Existing phone bookings
+// still render. Flip to true once a real dialer/Twilio flow ships.
+export const PHONE_SESSIONS_ENABLED = false;
