@@ -21,6 +21,8 @@ import { useEarningsBuckets } from '@/hooks/useEarnings';
 import { useMyExpertProfile } from '@/hooks/useExperts';
 import { formatDateTime, isoDateKey, minutesBetween } from '@/lib/date';
 import { formatCurrency } from '@/lib/format';
+import { copyExpertShareLink } from '@/lib/share';
+import { capture } from '@/services/analytics';
 import type { Booking } from '@/types/booking';
 
 export default function StudioScreen() {
@@ -87,6 +89,14 @@ export default function StudioScreen() {
             size={64}
           />
         </View>
+
+        {/* Only approved experts reach this screen, so the link always resolves. */}
+        <Button
+          title="Share your profile"
+          variant="secondary"
+          onPress={() => void copyExpertShareLink(expertProfile.id)}
+          style={styles.shareButton}
+        />
 
         <View style={styles.stats}>
           <StatCard
@@ -234,7 +244,10 @@ const RequestCard = ({ booking, onOpen }: { booking: Booking; onOpen: () => void
             decline(
               { id: booking.id },
               {
-                onSuccess: () => Toast.show({ type: 'success', text1: 'Declined' }),
+                onSuccess: () => {
+                  capture('booking_cancelled', { by_customer: false });
+                  Toast.show({ type: 'success', text1: 'Declined' });
+                },
                 onError: (err) =>
                   Toast.show({
                     type: 'error',
@@ -283,6 +296,7 @@ const styles = StyleSheet.create({
   heroLabel: { ...typography.label, color: colors.textSecondary },
   heroTitle: { ...typography.title, color: colors.textPrimary },
   heroSubtitle: { ...typography.body, color: colors.textSecondary },
+  shareButton: { marginBottom: spacing.lg },
   stats: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
   statLabel: { ...typography.caption, color: colors.textSecondary },
   statValue: { ...typography.title, color: colors.textPrimary, marginTop: 4 },

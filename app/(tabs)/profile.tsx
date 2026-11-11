@@ -15,6 +15,7 @@ import { colors, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useMyExpertProfile } from '@/hooks/useExperts';
 import { formatCurrency } from '@/lib/format';
+import { copyExpertShareLink } from '@/lib/share';
 
 export default function YouScreen() {
   const router = useRouter();
@@ -108,6 +109,14 @@ export default function YouScreen() {
                 style={{ flex: 1 }}
               />
             </View>
+            {/* Share only works once approved — anon RLS hides other rows. */}
+            {expertProfile.status === 'approved' && (
+              <Button
+                title="Share your profile"
+                onPress={() => void copyExpertShareLink(expertProfile.id)}
+                style={{ marginTop: spacing.sm }}
+              />
+            )}
           </Card>
         </View>
       ) : (

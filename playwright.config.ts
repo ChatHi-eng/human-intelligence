@@ -1,6 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
 // Web-target E2E for the React Native Web bundle Expo serves on :8081.
+// E2E_PORT overrides the port when 8081 is busy (e.g. another dev server).
+const port = Number(process.env.E2E_PORT ?? 8081);
+
 export default defineConfig({
   testDir: './tests/e2e',
   outputDir: './tests/e2e/.results',
@@ -10,7 +13,7 @@ export default defineConfig({
   workers: 1,
   reporter: [['list'], ['html', { outputFolder: 'tests/e2e/.playwright-report', open: 'never' }]],
   use: {
-    baseURL: 'http://localhost:8081',
+    baseURL: `http://localhost:${port}`,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -26,8 +29,8 @@ export default defineConfig({
   ],
   webServer: {
     // --offline keeps Metro from trying to phone home; --port pins it for the baseURL.
-    command: 'npx expo start --web --offline --port 8081',
-    url: 'http://localhost:8081',
+    command: `npx expo start --web --offline --port ${port}`,
+    url: `http://localhost:${port}`,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
     stdout: 'pipe',

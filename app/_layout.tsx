@@ -67,10 +67,7 @@ export default function RootLayout() {
                   name="book/[id]"
                   options={{ title: 'Book a session', presentation: 'modal' }}
                 />
-                <Stack.Screen
-                  name="chat/[id]"
-                  options={{ title: 'Chat', presentation: 'card' }}
-                />
+                <Stack.Screen name="chat/[id]" options={{ title: 'Chat', presentation: 'card' }} />
                 <Stack.Screen
                   name="expert-profile-edit"
                   options={{ title: 'Expert profile', presentation: 'modal' }}
@@ -125,7 +122,10 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     if (!isHydrated || configError) return;
     const inAuthGroup = segments[0] === '(auth)';
     const onAuthCallback = segments[0] === 'auth-callback';
-    if (!user && !inAuthGroup && !onAuthCallback) {
+    // Expert profiles are publicly shareable (LinkedIn-bio links on the web
+    // build) — /expert/[id] renders signed-out; RLS limits anon to approved rows.
+    const onPublicExpert = segments[0] === 'expert';
+    if (!user && !inAuthGroup && !onAuthCallback && !onPublicExpert) {
       router.replace('/(auth)/onboarding');
     } else if (user && inAuthGroup) {
       router.replace('/(tabs)');

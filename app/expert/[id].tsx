@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { CredentialBadge } from '@/components/expert/CredentialBadge';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
@@ -15,6 +16,7 @@ import {
   PHONE_SESSIONS_ENABLED,
 } from '@/constants/featureFlags';
 import { industryById } from '@/constants/industries';
+import { MARKETING_URL } from '@/constants/links';
 import { colors, radius, shadow, spacing, typography } from '@/constants/theme';
 import Toast from 'react-native-toast-message';
 import { useAuth } from '@/hooks/useAuth';
@@ -23,6 +25,7 @@ import { useOpenConversation } from '@/hooks/useMessages';
 import { useReviewsForExpert } from '@/hooks/useReviews';
 import { formatDay } from '@/lib/date';
 import { formatCurrency } from '@/lib/format';
+import { capture } from '@/services/analytics';
 import { generateSlots } from '@/lib/slots';
 
 export default function ExpertProfileScreen() {
@@ -32,6 +35,13 @@ export default function ExpertProfileScreen() {
   const { data: expert, isLoading } = useExpert(id);
   const { data: reviews } = useReviewsForExpert(id);
   const { mutate: openConversation, isPending: openingChat } = useOpenConversation();
+
+  // Only count views of profiles that actually render (approved, or own preview).
+  const viewableExpertId =
+    expert && (expert.status === 'approved' || user?.id === expert.id) ? expert.id : null;
+  useEffect(() => {
+    if (viewableExpertId) capture('expert_profile_viewed', { expert_id: viewableExpertId });
+  }, [viewableExpertId]);
 
   if (isLoading && !expert) return <LoadingView label="Loading expert…" />;
   // Unapproved experts are invisible to everyone but themselves (so an
@@ -139,57 +149,67 @@ export default function ExpertProfileScreen() {
         </View>
       </ScrollView>
 
-      {/* Sticky booking bar — the single CTA for the whole page. Hidden
-          entirely while customer booking is off (supply-first launch). */}
-      {CUSTOMER_BOOKING_ENABLED && (
+      {/* Signed-out viewers (public share links on the web build) get an
+          invite-only CTA instead of the booking bar. */}
+      {!user ? (
         <View style={styles.bookBar}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.bookRate}>
-              {expert.hourlyRate !== null
-                ? `${formatCurrency(expert.hourlyRate)}/hr`
-                : 'Rate coming soon'}
-            </Text>
-            <Text style={styles.bookHint}>
-              {isSelf
-                ? 'This is your public profile'
-                : expert.hourlyRate === null
-                  ? 'Booking opens once a rate is set'
-                  : hasAvailability
-                    ? PHONE_SESSIONS_ENABLED
-                      ? '30-minute sessions · video or phone'
-                      : '30-minute video sessions'
-                    : 'No times available yet'}
-            </Text>
+            <Text style={styles.bookRate}>Palam is invite-only for now</Text>
+            <Text style={styles.bookHint}>Apply as an expert or get the app</Text>
           </View>
-          {!isSelf && MESSAGING_ENABLED && (
-            <Button
-              title="Message"
-              variant="secondary"
-              loading={openingChat}
-              onPress={() => {
-                if (!user) return;
-                openConversation(
-                  { customerId: user.id, expertId: expert.id },
-                  {
-                    onSuccess: (conversationId) =>
-                      router.push({ pathname: '/chat/[id]', params: { id: conversationId } }),
-                    onError: (err) =>
-                      Toast.show({
-                        type: 'error',
-                        text1: 'Could not open chat',
-                        text2: err instanceof Error ? err.message : 'Unknown error',
-                      }),
-                  },
-                );
-              }}
-            />
-          )}
-          <Button
-            title="Book session"
-            onPress={() => router.push({ pathname: '/book/[id]', params: { id: expert.id } })}
-            disabled={isSelf || !hasAvailability || expert.hourlyRate === null}
-          />
+          <Button title="Visit palamapp.com" onPress={() => void Linking.openURL(MARKETING_URL)} />
         </View>
+      ) : (
+        CUSTOMER_BOOKING_ENABLED && (
+          <View style={styles.bookBar}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.bookRate}>
+                {expert.hourlyRate !== null
+                  ? `${formatCurrency(expert.hourlyRate)}/hr`
+                  : 'Rate coming soon'}
+              </Text>
+              <Text style={styles.bookHint}>
+                {isSelf
+                  ? 'This is your public profile'
+                  : expert.hourlyRate === null
+                    ? 'Booking opens once a rate is set'
+                    : hasAvailability
+                      ? PHONE_SESSIONS_ENABLED
+                        ? '30-minute sessions · video or phone'
+                        : '30-minute video sessions'
+                      : 'No times available yet'}
+              </Text>
+            </View>
+            {!isSelf && MESSAGING_ENABLED && (
+              <Button
+                title="Message"
+                variant="secondary"
+                loading={openingChat}
+                onPress={() => {
+                  if (!user) return;
+                  openConversation(
+                    { customerId: user.id, expertId: expert.id },
+                    {
+                      onSuccess: (conversationId) =>
+                        router.push({ pathname: '/chat/[id]', params: { id: conversationId } }),
+                      onError: (err) =>
+                        Toast.show({
+                          type: 'error',
+                          text1: 'Could not open chat',
+                          text2: err instanceof Error ? err.message : 'Unknown error',
+                        }),
+                    },
+                  );
+                }}
+              />
+            )}
+            <Button
+              title="Book session"
+              onPress={() => router.push({ pathname: '/book/[id]', params: { id: expert.id } })}
+              disabled={isSelf || !hasAvailability || expert.hourlyRate === null}
+            />
+          </View>
+        )
       )}
     </Screen>
   );

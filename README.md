@@ -89,16 +89,58 @@ EXPO_PUBLIC_SUPABASE_URL=
 EXPO_PUBLIC_SUPABASE_ANON_KEY=
 EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=
 EXPO_PUBLIC_DAILY_DOMAIN=
+EXPO_PUBLIC_POSTHOG_API_KEY=
+EXPO_PUBLIC_POSTHOG_HOST=
 ```
 
 `.env` is gitignored. Never put secret (server-side) Stripe or Supabase keys in the app.
+
+### Analytics (PostHog)
+
+Product analytics run through [PostHog](https://posthog.com) (free tier is plenty). Everything
+funnels through `services/analytics.ts` — a thin wrapper that is a **silent no-op when no key is
+set**, so dev, CI and keyless builds work unchanged.
+
+**Setup (one time):**
+
+1. Create a (free) project at [us.posthog.com](https://us.posthog.com) → sign up → new project "Palam".
+2. Copy the **Project API key** (starts with `phc_`, safe to ship in the app) from
+   _Settings → Project → Project API key_.
+3. Paste it as `EXPO_PUBLIC_POSTHOG_API_KEY` in `.env` (local) **and** in all three
+   `build.*.env` blocks of `eas.json` (they currently hold an empty `""` placeholder).
+   Leave `EXPO_PUBLIC_POSTHOG_HOST` as `https://us.i.posthog.com` unless you created an EU project.
+
+Users are identified by their Supabase user id on sign-in and unlinked again on sign-out.
+We never send emails or free-text content (pitches, messages, reviews) as event properties.
+Automatic screen tracking is deliberately off (PostHog's navigation autocapture isn't verified
+against expo-router v6) — the funnel below is the source of truth.
+
+**Event dictionary:**
+
+| Event                        | When it fires                                                   | Properties                                                  |
+| ---------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------- |
+| `sign_in_code_requested`     | Email OTP code sent                                             | —                                                           |
+| `sign_in_completed`          | Code verified / magic link exchanged                            | `new_account` (OTP path only)                               |
+| `signed_out`                 | User signs out (incl. account deletion)                         | —                                                           |
+| `application_started`        | Expert wizard opened by a new applicant                         | —                                                           |
+| `application_step_completed` | Each wizard "Next"                                              | `step_name`, `step_index`                                   |
+| `application_submitted`      | Application saved                                               | `industry_id`, `has_resume`, `has_linkedin`, `rate_decided` |
+| `application_cancelled`      | Cancel tapped on the wizard's first step                        | —                                                           |
+| `availability_saved`         | Recurring weekly hours saved                                    | `window_count`                                              |
+| `payout_onboarding_started`  | "Set up payouts via Stripe" tapped                              | —                                                           |
+| `payout_onboarding_ready`    | Stripe Connect status sync returns `ready`                      | —                                                           |
+| `expert_profile_viewed`      | Expert profile screen rendered                                  | `expert_id`                                                 |
+| `booking_requested`          | Booking created + checkout opened (dormant until booking opens) | —                                                           |
+| `booking_confirmed`          | Expert accepts a request                                        | —                                                           |
+| `booking_cancelled`          | Booking cancelled or declined                                   | `by_customer`                                               |
+| `no_show_reported`           | Either party reports a no-show                                  | —                                                           |
 
 ### Setting up Supabase (for real magic-link auth)
 
 When `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_ANON_KEY` are empty, the app falls back to a **mock signin** so you can run it in Expo Go without a backend. To enable the real magic-link flow:
 
-1. Create a project at [supabase.com](https://supabase.com/), then copy the URL and anon key from *Project Settings → API* into `.env`.
-2. In *Authentication → URL Configuration*, add this to **Redirect URLs**:
+1. Create a project at [supabase.com](https://supabase.com/), then copy the URL and anon key from _Project Settings → API_ into `.env`.
+2. In _Authentication → URL Configuration_, add this to **Redirect URLs**:
    - `myapp://auth-callback` — for production/dev builds (the `scheme` from `app.json`)
    - `exp://*/auth-callback` — for Expo Go testing (replace `*` with your local IP if Supabase requires exact match)
 3. Restart `npx expo start --clear` so the new env vars are picked up.
@@ -111,17 +153,20 @@ The MVP flow opens **Stripe Checkout** (hosted page) in an in-app browser. The n
 
 **1. Create a Stripe account.** [stripe.com](https://stripe.com) → sign up → activate test mode (top right toggle).
 
-**2. Grab keys** from *Developers → API keys*:
+**2. Grab keys** from _Developers → API keys_:
+
 - **Publishable key** (`pk_test_...`) — goes in `.env` as `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY`.
 - **Secret key** (`sk_test_...`) — stays out of `.env`; goes to Supabase as an Edge Function secret (next step).
 
 **3. Apply schema migration `0005_stripe_columns.sql`** (Supabase → SQL Editor).
 
 **4. Deploy the Edge Functions.** Supabase dashboard → **Edge Functions** → **Deploy a new function**:
+
 - Name: `create-checkout-session` → paste contents of `supabase/functions/create-checkout-session/index.ts` → Deploy. Leave "Verify JWT" **ON**.
 - Name: `stripe-webhook` → paste contents of `supabase/functions/stripe-webhook/index.ts` → Deploy. **Toggle "Verify JWT" OFF** (Stripe doesn't send a Supabase auth header; the webhook is authenticated by Stripe's signature instead).
 
 **5. Set Edge Function secrets.** Supabase dashboard → **Edge Functions** → **Secrets** (or Project Settings → Edge Functions):
+
 ```
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...  (filled in step 6)
@@ -129,6 +174,7 @@ APP_DEEP_LINK_RETURN_BASE=http://localhost:8081
 ```
 
 **6. Configure the Stripe webhook endpoint.** Stripe dashboard → **Developers → Webhooks → Add endpoint**:
+
 - Endpoint URL: `https://<your-project-ref>.supabase.co/functions/v1/stripe-webhook`
 - Events to send: `checkout.session.completed`, `checkout.session.expired`, `payment_intent.succeeded`, `payment_intent.payment_failed`, `charge.refunded`
 - After creating, click into the endpoint → **Signing secret** → reveal → copy. Paste that as the value of `STRIPE_WEBHOOK_SECRET` in the Supabase secrets (back to step 5).
@@ -144,6 +190,7 @@ Once a basic Checkout payment works, the next layer makes payments actually flow
 **2. Enable Connect in your Stripe dashboard.** Stripe dashboard → **Connect** (left sidebar) → **Get started**. Pick **Platform or marketplace**. Choose **Express** for account type. Fill in the platform profile (test mode is fine). No legal info required in test mode.
 
 **3. Deploy three more Edge Functions** (same drill as before):
+
 - `create-connect-account` (Verify JWT OFF) — from `supabase/functions/create-connect-account/index.ts`.
 - `refund-booking` (Verify JWT OFF) — from `supabase/functions/refund-booking/index.ts`.
 - `sync-connect-status` (Verify JWT OFF) — from `supabase/functions/sync-connect-status/index.ts`. Called on return from onboarding and via the "Refresh status" button, so the app doesn't depend on the `account.updated` webhook.
@@ -151,6 +198,7 @@ Once a basic Checkout payment works, the next layer makes payments actually flow
 **4. Update the existing webhook to also receive `account.updated`.** Stripe dashboard → Developers → Webhooks → click your endpoint → **Add events** → tick `account.updated` and `account.application.authorized` (or just "all account events"). Save.
 
 **5. Test.**
+
 - As an expert, open the expert profile editor → scroll to **Payouts** → tap **Set up payouts via Stripe**.
 - Stripe Connect Express onboarding opens in a browser tab. Fill in dummy info (Test mode → "Test mode bank account": routing `110000000`, account `000123456789`; the form is short). Finish.
 - Webhook fires `account.updated` → `stripe_connect_payouts_enabled` flips to true on your expert profile.
@@ -180,6 +228,7 @@ The MVP flow opens the Daily room URL in an in-app web browser. Daily's hosted c
 **4. Deploy the Edge Function.** Supabase dashboard → Edge Functions → Deploy a new function → name: `create-daily-room` → paste from `supabase/functions/create-daily-room/index.ts` → **Verify JWT OFF** → Deploy.
 
 **5. Set the secret.** Supabase Edge Functions → Secrets → add:
+
 ```
 DAILY_API_KEY=<paste-your-daily-api-key>
 ```
@@ -218,20 +267,20 @@ New-application alerts land at `APPLICATION_ALERT_EMAIL` right away. The **appro
 
 All transactional email is server-side: database webhooks POST row changes to Edge Functions, which send through Resend. The app itself never sends email. Two functions cover everything:
 
-| Email | Trigger | Recipient | Function |
-| --- | --- | --- | --- |
-| Welcome — "You're in" | `profiles` INSERT (new sign-up) | new user | `lifecycle-emails` |
-| New booking request | `bookings` INSERT (status `requested`) | expert | `lifecycle-emails` |
-| Request sent — "you'll hear back soon" | `bookings` INSERT (status `requested`) | customer | `lifecycle-emails` |
-| You're booked (time + join steps) | `bookings` status `requested` → `confirmed` | customer | `lifecycle-emails` |
-| Locked in (short confirmation) | `bookings` status `requested` → `confirmed` | expert | `lifecycle-emails` |
-| Expert couldn't make it (+ refund line) | `bookings` status → `cancelled`, reason `declined by expert` | customer | `lifecycle-emails` |
-| Session cancelled | `bookings` status → `cancelled`, any other reason | expert | `lifecycle-emails` |
-| Your refund is through | `bookings` payment_status → `refunded` (skipped when the decline email already said "refunded in full") | customer | `lifecycle-emails` |
-| No-show owner alert | `bookings` `no_show_reported_by` set (columns arrive with the no-show migration) | owner (`APPLICATION_ALERT_EMAIL`) | `lifecycle-emails` |
-| No-show acknowledgment | same event | whoever reported | `lifecycle-emails` |
-| New expert application | `expert_profiles` INSERT | owner (`APPLICATION_ALERT_EMAIL`) | `notify-application` |
-| Application approved | `expert_profiles` status → `approved` | applicant | `notify-application` |
+| Email                                   | Trigger                                                                                                 | Recipient                         | Function             |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------- | -------------------- |
+| Welcome — "You're in"                   | `profiles` INSERT (new sign-up)                                                                         | new user                          | `lifecycle-emails`   |
+| New booking request                     | `bookings` INSERT (status `requested`)                                                                  | expert                            | `lifecycle-emails`   |
+| Request sent — "you'll hear back soon"  | `bookings` INSERT (status `requested`)                                                                  | customer                          | `lifecycle-emails`   |
+| You're booked (time + join steps)       | `bookings` status `requested` → `confirmed`                                                             | customer                          | `lifecycle-emails`   |
+| Locked in (short confirmation)          | `bookings` status `requested` → `confirmed`                                                             | expert                            | `lifecycle-emails`   |
+| Expert couldn't make it (+ refund line) | `bookings` status → `cancelled`, reason `declined by expert`                                            | customer                          | `lifecycle-emails`   |
+| Session cancelled                       | `bookings` status → `cancelled`, any other reason                                                       | expert                            | `lifecycle-emails`   |
+| Your refund is through                  | `bookings` payment_status → `refunded` (skipped when the decline email already said "refunded in full") | customer                          | `lifecycle-emails`   |
+| No-show owner alert                     | `bookings` `no_show_reported_by` set (columns arrive with the no-show migration)                        | owner (`APPLICATION_ALERT_EMAIL`) | `lifecycle-emails`   |
+| No-show acknowledgment                  | same event                                                                                              | whoever reported                  | `lifecycle-emails`   |
+| New expert application                  | `expert_profiles` INSERT                                                                                | owner (`APPLICATION_ALERT_EMAIL`) | `notify-application` |
+| Application approved                    | `expert_profiles` status → `approved`                                                                   | applicant                         | `notify-application` |
 
 Every email is derived by comparing the row's old and new values, so webhook retries and no-op updates never double-send.
 
@@ -268,26 +317,63 @@ The site goes up at `https://chathi-eng.github.io/human-intelligence/` within a 
 
 ### DNS records for palamapp.com (at the domain registrar)
 
-| Type  | Host/Name | Value           |
-| ----- | --------- | --------------- |
-| A     | `@`       | 185.199.108.153 |
-| A     | `@`       | 185.199.109.153 |
-| A     | `@`       | 185.199.110.153 |
-| A     | `@`       | 185.199.111.153 |
+| Type  | Host/Name | Value                  |
+| ----- | --------- | ---------------------- |
+| A     | `@`       | 185.199.108.153        |
+| A     | `@`       | 185.199.109.153        |
+| A     | `@`       | 185.199.110.153        |
+| A     | `@`       | 185.199.111.153        |
 | CNAME | `www`     | `chathi-eng.github.io` |
 
 All four A records on the apex (`@`), not just one. Propagation can take minutes to a few hours — Settings → Pages shows "DNS check successful" when it's done.
 
+## Web app & share links (app.palamapp.com)
+
+Every **approved** expert has a public, shareable profile at `https://app.palamapp.com/expert/<id>` — the "Share your profile" button on the You tab and in Studio copies it to the clipboard. The link renders the full profile (headline, pitch, rate, reviews) with no sign-in, ending in an invite-only CTA that points to palamapp.com. It's the cheapest growth loop we have: experts paste it into their LinkedIn bio.
+
+### Deploying the web app
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\deploy-web.ps1
+```
+
+The script:
+
+1. builds the static web bundle with `npx expo export --platform web` (into `dist/`, gitignored);
+2. drops in `CNAME` (`app.palamapp.com`), `.nojekyll` (so Pages serves `_expo/*` verbatim), and `404.html` (a copy of `index.html` — the SPA fallback that makes deep links like `/expert/<id>` load);
+3. force-pushes `dist/` as a fresh single-commit `main` to the public repo **`ChatHi-eng/palam-web`** (creating it with `gh` if needed — it holds built output only, never source);
+4. enables GitHub Pages on that repo via the API (or prints the one manual step).
+
+Redeploy after any app change you want on the web: just run the script again.
+
+### DNS record for app.palamapp.com (one time, at the registrar)
+
+| Type  | Host/Name | Value                  |
+| ----- | --------- | ---------------------- |
+| CNAME | `app`     | `chathi-eng.github.io` |
+
+Until this record exists, the `palam-web` Pages site redirects its `github.io` URL to `app.palamapp.com` and the browser shows a DNS error — that's expected, not a broken deploy. Once it propagates, tick **Enforce HTTPS** under the `palam-web` repo → Settings → Pages.
+
+### Privacy model — what the anonymous web can see
+
+Migration `supabase/migrations/0016_public_expert_profiles.sql` (apply in the Supabase SQL editor) adds `anon` read policies scoped to the public surface:
+
+- **Public (approved experts only):** the expert profile row (headline, pitch, rate, years, verified), the display name / avatar / bio behind it, credentials, availability, and reviews. Avatar and cover images were already in public buckets.
+- **Never public:** pending/rejected applications, customer profiles, bookings, messages, earnings — and reviewer identities: reviews render as "Customer" for anonymous visitors because the reviewer's profile row stays hidden.
+- **Vetting fields caveat:** RLS is row-level, so `resume_url` / `application_goal` / `linkedin_url` on _approved_ rows are technically selectable by a crafted anonymous API query. Our client never selects them (`EXPERT_SELECT` in `services/api.ts` is an explicit column list — keep it that way; `tests/e2e/public-profile.spec.ts` asserts it), and the resume file itself lives in the private `resumes` bucket, so a leaked path serves nothing. The migration header documents the column-level `GRANT` hardening if we ever want the hard guarantee.
+
 ## Scripts
 
-| Command | What it does |
-| --- | --- |
-| `npm start` | Start the Expo dev server |
-| `npm run ios` / `npm run android` / `npm run web` | Open in the relevant target |
-| `npm run lint` | ESLint via `expo lint` |
-| `npm run format` | Prettier write |
-| `npm run format:check` | Prettier check (CI) |
-| `npm run typecheck` | `tsc --noEmit` |
+| Command                                           | What it does                                            |
+| ------------------------------------------------- | ------------------------------------------------------- |
+| `npm start`                                       | Start the Expo dev server                               |
+| `npm run ios` / `npm run android` / `npm run web` | Open in the relevant target                             |
+| `npm run lint`                                    | ESLint via `expo lint`                                  |
+| `npm run format`                                  | Prettier write                                          |
+| `npm run format:check`                            | Prettier check (CI)                                     |
+| `npm run typecheck`                               | `tsc --noEmit`                                          |
+| `npm run test:e2e`                                | Playwright web E2E (set `E2E_PORT` if 8081 is busy)     |
+| `scripts\deploy-web.ps1`                          | Build + publish the web app to GitHub Pages (see above) |
 
 ## Engineering standards
 
