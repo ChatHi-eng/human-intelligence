@@ -145,12 +145,17 @@ serve(async (req) => {
       customer_id: booking.customer_id,
       expert_profile_id: booking.expert_profile_id,
     },
-    payment_intent_data: canSplit
-      ? {
-          application_fee_amount: applicationFeeCents,
-          transfer_data: { destination: expert!.stripe_connect_account_id! },
-        }
-      : undefined,
+    payment_intent_data: {
+      // Guarantees a live-mode email receipt regardless of the dashboard's
+      // "Successful payments" toggle (test mode never auto-sends receipts).
+      receipt_email: user.email ?? undefined,
+      ...(canSplit
+        ? {
+            application_fee_amount: applicationFeeCents,
+            transfer_data: { destination: expert!.stripe_connect_account_id! },
+          }
+        : {}),
+    },
     success_url: `${returnBase}/booking/${booking.id}?stripe=success`,
     cancel_url: `${returnBase}/booking/${booking.id}?stripe=cancel`,
   });
