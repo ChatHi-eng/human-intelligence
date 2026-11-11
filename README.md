@@ -49,7 +49,7 @@ my-app/
 │   ├── stripe.ts                 # Stub — real SDK comes with dev build
 │   ├── video.ts                  # Daily.co stub — real SDK comes with dev build
 │   ├── calendar.ts               # expo-calendar + Google Calendar sync stub
-│   └── notifications.ts          # local notifications + email service stub
+│   └── notifications.ts          # local booking reminders (emails are server-side — see Lifecycle emails)
 ├── supabase/
 │   └── migrations/               # SQL schema — paste 0001_initial_schema.sql in Supabase SQL editor
 ├── store/                        # Zustand stores (authStore, bookingStore)
@@ -202,6 +202,35 @@ Get an email the moment someone applies, and send applicants a welcome when you 
 
 New-application alerts land at `APPLICATION_ALERT_EMAIL` right away. The **approval welcome email** only reaches real applicants once you verify a domain in Resend (Resend → Domains) and switch the `from` address in the function to that domain — Resend's built-in test sender can only email the account owner. Until then, approval emails to anyone else fail quietly (logged, never retried).
 
+## Lifecycle emails
+
+All transactional email is server-side: database webhooks POST row changes to Edge Functions, which send through Resend. The app itself never sends email. Two functions cover everything:
+
+| Email | Trigger | Recipient | Function |
+| --- | --- | --- | --- |
+| Welcome — "You're in" | `profiles` INSERT (new sign-up) | new user | `lifecycle-emails` |
+| New booking request | `bookings` INSERT (status `requested`) | expert | `lifecycle-emails` |
+| Request sent — "you'll hear back soon" | `bookings` INSERT (status `requested`) | customer | `lifecycle-emails` |
+| You're booked (time + join steps) | `bookings` status `requested` → `confirmed` | customer | `lifecycle-emails` |
+| Locked in (short confirmation) | `bookings` status `requested` → `confirmed` | expert | `lifecycle-emails` |
+| Expert couldn't make it (+ refund line) | `bookings` status → `cancelled`, reason `declined by expert` | customer | `lifecycle-emails` |
+| Session cancelled | `bookings` status → `cancelled`, any other reason | expert | `lifecycle-emails` |
+| Your refund is through | `bookings` payment_status → `refunded` (skipped when the decline email already said "refunded in full") | customer | `lifecycle-emails` |
+| No-show owner alert | `bookings` `no_show_reported_by` set (columns arrive with the no-show migration) | owner (`APPLICATION_ALERT_EMAIL`) | `lifecycle-emails` |
+| No-show acknowledgment | same event | whoever reported | `lifecycle-emails` |
+| New expert application | `expert_profiles` INSERT | owner (`APPLICATION_ALERT_EMAIL`) | `notify-application` |
+| Application approved | `expert_profiles` status → `approved` | applicant | `notify-application` |
+
+Every email is derived by comparing the row's old and new values, so webhook retries and no-op updates never double-send.
+
+**Setup** (after the [Application email alerts](#application-email-alerts) setup above — it creates the `RESEND_API_KEY` and `WEBHOOK_SECRET` secrets this reuses):
+
+1. **Deploy the function.** Supabase → Edge Functions → Deploy a new function → name: `lifecycle-emails` → paste from `supabase/functions/lifecycle-emails/index.ts` → **Verify JWT OFF** → Deploy.
+2. **Apply migration `0013_lifecycle_email_webhooks.sql`** (Supabase → SQL Editor) — first replace `__WEBHOOK_SECRET__` (it appears **twice**) with the exact `WEBHOOK_SECRET` value from the earlier setup.
+3. **Optional secrets** (Supabase → Edge Functions → Secrets): `PALAM_TIMEZONE` — IANA zone for times in emails, e.g. `America/New_York` (default UTC; the app always shows the reader's local time). `PLATFORM_FEE_PCT` is read if set, only to show experts their cut.
+
+**What delivers today vs. after domain verification:** until `palamapp.com` is verified in Resend, the test sender (`onboarding@resend.dev`) can only deliver to the Resend account owner's own address — so the two **owner alerts deliver now**, and every customer/expert-facing email fails quietly (logged, returns 200, never retried). To go fully live: Resend → **Domains** → add `palamapp.com` and set the DNS records it shows → once verified, add the secret `PALAM_SENDER` = `Palam <hello@palamapp.com>` (any address on the verified domain). Every email in the table starts delivering immediately — no redeploy needed. The same applies to `notify-application`'s approval email (its `from` still needs the one-line switch described above).
+
 ## Account deletion
 
 Google Play requires apps with sign-up to offer in-app account deletion. The flow lives on the **You** tab → "Delete account": the user types DELETE, the `delete-account` Edge Function verifies them, refuses if they still have an upcoming/active booking, and otherwise deletes the auth user — the schema's `on delete cascade` chain removes the profile, expert application, bookings, reviews, and messages. Stripe is never touched: an expert's Connect account stays theirs.
@@ -263,4 +292,4 @@ All four A records on the apex (`@`), not just one. Propagation can take minutes
 - `feat/booking-flow` — real Stripe PaymentSheet (requires dev build)
 - `feat/video-daily` — real Daily.co call screen (requires dev build)
 - `feat/expert-profile` — credential uploads, verification flow
-- `feat/notifications` — Expo push + Supabase Edge Function for booking confirmation emails
+- `feat/notifications` — Expo push (booking emails are done — see [Lifecycle emails](#lifecycle-emails))

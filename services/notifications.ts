@@ -1,7 +1,9 @@
-// Notifications + email confirmation stubs.
+// Local notification scheduling.
 // expo-notifications push only works in a dev build. Local notifications work in
-// Expo Go on iOS but not for remote push. We schedule a local one for now and stub
-// the email sender — the real flow will go through a Supabase Edge Function.
+// Expo Go on iOS but not for remote push, so we schedule a local reminder for now.
+// Emails are server-side only: database webhooks → the lifecycle-emails and
+// notify-application Edge Functions (see README "Lifecycle emails"). The client
+// never sends email.
 import type { Booking } from '@/types/booking';
 
 export const scheduleBookingReminder = async (booking: Booking, expertName: string) => {
@@ -21,16 +23,4 @@ export const scheduleBookingReminder = async (booking: Booking, expertName: stri
   } catch (err) {
     return { scheduled: false, reason: err instanceof Error ? err.message : 'unknown' };
   }
-};
-
-export const emailService = {
-  sendBookingConfirmation: async (
-    to: string,
-    booking: Booking,
-    expertName: string,
-  ): Promise<{ queued: true }> => {
-    // Stub. Real impl posts to a Supabase Edge Function that calls Resend / Postmark.
-    console.log('[emailService] booking confirmation', { to, bookingId: booking.id, expertName });
-    return { queued: true };
-  },
 };

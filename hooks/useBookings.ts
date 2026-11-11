@@ -12,7 +12,7 @@ import {
   updateBookingStatus,
 } from '@/services/api';
 import { addBookingToDeviceCalendar } from '@/services/calendar';
-import { emailService, scheduleBookingReminder } from '@/services/notifications';
+import { scheduleBookingReminder } from '@/services/notifications';
 import {
   createCheckoutSession,
   openCheckout,
@@ -90,7 +90,6 @@ export type CreateBookingMutationInput = {
   expertId: string;
   slot: TimeSlot;
   medium: CallMedium;
-  customerEmail?: string;
 };
 
 export type CreateBookingResult = {
@@ -135,14 +134,9 @@ export const useCreateBooking = () => {
       void qc.invalidateQueries({ queryKey: ['bookings'] });
 
       // Open hosted Checkout. Resolves when the browser dismisses — Stripe's
-      // webhook handles the actual payment update on the server side.
+      // webhook handles the actual payment update on the server side, and the
+      // bookings database webhook sends the request emails to both parties.
       const result = await openCheckout(session.sessionUrl);
-
-      void emailService.sendBookingConfirmation(
-        input.customerEmail ?? 'you@example.com',
-        booking,
-        expert.displayName,
-      );
 
       return { bookingId: booking.id, checkoutResult: result.type };
     },
@@ -182,7 +176,10 @@ export const useAcceptBooking = () => {
 export const useDeclineBooking = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { id: string; reason?: string }) => declineBooking(input.id, input.reason),
+    // Default the reason: the lifecycle-emails webhook routes the cancellation
+    // email to the customer only when it reads 'declined by expert'.
+    mutationFn: (input: { id: string; reason?: string }) =>
+      declineBooking(input.id, input.reason ?? 'declined by expert'),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['bookings'] });
     },
