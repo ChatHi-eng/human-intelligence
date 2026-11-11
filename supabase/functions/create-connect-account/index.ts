@@ -82,7 +82,7 @@ serve(async (req) => {
       metadata: { profile_id: user.id },
     });
     accountId = account.id;
-    // stripe_connect_account_id is a server-owned column (migration 0013):
+    // stripe_connect_account_id is a server-owned column (migration 0014):
     // write it with the service role, scoped to the authenticated user's row.
     const admin = createClient(supabaseUrl, serviceKey, {
       auth: { autoRefreshToken: false, persistSession: false },

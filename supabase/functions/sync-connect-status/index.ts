@@ -76,7 +76,7 @@ serve(async (req) => {
   const account = await stripe.accounts.retrieve(expert.stripe_connect_account_id);
 
   const payoutsEnabled = Boolean(account.charges_enabled && account.payouts_enabled);
-  // stripe_connect_payouts_enabled is a server-owned column (migration 0013):
+  // stripe_connect_payouts_enabled is a server-owned column (migration 0014):
   // write it with the service role, scoped to the authenticated user's row.
   const admin = createClient(supabaseUrl, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },

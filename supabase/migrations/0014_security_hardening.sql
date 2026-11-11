@@ -1,4 +1,4 @@
--- 0013_security_hardening
+-- 0014_security_hardening
 -- Fixes from the November 2026 security audit — see SECURITY.md at the repo
 -- root for the full findings list and evidence.
 -- Paste into the Supabase SQL editor and Run. Safe to re-run.
@@ -11,7 +11,8 @@
 --      URLs) with the service role. If this migration runs while the OLD
 --      versions are still deployed, those writes are silently discarded by
 --      the new guard triggers and payments stop reconciling.
---   2. Apply any earlier migrations you haven't run yet (0008, 0011, 0012) —
+--   2. Apply any earlier migrations you haven't run yet (0008, 0011, 0012,
+--      0013) —
 --      the messaging hardening below is skipped with a NOTICE if 0008's
 --      tables don't exist yet; re-run this file after applying 0008.
 --
@@ -235,7 +236,7 @@ $$;
 do $do$
 begin
   if to_regclass('public.conversations') is null then
-    raise notice '0008 not applied yet — messaging hardening skipped. Re-run 0013 after applying 0008.';
+    raise notice '0008 not applied yet — messaging hardening skipped. Re-run 0014 after applying 0008.';
     return;
   end if;
 

@@ -112,7 +112,7 @@ serve(async (req) => {
     },
   });
 
-  // payment_status is a server-owned column (migration 0013): write it with
+  // payment_status is a server-owned column (migration 0014): write it with
   // the service role. The caller's right to refund was already checked above.
   const admin = createClient(supabaseUrl, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },

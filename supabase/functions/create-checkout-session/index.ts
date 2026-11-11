@@ -92,7 +92,7 @@ serve(async (req) => {
     .maybeSingle();
 
   // The amount charged is the expert's CURRENT rate, read server-side — never
-  // the client-written booking.price_cents (migration 0013 also forces the
+  // the client-written booking.price_cents (migration 0014 also forces the
   // stored price at insert, but this function must not trust the row either).
   if (!expert || typeof expert.hourly_rate_cents !== 'number') {
     return json({ error: 'This expert cannot be booked yet' }, 409);
@@ -103,7 +103,7 @@ serve(async (req) => {
   }
 
   // Service-role client for writes to server-owned columns (price correction,
-  // Stripe correlation ids) — migration 0013 blocks those for user requests.
+  // Stripe correlation ids) — migration 0014 blocks those for user requests.
   const admin = createClient(supabaseUrl, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
@@ -156,7 +156,7 @@ serve(async (req) => {
   });
 
   // Persist the session id + application fee (and the authoritative price, in
-  // case the stored row predates migration 0013 or the rate changed) so the
+  // case the stored row predates migration 0014 or the rate changed) so the
   // webhook can correlate events and earnings reports stay accurate. Written
   // with the service role: these columns reject user-role writes.
   await admin

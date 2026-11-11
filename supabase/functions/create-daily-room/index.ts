@@ -121,7 +121,7 @@ serve(async (req) => {
   }
   const room = (await dailyRes.json()) as DailyRoom;
 
-  // call_room_url / daily_* are server-owned columns (migration 0013): only
+  // call_room_url / daily_* are server-owned columns (migration 0014): only
   // this function writes them, so the Join button can trust the stored URL.
   const admin = createClient(supabaseUrl, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
