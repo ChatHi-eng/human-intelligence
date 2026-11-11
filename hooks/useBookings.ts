@@ -12,6 +12,7 @@ import {
   reportNoShow,
   updateBookingStatus,
 } from '@/services/api';
+import { capture } from '@/services/analytics';
 import { addBookingToDeviceCalendar } from '@/services/calendar';
 import { scheduleBookingReminder } from '@/services/notifications';
 import {
@@ -145,6 +146,7 @@ export const useCreateBooking = () => {
       return { bookingId: booking.id, checkoutResult: result.type };
     },
     onSuccess: () => {
+      capture('booking_requested');
       void qc.invalidateQueries({ queryKey: ['bookings'] });
     },
   });
@@ -172,6 +174,7 @@ export const useAcceptBooking = () => {
       );
     },
     onSuccess: () => {
+      capture('booking_confirmed');
       void qc.invalidateQueries({ queryKey: ['bookings'] });
     },
   });
@@ -224,6 +227,7 @@ export const useReportNoShow = () => {
       await reportNoShow(bookingId, userId);
     },
     onSuccess: () => {
+      capture('no_show_reported');
       void qc.invalidateQueries({ queryKey: ['booking'] });
       void qc.invalidateQueries({ queryKey: ['bookings'] });
     },

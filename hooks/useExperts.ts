@@ -13,6 +13,7 @@ import {
   type ExpertProfileInput,
   type ExpertsFilters,
 } from '@/services/api';
+import { capture } from '@/services/analytics';
 import {
   createConnectOnboardingLink,
   openConnectOnboarding,
@@ -135,6 +136,7 @@ export const useStartConnectOnboarding = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async () => {
+      capture('payout_onboarding_started');
       const link = await createConnectOnboardingLink();
       const result = await openConnectOnboarding(link.onboardingUrl);
       // Actively sync when the user returns — doesn't wait for Stripe's
@@ -168,7 +170,8 @@ export const useSetAvailability = () => {
       if (!userId) throw new Error('Not signed in');
       await setAvailability(userId, windows);
     },
-    onSuccess: () => {
+    onSuccess: (_data, windows) => {
+      capture('availability_saved', { window_count: windows.length });
       void qc.invalidateQueries({ queryKey: ['my-expert-profile'] });
       if (userId) void qc.invalidateQueries({ queryKey: ['expert', userId] });
     },

@@ -6,6 +6,7 @@
 // PaymentSheet replaces openCheckout, and the Edge Function just changes from
 // creating a Checkout Session to creating a PaymentIntent.
 import * as WebBrowser from 'expo-web-browser';
+import { capture } from './analytics';
 import { getSupabase } from './supabase';
 
 export type CheckoutSession = {
@@ -106,6 +107,9 @@ export const syncConnectStatus = async (): Promise<ConnectStatus> => {
   });
   if (error) throw error;
   if (!data) throw new Error('No status returned');
+  // Single choke point: every path that learns payouts are live goes
+  // through this sync (post-onboarding return and manual refresh alike).
+  if (data.status === 'ready') capture('payout_onboarding_ready');
   return data;
 };
 

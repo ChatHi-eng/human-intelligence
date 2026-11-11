@@ -7,6 +7,7 @@ import {
   supabaseConfigured,
   type Session,
 } from '@/services/supabase';
+import { capture, identify, reset } from '@/services/analytics';
 import { fetchMyProfile } from '@/services/api';
 
 type AuthState = {
@@ -60,9 +61,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const session = await getCurrentSession();
       const user = await loadUserFromSession(session);
+      if (session) identify(session.user.id);
       set({ user, email: session?.user.email ?? null, isHydrated: true, configError: null });
       unsubscribe?.();
       unsubscribe = subscribeToAuthChanges(async (next) => {
+        if (next) identify(next.user.id);
         const refreshed = await loadUserFromSession(next);
         set({ user: refreshed, email: next?.user.email ?? null });
       });
@@ -75,7 +78,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signOut: async () => {
+    capture('signed_out');
     await signOutFromSupabase();
+    reset();
     set({ user: null, email: null });
   },
 

@@ -25,6 +25,7 @@ import { useMyReviewForBooking, useSubmitReview } from '@/hooks/useReviews';
 import { formatDateTime, minutesBetween } from '@/lib/date';
 import { formatCurrency } from '@/lib/format';
 import { isFreeCancellation, isWithinNoShowReportWindow } from '@/lib/policy';
+import { capture } from '@/services/analytics';
 import { createRoomForBooking, openCallRoom } from '@/services/video';
 import type { BookingStatus, PaymentStatus } from '@/types/booking';
 
@@ -355,6 +356,7 @@ export default function BookingDetailScreen() {
                   },
                   {
                     onSuccess: () => {
+                      capture('booking_cancelled', { by_customer: isCustomer });
                       Toast.show({ type: 'success', text1: 'Booking cancelled' });
                       router.replace('/(tabs)/bookings');
                     },

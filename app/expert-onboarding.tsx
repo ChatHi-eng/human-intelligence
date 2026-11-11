@@ -2,7 +2,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { Redirect, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { Button } from '@/components/ui/Button';
@@ -12,6 +12,7 @@ import { industries, industryById } from '@/constants/industries';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useMyExpertProfile, useUpsertMyExpertProfile } from '@/hooks/useExperts';
 import { useUpdateMyProfile, useUploadImage, useUploadResume } from '@/hooks/useProfile';
+import { capture } from '@/services/analytics';
 import { formatCurrency } from '@/lib/format';
 
 // Light steps in confidence order: easy taps first, writing in the middle,
@@ -46,6 +47,16 @@ export default function ExpertOnboardingScreen() {
   const [decideLater, setDecideLater] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState('');
   const [applicationGoal, setApplicationGoal] = useState('');
+
+  // Funnel entry — fires once per wizard mount, only for genuinely new
+  // applicants (returning applicants are redirected away below).
+  const startedTracked = useRef(false);
+  useEffect(() => {
+    if (!isLoading && !existing && !startedTracked.current) {
+      startedTracked.current = true;
+      capture('application_started');
+    }
+  }, [isLoading, existing]);
 
   if (isLoading) return <LoadingView label="Loading…" />;
   // Already applied → this wizard isn't for you. Approved experts edit their
@@ -171,6 +182,10 @@ export default function ExpertOnboardingScreen() {
   const onNext = () => {
     if (!validateStep()) return;
     if (step < STEPS.length - 1) {
+      capture('application_step_completed', {
+        step_name: STEPS[step] ?? 'unknown',
+        step_index: step,
+      });
       setStep(step + 1);
       return;
     }
@@ -187,7 +202,15 @@ export default function ExpertOnboardingScreen() {
         applicationGoal: applicationGoal.trim() || null,
       },
       {
-        onSuccess: () => setDone(true),
+        onSuccess: () => {
+          capture('application_submitted', {
+            industry_id: industryId,
+            has_resume: Boolean(resumePath),
+            has_linkedin: Boolean(linkedinUrl.trim()),
+            rate_decided: !decideLater,
+          });
+          setDone(true);
+        },
         onError: (err) =>
           Toast.show({
             type: 'error',
@@ -513,7 +536,10 @@ export default function ExpertOnboardingScreen() {
           <Button
             title="Cancel"
             variant="ghost"
-            onPress={() => router.back()}
+            onPress={() => {
+              capture('application_cancelled');
+              router.back();
+            }}
             style={{ flex: 1 }}
           />
         )}
