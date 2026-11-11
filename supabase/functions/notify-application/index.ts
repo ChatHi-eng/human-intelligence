@@ -99,6 +99,9 @@ serve(async (req) => {
   const resendKey = Deno.env.get('RESEND_API_KEY');
   const webhookSecret = Deno.env.get('WEBHOOK_SECRET');
   const alertEmail = Deno.env.get('APPLICATION_ALERT_EMAIL') ?? 'vkinatukara@gmail.com';
+  // Same sender convention as lifecycle-emails: once the domain is verified
+  // in Resend, the PALAM_SENDER secret wins; the test sender is the fallback.
+  const palamSender = Deno.env.get('PALAM_SENDER') ?? 'Palam <onboarding@resend.dev>';
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!resendKey || !webhookSecret || !supabaseUrl || !serviceKey) {
@@ -146,7 +149,13 @@ serve(async (req) => {
     const rows: [string, string][] = [
       ['Headline', escapeHtml(record.headline)],
       ['Industry', escapeHtml(record.industry_id)],
-      ['Rate', `$${(record.hourly_rate_cents / 100).toFixed(2)}/hr`],
+      // hourly_rate_cents is nullable since migration 0011 ("I'll decide later").
+      [
+        'Rate',
+        record.hourly_rate_cents == null
+          ? 'Deciding later'
+          : `$${(record.hourly_rate_cents / 100).toFixed(2)}/hr`,
+      ],
       ['Experience', `${record.years_experience} years`],
       ['LinkedIn', record.linkedin_url ? escapeHtml(record.linkedin_url) : '—'],
     ];
@@ -156,7 +165,7 @@ serve(async (req) => {
     rows.push(['Applicant email', applicantEmail ? escapeHtml(applicantEmail) : 'unknown']);
 
     await sendEmail(resendKey, {
-      from: 'Palam <onboarding@resend.dev>',
+      from: palamSender,
       to: alertEmail,
       subject: `New expert application: ${record.headline}`,
       html: [
@@ -174,13 +183,13 @@ serve(async (req) => {
     // `from` below moves to that domain. Until then, sends to anyone else fail
     // — which is fine: sendEmail logs the error and we still return 200.
     await sendEmail(resendKey, {
-      from: 'Palam <onboarding@resend.dev>',
+      from: palamSender,
       to: applicantEmail,
       subject: "You're on Palam",
       html: [
         '<p>Hi,</p>',
-        "<p>Good news — your application was approved. You're on Palam.</p>",
-        '<p>Open the app and head to <strong>Studio</strong> to set your weekly availability and connect payouts. Once that’s done, you’re live.</p>',
+        "<p>Good news — a human read your application and said yes. You're on Palam.</p>",
+        '<p>Open the app and head to <strong>Studio</strong> to set your weekly availability and connect payouts. Once that’s done, you’re live — your knowledge, paid for, never scraped.</p>',
         '<p>Welcome aboard,<br>Palam</p>',
       ].join('\n'),
     });
