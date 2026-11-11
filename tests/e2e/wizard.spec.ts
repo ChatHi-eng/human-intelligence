@@ -83,7 +83,7 @@ test.use({ viewport: { width: 390, height: 844 } });
 test('expert application wizard walks all six steps and submits', async ({ page }) => {
   const env = readEnv();
   test.skip(!env?.EXPO_PUBLIC_SUPABASE_URL, 'No .env — app boots to the Setup screen');
-  const ref = new URL(env!.EXPO_PUBLIC_SUPABASE_URL).hostname.split('.')[0];
+  const ref = new URL(env!.EXPO_PUBLIC_SUPABASE_URL!).hostname.split('.')[0];
 
   await stubSupabase(page);
   await page.addInitScript(
