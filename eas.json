@@ -1,4 +1,4 @@
-{
+﻿{
   "cli": {
     "version": ">= 13.0.0",
     "appVersionSource": "remote"
@@ -10,7 +10,9 @@
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://dthpwxpxjhbsgzcjnept.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_eidRcgFlWx6lG4znyqY1yg_lLD3sbyl",
-        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51Tkxej7eyjb6d0Dt1DX5C4LewS2Ue7RtaodkIHorfGhCSvq4MJ1xwzqrem3dWxR8K5BNgJ0CDaAdJRWoFQkhqIh800OzsZGhcy"
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51Tkxej7eyjb6d0Dt1DX5C4LewS2Ue7RtaodkIHorfGhCSvq4MJ1xwzqrem3dWxR8K5BNgJ0CDaAdJRWoFQkhqIh800OzsZGhcy",
+        "EXPO_PUBLIC_POSTHOG_API_KEY": "",
+        "EXPO_PUBLIC_POSTHOG_HOST": "https://us.i.posthog.com"
       }
     },
     "preview": {
@@ -18,7 +20,9 @@
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://dthpwxpxjhbsgzcjnept.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_eidRcgFlWx6lG4znyqY1yg_lLD3sbyl",
-        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51Tkxej7eyjb6d0Dt1DX5C4LewS2Ue7RtaodkIHorfGhCSvq4MJ1xwzqrem3dWxR8K5BNgJ0CDaAdJRWoFQkhqIh800OzsZGhcy"
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51Tkxej7eyjb6d0Dt1DX5C4LewS2Ue7RtaodkIHorfGhCSvq4MJ1xwzqrem3dWxR8K5BNgJ0CDaAdJRWoFQkhqIh800OzsZGhcy",
+        "EXPO_PUBLIC_POSTHOG_API_KEY": "",
+        "EXPO_PUBLIC_POSTHOG_HOST": "https://us.i.posthog.com"
       }
     },
     "production": {
@@ -26,7 +30,9 @@
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://dthpwxpxjhbsgzcjnept.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_eidRcgFlWx6lG4znyqY1yg_lLD3sbyl",
-        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51Tkxej7eyjb6d0Dt1DX5C4LewS2Ue7RtaodkIHorfGhCSvq4MJ1xwzqrem3dWxR8K5BNgJ0CDaAdJRWoFQkhqIh800OzsZGhcy"
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51Tkxej7eyjb6d0Dt1DX5C4LewS2Ue7RtaodkIHorfGhCSvq4MJ1xwzqrem3dWxR8K5BNgJ0CDaAdJRWoFQkhqIh800OzsZGhcy",
+        "EXPO_PUBLIC_POSTHOG_API_KEY": "",
+        "EXPO_PUBLIC_POSTHOG_HOST": "https://us.i.posthog.com"
       }
     }
   },
