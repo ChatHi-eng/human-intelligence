@@ -7,6 +7,14 @@
     "icon": "./assets/images/icon.png",
     "scheme": "palam",
     "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "com.palamapp.palam",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Palam uses your photo library so you can add a profile photo to your expert application.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
     "android": {
       "package": "com.palamapp.palam",
       "adaptiveIcon": {
@@ -28,6 +36,10 @@
         {
           "backgroundColor": "#0F6E56",
           "android": {
+            "image": "./assets/images/splash-icon.png",
+            "imageWidth": 76
+          },
+          "ios": {
             "image": "./assets/images/splash-icon.png",
             "imageWidth": 76
           }
