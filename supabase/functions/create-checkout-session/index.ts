@@ -41,7 +41,8 @@ serve(async (req) => {
   const returnBase = Deno.env.get('APP_DEEP_LINK_RETURN_BASE') ?? 'http://localhost:8081';
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
-  if (!stripeKey || !supabaseUrl || !anonKey) {
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!stripeKey || !supabaseUrl || !anonKey || !serviceKey) {
     return json({ error: 'Missing server config' }, 500);
   }
 
@@ -86,9 +87,26 @@ serve(async (req) => {
   // platform holds the money until Connect is set up.
   const { data: expert } = await userClient
     .from('expert_profiles')
-    .select('stripe_connect_account_id, stripe_connect_payouts_enabled')
+    .select('hourly_rate_cents, stripe_connect_account_id, stripe_connect_payouts_enabled')
     .eq('profile_id', booking.expert_profile_id)
     .maybeSingle();
+
+  // The amount charged is the expert's CURRENT rate, read server-side — never
+  // the client-written booking.price_cents (migration 0013 also forces the
+  // stored price at insert, but this function must not trust the row either).
+  if (!expert || typeof expert.hourly_rate_cents !== 'number') {
+    return json({ error: 'This expert cannot be booked yet' }, 409);
+  }
+  const amountCents = expert.hourly_rate_cents;
+  if (amountCents <= 0) {
+    return json({ error: 'This expert cannot be booked yet' }, 409);
+  }
+
+  // Service-role client for writes to server-owned columns (price correction,
+  // Stripe correlation ids) — migration 0013 blocks those for user requests.
+  const admin = createClient(supabaseUrl, serviceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
 
   // Platform cut — configurable via the PLATFORM_FEE_PCT Supabase secret
   // (e.g. "0.15" = 15%). Clamped to 0–50% so a typo'd secret can't take the
@@ -96,7 +114,7 @@ serve(async (req) => {
   const rawFee = Number(Deno.env.get('PLATFORM_FEE_PCT') ?? '0.15');
   const PLATFORM_FEE_PCT =
     Number.isFinite(rawFee) && rawFee >= 0 && rawFee <= 0.5 ? rawFee : 0.15;
-  const applicationFeeCents = Math.floor(booking.price_cents * PLATFORM_FEE_PCT);
+  const applicationFeeCents = Math.floor(amountCents * PLATFORM_FEE_PCT);
   const canSplit =
     expert?.stripe_connect_account_id && expert.stripe_connect_payouts_enabled;
 
@@ -114,7 +132,7 @@ serve(async (req) => {
         quantity: 1,
         price_data: {
           currency: 'usd',
-          unit_amount: booking.price_cents,
+          unit_amount: amountCents,
           product_data: {
             name: 'Palam session',
             description: `Booking ${booking.id}`,
@@ -137,11 +155,14 @@ serve(async (req) => {
     cancel_url: `${returnBase}/booking/${booking.id}?stripe=cancel`,
   });
 
-  // Persist the session id + application fee so the webhook can correlate events
-  // back to this booking and our earnings/payout reports stay accurate.
-  await userClient
+  // Persist the session id + application fee (and the authoritative price, in
+  // case the stored row predates migration 0013 or the rate changed) so the
+  // webhook can correlate events and earnings reports stay accurate. Written
+  // with the service role: these columns reject user-role writes.
+  await admin
     .from('bookings')
     .update({
+      price_cents: amountCents,
       stripe_checkout_session_id: session.id,
       stripe_application_fee_cents: canSplit ? applicationFeeCents : null,
     })

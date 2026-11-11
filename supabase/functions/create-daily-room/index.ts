@@ -36,7 +36,8 @@ serve(async (req) => {
   const dailyKey = Deno.env.get('DAILY_API_KEY');
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
-  if (!dailyKey || !supabaseUrl || !anonKey) {
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!dailyKey || !supabaseUrl || !anonKey || !serviceKey) {
     return json({ error: 'Missing server config' }, 500);
   }
 
@@ -120,7 +121,12 @@ serve(async (req) => {
   }
   const room = (await dailyRes.json()) as DailyRoom;
 
-  await userClient
+  // call_room_url / daily_* are server-owned columns (migration 0013): only
+  // this function writes them, so the Join button can trust the stored URL.
+  const admin = createClient(supabaseUrl, serviceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  await admin
     .from('bookings')
     .update({
       call_room_url: room.url,

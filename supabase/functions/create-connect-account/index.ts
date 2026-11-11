@@ -36,7 +36,8 @@ serve(async (req) => {
   const returnBase = Deno.env.get('APP_DEEP_LINK_RETURN_BASE') ?? 'http://localhost:8081';
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
-  if (!stripeKey || !supabaseUrl || !anonKey) {
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!stripeKey || !supabaseUrl || !anonKey || !serviceKey) {
     return json({ error: 'Missing server config' }, 500);
   }
 
@@ -81,7 +82,12 @@ serve(async (req) => {
       metadata: { profile_id: user.id },
     });
     accountId = account.id;
-    const { error: saveError } = await userClient
+    // stripe_connect_account_id is a server-owned column (migration 0013):
+    // write it with the service role, scoped to the authenticated user's row.
+    const admin = createClient(supabaseUrl, serviceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { error: saveError } = await admin
       .from('expert_profiles')
       .update({ stripe_connect_account_id: accountId })
       .eq('profile_id', user.id);

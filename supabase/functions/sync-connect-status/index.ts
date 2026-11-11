@@ -33,7 +33,8 @@ serve(async (req) => {
   const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
-  if (!stripeKey || !supabaseUrl || !anonKey) {
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!stripeKey || !supabaseUrl || !anonKey || !serviceKey) {
     return json({ error: 'Missing server config' }, 500);
   }
 
@@ -75,7 +76,12 @@ serve(async (req) => {
   const account = await stripe.accounts.retrieve(expert.stripe_connect_account_id);
 
   const payoutsEnabled = Boolean(account.charges_enabled && account.payouts_enabled);
-  await userClient
+  // stripe_connect_payouts_enabled is a server-owned column (migration 0013):
+  // write it with the service role, scoped to the authenticated user's row.
+  const admin = createClient(supabaseUrl, serviceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  await admin
     .from('expert_profiles')
     .update({ stripe_connect_payouts_enabled: payoutsEnabled })
     .eq('profile_id', user.id);

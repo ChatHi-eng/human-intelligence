@@ -41,7 +41,8 @@ serve(async (req) => {
   const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
-  if (!stripeKey || !supabaseUrl || !anonKey) {
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!stripeKey || !supabaseUrl || !anonKey || !serviceKey) {
     return json({ error: 'Missing server config' }, 500);
   }
 
@@ -111,7 +112,12 @@ serve(async (req) => {
     },
   });
 
-  await userClient
+  // payment_status is a server-owned column (migration 0013): write it with
+  // the service role. The caller's right to refund was already checked above.
+  const admin = createClient(supabaseUrl, serviceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  await admin
     .from('bookings')
     .update({ payment_status: 'refunded' })
     .eq('id', booking.id);
