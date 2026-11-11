@@ -7,9 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "palam",
     "userInterfaceStyle": "automatic",
-    "ios": {
-      "icon": "./assets/expo.icon"
-    },
     "android": {
       "package": "com.palamapp.palam",
       "adaptiveIcon": {
