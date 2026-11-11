@@ -3,6 +3,7 @@ import {
   fetchMyProfile,
   updateMyProfile,
   uploadImage,
+  uploadResume,
   type ImageBucket,
   type ProfilePatch,
 } from '@/services/api';
@@ -42,6 +43,17 @@ export const useUploadImage = () => {
     mutationFn: async (input: { bucket: ImageBucket; uri: string; mimeType: string }) => {
       if (!userId) throw new Error('Not signed in');
       return uploadImage(input.bucket, userId, input.uri, input.mimeType);
+    },
+  });
+};
+
+// Resolves to the resume's storage path inside the private 'resumes' bucket.
+export const useUploadResume = () => {
+  const userId = useAuthStore((s) => s.user?.id);
+  return useMutation({
+    mutationFn: async (input: { uri: string; mimeType: string }) => {
+      if (!userId) throw new Error('Not signed in');
+      return uploadResume(userId, input.uri, input.mimeType);
     },
   });
 };

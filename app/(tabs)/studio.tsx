@@ -43,7 +43,7 @@ export default function StudioScreen() {
         <View style={styles.statusWrap}>
           <EmptyState
             title="Application under review"
-            description={`Thanks for applying, ${firstName}. We personally review every expert — you'll hear back within 2–3 days. The moment you're approved, your Studio unlocks with availability, bookings, and earnings.`}
+            description={`Thanks for applying, ${firstName}. A real person is reading your application now — your pitch, experience, LinkedIn, and resume. You'll hear back within 2–3 days, and the moment you're approved your Studio unlocks with availability, bookings, and earnings.`}
             emoji="⏳"
           />
         </View>

@@ -144,15 +144,21 @@ export default function ExpertProfileScreen() {
       {CUSTOMER_BOOKING_ENABLED && (
         <View style={styles.bookBar}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.bookRate}>{formatCurrency(expert.hourlyRate)}/hr</Text>
+            <Text style={styles.bookRate}>
+              {expert.hourlyRate !== null
+                ? `${formatCurrency(expert.hourlyRate)}/hr`
+                : 'Rate coming soon'}
+            </Text>
             <Text style={styles.bookHint}>
               {isSelf
                 ? 'This is your public profile'
-                : hasAvailability
-                  ? PHONE_SESSIONS_ENABLED
-                    ? '30-minute sessions · video or phone'
-                    : '30-minute video sessions'
-                  : 'No times available yet'}
+                : expert.hourlyRate === null
+                  ? 'Booking opens once a rate is set'
+                  : hasAvailability
+                    ? PHONE_SESSIONS_ENABLED
+                      ? '30-minute sessions · video or phone'
+                      : '30-minute video sessions'
+                    : 'No times available yet'}
             </Text>
           </View>
           {!isSelf && MESSAGING_ENABLED && (
@@ -181,7 +187,7 @@ export default function ExpertProfileScreen() {
           <Button
             title="Book session"
             onPress={() => router.push({ pathname: '/book/[id]', params: { id: expert.id } })}
-            disabled={isSelf || !hasAvailability}
+            disabled={isSelf || !hasAvailability || expert.hourlyRate === null}
           />
         </View>
       )}

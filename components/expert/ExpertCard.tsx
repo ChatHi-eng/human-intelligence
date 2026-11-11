@@ -43,7 +43,11 @@ export const ExpertCard = ({ expert, onPress }: ExpertCardProps) => {
             <Text style={styles.newLabel}>New</Text>
           )}
           <Text style={styles.dot}> · </Text>
-          {formatCurrency(expert.hourlyRate)}/hr
+          {expert.hourlyRate !== null ? (
+            `${formatCurrency(expert.hourlyRate)}/hr`
+          ) : (
+            <Text style={styles.newLabel}>Rate coming soon</Text>
+          )}
         </Text>
       </View>
     </Pressable>

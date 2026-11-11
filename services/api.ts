@@ -42,7 +42,7 @@ type ExpertProfileRow = {
   linkedin_url: string | null;
   industry_id: string;
   headline: string;
-  hourly_rate_cents: number;
+  hourly_rate_cents: number | null;
   years_experience: number;
   verified: boolean;
   cover_image_url: string | null;
@@ -251,6 +251,32 @@ export const uploadImage = async (
   return `${data.publicUrl}?v=${Date.now()}`;
 };
 
+const resumeExtensionFor = (mime: string): string => {
+  if (mime.includes('pdf')) return 'pdf';
+  if (mime.includes('openxmlformats')) return 'docx';
+  return 'doc';
+};
+
+// Uploads to resumes/<userId>/resume.<ext> and returns the STORAGE PATH, not a
+// URL — the bucket is private (vetting material), so the only readers are the
+// applicant themselves (RLS) and the vetting team via the dashboard.
+export const uploadResume = async (
+  userId: string,
+  uri: string,
+  mimeType: string,
+): Promise<string> => {
+  const client = sb();
+  const path = `${userId}/resume.${resumeExtensionFor(mimeType)}`;
+  const response = await fetch(uri);
+  const blob = await response.blob();
+  const { error } = await client.storage.from('resumes').upload(path, blob, {
+    contentType: mimeType,
+    upsert: true,
+  });
+  if (error) throw error;
+  return path;
+};
+
 // ---------- Profiles ----------
 
 export const fetchMyProfile = async (userId: string): Promise<Profile | null> => {
@@ -326,11 +352,16 @@ export const fetchExpert = async (id: string): Promise<Expert | null> => {
 export type ExpertProfileInput = {
   industryId: string;
   headline: string;
-  hourlyRateCents: number;
+  // null = "I'll decide later" on the application wizard.
+  hourlyRateCents: number | null;
   yearsExperience: number;
   coverImageUrl?: string | null;
   howICanHelp?: string | null;
   linkedinUrl?: string | null;
+  // Application-only fields (vetting material, never shown publicly).
+  // Optional so ordinary profile edits leave them untouched.
+  resumeUrl?: string | null;
+  applicationGoal?: string | null;
 };
 
 export const upsertMyExpertProfile = async (
@@ -346,11 +377,14 @@ export const upsertMyExpertProfile = async (
     cover_image_url: input.coverImageUrl ?? null,
     how_i_can_help: input.howICanHelp ?? null,
   };
-  // Only the application wizard sends linkedinUrl — leave it untouched on
-  // ordinary profile edits so re-saving never wipes the applicant's link.
+  // Only the application wizard sends linkedinUrl / resumeUrl /
+  // applicationGoal — leave them untouched on ordinary profile edits so
+  // re-saving never wipes the applicant's vetting material.
   // status is never written from the client: new rows default to 'pending'
   // and only the owner flips it in the Supabase table editor.
   if (input.linkedinUrl !== undefined) row.linkedin_url = input.linkedinUrl;
+  if (input.resumeUrl !== undefined) row.resume_url = input.resumeUrl;
+  if (input.applicationGoal !== undefined) row.application_goal = input.applicationGoal;
   const { error } = await sb().from('expert_profiles').upsert(row);
   if (error) throw error;
 };

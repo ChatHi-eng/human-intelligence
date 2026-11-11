@@ -47,7 +47,9 @@ export type Expert = Profile & {
   linkedinUrl: string | null;
   industryId: string;
   headline: string;
-  hourlyRate: number;
+  // Cents. null = applicant chose "I'll decide later" — the app shows
+  // "Rate coming soon" and booking stays off until they set one.
+  hourlyRate: number | null;
   yearsExperience: number;
   ratingAverage: number;
   ratingCount: number;

@@ -1,3 +1,4 @@
+import * as DocumentPicker from 'expo-document-picker';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { Redirect, useRouter } from 'expo-router';
@@ -7,29 +8,44 @@ import Toast from 'react-native-toast-message';
 import { Button } from '@/components/ui/Button';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { Screen } from '@/components/ui/Screen';
-import { industries } from '@/constants/industries';
+import { industries, industryById } from '@/constants/industries';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useMyExpertProfile, useUpsertMyExpertProfile } from '@/hooks/useExperts';
-import { useUpdateMyProfile, useUploadImage } from '@/hooks/useProfile';
+import { useUpdateMyProfile, useUploadImage, useUploadResume } from '@/hooks/useProfile';
+import { formatCurrency } from '@/lib/format';
 
-const STEPS = ['Field', 'Pitch', 'Pricing', 'Photo'] as const;
+// Light steps in confidence order: easy taps first, writing in the middle,
+// money near the end, then a review pass before anything is submitted.
+const STEPS = ['Field', 'Experience', 'Pitch', 'Rate', 'Photo', 'Review'] as const;
+
+const RESUME_MIME_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+];
+const MAX_RESUME_BYTES = 10 * 1024 * 1024; // matches the bucket's 10 MB limit
 
 export default function ExpertOnboardingScreen() {
   const router = useRouter();
   const { data: existing, isLoading } = useMyExpertProfile();
   const { mutate: upsert, isPending: saving } = useUpsertMyExpertProfile();
   const { mutateAsync: upload, isPending: uploading } = useUploadImage();
+  const { mutateAsync: uploadResumeFile, isPending: uploadingResume } = useUploadResume();
   const { mutateAsync: updateProfile } = useUpdateMyProfile();
 
   const [step, setStep] = useState(0);
   const [done, setDone] = useState(false);
   const [industryId, setIndustryId] = useState('');
+  const [years, setYears] = useState('');
+  const [linkedinUrl, setLinkedinUrl] = useState('');
+  const [resumePath, setResumePath] = useState('');
+  const [resumeName, setResumeName] = useState('');
   const [headline, setHeadline] = useState('');
   const [howICanHelp, setHowICanHelp] = useState('');
-  const [linkedinUrl, setLinkedinUrl] = useState('');
   const [rateDollars, setRateDollars] = useState('');
-  const [years, setYears] = useState('');
+  const [decideLater, setDecideLater] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState('');
+  const [applicationGoal, setApplicationGoal] = useState('');
 
   if (isLoading) return <LoadingView label="Loading…" />;
   // Already applied → this wizard isn't for you. Approved experts edit their
@@ -39,6 +55,8 @@ export default function ExpertOnboardingScreen() {
       <Redirect href={existing.status === 'approved' ? '/expert-profile-edit' : '/(tabs)/studio'} />
     );
   }
+
+  const industry = industryById(industryId);
 
   // Discover features the profile photo, so that's what the wizard asks for.
   const pickPhoto = async () => {
@@ -73,26 +91,79 @@ export default function ExpertOnboardingScreen() {
     }
   };
 
+  // Resume goes straight into the private bucket; we keep the storage path
+  // for the application row and the filename for the UI.
+  const pickResume = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: RESUME_MIME_TYPES,
+      copyToCacheDirectory: true,
+      multiple: false,
+    });
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    if (!asset) return;
+    if (asset.size != null && asset.size > MAX_RESUME_BYTES) {
+      Toast.show({ type: 'error', text1: 'File too large', text2: 'Resumes can be up to 10 MB.' });
+      return;
+    }
+    try {
+      const path = await uploadResumeFile({
+        uri: asset.uri,
+        mimeType: asset.mimeType ?? 'application/pdf',
+      });
+      setResumePath(path);
+      setResumeName(asset.name);
+    } catch (err) {
+      Toast.show({
+        type: 'error',
+        text1: 'Upload failed',
+        text2: err instanceof Error ? err.message : 'Unknown error',
+      });
+    }
+  };
+
   const validateStep = (): boolean => {
     if (step === 0 && !industryId) {
       Toast.show({ type: 'error', text1: 'Pick your field' });
       return false;
     }
-    if (step === 1 && !headline.trim()) {
-      Toast.show({ type: 'error', text1: 'Write a headline' });
-      return false;
-    }
-    if (step === 2) {
-      const rate = Number(rateDollars);
-      if (!Number.isFinite(rate) || rate <= 0) {
-        Toast.show({ type: 'error', text1: 'Set a positive hourly rate' });
-        return false;
-      }
+    if (step === 1) {
       const y = Number(years);
-      if (!Number.isFinite(y) || y < 0) {
+      if (years.trim() === '' || !Number.isFinite(y) || y < 0) {
         Toast.show({ type: 'error', text1: 'Years of experience must be 0 or more' });
         return false;
       }
+      if (!linkedinUrl.trim() && !resumePath) {
+        Toast.show({
+          type: 'error',
+          text1: 'Add your LinkedIn or a resume',
+          text2: 'We verify every expert — we need at least one.',
+        });
+        return false;
+      }
+    }
+    if (step === 2 && !headline.trim()) {
+      Toast.show({ type: 'error', text1: 'Write a headline' });
+      return false;
+    }
+    if (step === 3 && !decideLater) {
+      const rate = Number(rateDollars);
+      if (!Number.isFinite(rate) || rate <= 0) {
+        Toast.show({
+          type: 'error',
+          text1: 'Set an hourly rate',
+          text2: 'Or choose "I\'ll decide later" below.',
+        });
+        return false;
+      }
+    }
+    if (step === 5 && !applicationGoal.trim()) {
+      Toast.show({
+        type: 'error',
+        text1: 'Tell us what you\'re hoping for',
+        text2: 'One or two sentences is plenty.',
+      });
+      return false;
     }
     return true;
   };
@@ -108,10 +179,12 @@ export default function ExpertOnboardingScreen() {
       {
         industryId,
         headline: headline.trim(),
-        hourlyRateCents: Math.round(Number(rateDollars) * 100),
+        hourlyRateCents: decideLater ? null : Math.round(Number(rateDollars) * 100),
         yearsExperience: Math.floor(Number(years)),
         howICanHelp: howICanHelp.trim() || null,
         linkedinUrl: linkedinUrl.trim() || null,
+        resumeUrl: resumePath || null,
+        applicationGoal: applicationGoal.trim() || null,
       },
       {
         onSuccess: () => setDone(true),
@@ -142,17 +215,26 @@ export default function ExpertOnboardingScreen() {
     );
   }
 
+  const suggested = industry?.suggestedRateCents;
+  const suggestedChips = suggested
+    ? [
+        suggested.min / 100,
+        Math.round((suggested.min + suggested.max) / 200 / 25) * 25,
+        suggested.max / 100,
+      ].filter((v, i, arr) => arr.indexOf(v) === i)
+    : [];
+
   return (
     <Screen>
-      <View style={styles.progressRow}>
-        {STEPS.map((label, i) => (
-          <View key={label} style={{ flex: 1, gap: spacing.xs }}>
-            <View style={[styles.progressBar, i <= step && styles.progressBarActive]} />
-            <Text style={[styles.progressLabel, i === step && styles.progressLabelActive]}>
-              {label}
-            </Text>
-          </View>
-        ))}
+      <View style={styles.progressWrap}>
+        <View style={styles.progressTrack}>
+          <View
+            style={[styles.progressFill, { width: `${((step + 1) / STEPS.length) * 100}%` }]}
+          />
+        </View>
+        <Text style={styles.progressText}>
+          Step {step + 1} of {STEPS.length} · {STEPS[step]}
+        </Text>
       </View>
 
       <ScrollView
@@ -163,7 +245,10 @@ export default function ExpertOnboardingScreen() {
         {step === 0 && (
           <>
             <Text style={styles.title}>What&apos;s your field?</Text>
-            <Text style={styles.caption}>Customers browse by category — pick the closest fit.</Text>
+            <Text style={styles.caption}>
+              Pick the closest fit — customers browse by category. The application takes about
+              four minutes, and a real person reads every one.
+            </Text>
             <View style={styles.industryGrid}>
               {industries.map((i) => {
                 const active = industryId === i.id;
@@ -185,6 +270,59 @@ export default function ExpertOnboardingScreen() {
         )}
 
         {step === 1 && (
+          <>
+            <Text style={styles.title}>Your background</Text>
+            <Text style={styles.caption}>
+              This is what our review team weighs most. Share your LinkedIn or upload a resume —
+              at least one, so we can verify your experience.
+            </Text>
+            <Text style={styles.label}>Years of experience</Text>
+            <TextInput
+              placeholder="10"
+              placeholderTextColor={colors.textMuted}
+              value={years}
+              onChangeText={setYears}
+              keyboardType="number-pad"
+              style={styles.input}
+            />
+            <Text style={styles.label}>LinkedIn URL</Text>
+            <TextInput
+              placeholder="https://linkedin.com/in/you"
+              placeholderTextColor={colors.textMuted}
+              value={linkedinUrl}
+              onChangeText={setLinkedinUrl}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              style={styles.input}
+              maxLength={300}
+            />
+            <Text style={styles.label}>Resume</Text>
+            <Pressable
+              onPress={pickResume}
+              style={[styles.resumeRow, resumePath ? styles.resumeRowDone : null]}
+            >
+              <Text style={styles.resumeIcon}>{resumePath ? '📄' : '📎'}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.resumeTitle} numberOfLines={1}>
+                  {uploadingResume
+                    ? 'Uploading…'
+                    : resumePath
+                      ? resumeName
+                      : 'Upload your resume'}
+                </Text>
+                <Text style={styles.resumeHint}>
+                  {resumePath ? 'Tap to replace' : 'PDF or Word, up to 10 MB'}
+                </Text>
+              </View>
+            </Pressable>
+            <Text style={styles.privacyNote}>
+              Your resume goes to our review team only — customers never see it.
+            </Text>
+          </>
+        )}
+
+        {step === 2 && (
           <>
             <Text style={styles.title}>Your pitch</Text>
             <Text style={styles.caption}>
@@ -211,50 +349,75 @@ export default function ExpertOnboardingScreen() {
               style={[styles.input, styles.longInput]}
               maxLength={1500}
             />
-            <Text style={styles.label}>LinkedIn URL (optional, speeds up review)</Text>
-            <TextInput
-              placeholder="https://linkedin.com/in/you"
-              placeholderTextColor={colors.textMuted}
-              value={linkedinUrl}
-              onChangeText={setLinkedinUrl}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              style={styles.input}
-              maxLength={300}
-            />
           </>
         )}
 
-        {step === 2 && (
+        {step === 3 && (
           <>
-            <Text style={styles.title}>Pricing & experience</Text>
+            <Text style={styles.title}>Set your hourly rate</Text>
             <Text style={styles.caption}>
               Sessions are 30 minutes — customers pay half your hourly rate per session. You can
               change this anytime.
             </Text>
+            {suggested && industry ? (
+              <View style={styles.ratePanel}>
+                <Text style={styles.ratePanelTitle}>
+                  Most {industry.label.toLowerCase()} charge{' '}
+                  {formatCurrency(suggested.min)}–{formatCurrency(suggested.max)}/hr
+                </Text>
+                <Text style={styles.ratePanelHint}>
+                  A guide, not a rule — advice calls usually price above your day rate.
+                </Text>
+                <View style={styles.rateChips}>
+                  {suggestedChips.map((v) => {
+                    const active = !decideLater && Number(rateDollars) === v;
+                    return (
+                      <Pressable
+                        key={v}
+                        onPress={() => {
+                          setRateDollars(String(v));
+                          setDecideLater(false);
+                        }}
+                        style={[styles.rateChip, active && styles.rateChipActive]}
+                      >
+                        <Text style={[styles.rateChipText, active && styles.rateChipTextActive]}>
+                          ${v}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : null}
             <Text style={styles.label}>Hourly rate (USD)</Text>
             <TextInput
               placeholder="150"
               placeholderTextColor={colors.textMuted}
               value={rateDollars}
-              onChangeText={setRateDollars}
+              onChangeText={(v) => {
+                setRateDollars(v);
+                if (v.trim() !== '') setDecideLater(false);
+              }}
               keyboardType="decimal-pad"
-              style={styles.input}
+              style={[styles.input, decideLater && styles.inputDimmed]}
             />
-            <Text style={styles.label}>Years of experience</Text>
-            <TextInput
-              placeholder="10"
-              placeholderTextColor={colors.textMuted}
-              value={years}
-              onChangeText={setYears}
-              keyboardType="number-pad"
-              style={styles.input}
-            />
+            <Pressable
+              onPress={() => setDecideLater(!decideLater)}
+              style={[styles.decideLater, decideLater && styles.decideLaterActive]}
+            >
+              <Text style={styles.decideLaterCheck}>{decideLater ? '✓' : ''}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.decideLaterTitle}>I&apos;ll decide later</Text>
+                <Text style={styles.decideLaterHint}>
+                  Apply without a rate. Your profile shows &quot;Rate coming soon&quot; and you can
+                  set it in Studio whenever you&apos;re ready.
+                </Text>
+              </View>
+            </Pressable>
           </>
         )}
 
-        {step === 3 && (
+        {step === 4 && (
           <>
             <Text style={styles.title}>Add a profile photo</Text>
             <Text style={styles.caption}>
@@ -271,6 +434,68 @@ export default function ExpertOnboardingScreen() {
                   </Text>
                 )}
               </Pressable>
+            </View>
+          </>
+        )}
+
+        {step === 5 && (
+          <>
+            <Text style={styles.title}>Before you submit</Text>
+            <Text style={styles.caption}>
+              One last question for our review team, then check that everything reads the way you
+              want.
+            </Text>
+            <Text style={styles.label}>What do you hope to get out of Palam?</Text>
+            <Text style={styles.privacyNote}>
+              A sentence or two is plenty. Just for our review team — this never appears on your
+              profile.
+            </Text>
+            <TextInput
+              placeholder="e.g. A steady side practice helping early-career designers — and a reason to share what 15 years taught me."
+              placeholderTextColor={colors.textMuted}
+              value={applicationGoal}
+              onChangeText={setApplicationGoal}
+              multiline
+              style={[styles.input, styles.goalInput]}
+              maxLength={500}
+            />
+
+            <Text style={[styles.label, { marginTop: spacing.lg }]}>Your application</Text>
+            <View style={styles.summaryCard}>
+              <SummaryRow
+                label="Field"
+                value={industry ? `${industry.emoji} ${industry.label}` : '—'}
+                onEdit={() => setStep(0)}
+              />
+              <SummaryRow
+                label="Background"
+                value={[
+                  `${years || '0'} yrs`,
+                  linkedinUrl.trim() ? 'LinkedIn ✓' : null,
+                  resumePath ? 'Resume ✓' : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+                onEdit={() => setStep(1)}
+              />
+              <SummaryRow label="Headline" value={headline || '—'} onEdit={() => setStep(2)} />
+              <SummaryRow
+                label="Rate"
+                value={
+                  decideLater
+                    ? 'Deciding later'
+                    : rateDollars
+                      ? `$${rateDollars}/hr`
+                      : '—'
+                }
+                onEdit={() => setStep(3)}
+              />
+              <SummaryRow
+                label="Photo"
+                value={avatarUrl ? 'Added ✓' : 'Not added'}
+                onEdit={() => setStep(4)}
+                last
+              />
             </View>
           </>
         )}
@@ -303,16 +528,41 @@ export default function ExpertOnboardingScreen() {
   );
 }
 
+const SummaryRow = ({
+  label,
+  value,
+  onEdit,
+  last,
+}: {
+  label: string;
+  value: string;
+  onEdit: () => void;
+  last?: boolean;
+}) => (
+  <Pressable onPress={onEdit} style={[styles.summaryRow, !last && styles.summaryRowBorder]}>
+    <Text style={styles.summaryLabel}>{label}</Text>
+    <Text style={styles.summaryValue} numberOfLines={2}>
+      {value}
+    </Text>
+    <Text style={styles.summaryEdit}>Edit</Text>
+  </Pressable>
+);
+
 const styles = StyleSheet.create({
-  progressRow: { flexDirection: 'row', gap: spacing.sm, paddingTop: spacing.lg },
-  progressBar: { height: 4, borderRadius: 2, backgroundColor: colors.surfaceAlt },
-  progressBarActive: { backgroundColor: colors.accent },
-  progressLabel: { ...typography.label, color: colors.textMuted, textAlign: 'center' },
-  progressLabelActive: { color: colors.textPrimary },
+  progressWrap: { paddingTop: spacing.lg, gap: spacing.sm },
+  progressTrack: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.surfaceAlt,
+    overflow: 'hidden',
+  },
+  progressFill: { height: 4, borderRadius: 2, backgroundColor: colors.accent },
+  progressText: { ...typography.label, color: colors.textSecondary },
   scroll: { paddingTop: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.sm },
   title: { ...typography.title, color: colors.textPrimary },
   caption: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.md },
   label: { ...typography.label, color: colors.textSecondary, marginTop: spacing.md },
+  privacyNote: { ...typography.caption, color: colors.textMuted, marginTop: spacing.xs },
   input: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
@@ -324,7 +574,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     marginTop: spacing.xs,
   },
+  inputDimmed: { opacity: 0.4 },
   longInput: { minHeight: 140, textAlignVertical: 'top' },
+  goalInput: { minHeight: 110, textAlignVertical: 'top' },
   industryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   industryTile: {
     width: '47%',
@@ -340,6 +592,74 @@ const styles = StyleSheet.create({
   industryEmoji: { fontSize: 28 },
   industryLabel: { ...typography.bodyStrong, color: colors.textPrimary },
   industryLabelActive: { color: '#FFFFFF' },
+  resumeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginTop: spacing.xs,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderStyle: 'dashed',
+    backgroundColor: colors.surface,
+  },
+  resumeRowDone: {
+    borderStyle: 'solid',
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
+  },
+  resumeIcon: { fontSize: 22 },
+  resumeTitle: { ...typography.bodyStrong, color: colors.textPrimary },
+  resumeHint: { ...typography.caption, color: colors.textSecondary, marginTop: 1 },
+  ratePanel: {
+    backgroundColor: colors.accentSoft,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  ratePanelTitle: { ...typography.bodyStrong, color: colors.accent },
+  ratePanelHint: { ...typography.caption, color: colors.textSecondary },
+  rateChips: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
+  rateChip: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  rateChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  rateChipText: { ...typography.bodyStrong, color: colors.textPrimary },
+  rateChipTextActive: { color: '#FFFFFF' },
+  decideLater: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginTop: spacing.md,
+    padding: spacing.lg,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  decideLaterActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  decideLaterCheck: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+    color: colors.accent,
+    textAlign: 'center',
+    lineHeight: 21,
+    fontSize: 14,
+    overflow: 'hidden',
+  },
+  decideLaterTitle: { ...typography.bodyStrong, color: colors.textPrimary },
+  decideLaterHint: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
   photoRow: { alignItems: 'center', paddingVertical: spacing.lg },
   photoPicker: {
     width: 160,
@@ -354,6 +674,27 @@ const styles = StyleSheet.create({
   },
   photoImage: { width: '100%', height: '100%' },
   photoPlaceholder: { ...typography.body, color: colors.accent },
+  summaryCard: {
+    marginTop: spacing.xs,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  summaryRowBorder: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  summaryLabel: { ...typography.label, color: colors.textSecondary, width: 86 },
+  summaryValue: { ...typography.body, color: colors.textPrimary, flex: 1 },
+  summaryEdit: { ...typography.label, color: colors.accent },
   footer: {
     flexDirection: 'row',
     gap: spacing.md,

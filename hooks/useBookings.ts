@@ -106,6 +106,9 @@ export const useCreateBooking = () => {
       if (!userId) throw new Error('Not signed in');
       const expert = await fetchExpert(input.expertId);
       if (!expert) throw new Error('Expert not found');
+      if (expert.hourlyRate === null) {
+        throw new Error('This expert has not set a rate yet');
+      }
 
       // Booking row goes in with status='requested' (server default) and
       // payment_status='pending'. The webhook flips payment_status after

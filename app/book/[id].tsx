@@ -80,6 +80,19 @@ export default function BookScreen() {
       </Screen>
     );
   }
+  // Experts who chose "I'll decide later" on the application have no rate yet —
+  // there's nothing to charge, so booking stays closed (deep links included).
+  if (expert.hourlyRate === null) {
+    return (
+      <Screen>
+        <EmptyState
+          title="Rate coming soon"
+          description={`${expert.displayName} hasn't set a session rate yet. Check back soon — booking opens the moment they do.`}
+          emoji="🕰️"
+        />
+      </Screen>
+    );
+  }
 
   const onConfirm = () => {
     if (!selectedSlot) {
