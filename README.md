@@ -202,6 +202,41 @@ Get an email the moment someone applies, and send applicants a welcome when you 
 
 New-application alerts land at `APPLICATION_ALERT_EMAIL` right away. The **approval welcome email** only reaches real applicants once you verify a domain in Resend (Resend → Domains) and switch the `from` address in the function to that domain — Resend's built-in test sender can only email the account owner. Until then, approval emails to anyone else fail quietly (logged, never retried).
 
+## Account deletion
+
+Google Play requires apps with sign-up to offer in-app account deletion. The flow lives on the **You** tab → "Delete account": the user types DELETE, the `delete-account` Edge Function verifies them, refuses if they still have an upcoming/active booking, and otherwise deletes the auth user — the schema's `on delete cascade` chain removes the profile, expert application, bookings, reviews, and messages. Stripe is never touched: an expert's Connect account stays theirs.
+
+- **Deploy the function.** Supabase → Edge Functions → Deploy a new function → name: `delete-account` → paste from `supabase/functions/delete-account/index.ts` → **Verify JWT OFF** → Deploy. No extra secrets needed.
+- **Play Console data-deletion URL.** Play also asks for a web page where users can request deletion without the app. That page will live on the palamapp.com site (being built separately) — point the Play Console "Data deletion" field at it once it's up.
+
+## Website (palamapp.com)
+
+The public site — landing page, privacy policy, terms, and the account-deletion page Google Play requires — lives in `docs/` and is served free by **GitHub Pages**. Plain HTML/CSS, no build step: edit a file in `docs/`, push to `main`, and the live site updates within a minute or two.
+
+**The site must be live before the Play submission.** The Play Console asks for a privacy-policy URL (`https://palamapp.com/privacy.html`) and an account-deletion URL (`https://palamapp.com/delete-account.html`), and reviewers open both. `https://palamapp.com` also serves as the business URL for Stripe.
+
+### Enable GitHub Pages (one time)
+
+1. GitHub → the `ChatHi-eng/human-intelligence` repo → **Settings** → **Pages** (left sidebar).
+2. Under **Build and deployment** → **Source**: choose **Deploy from a branch**.
+3. Branch: **main**, folder: **/docs** → **Save**.
+4. In the **Custom domain** box, enter `palamapp.com` → **Save** (the `docs/CNAME` file already matches it).
+5. After the DNS records below are in place and the page says "DNS check successful", tick **Enforce HTTPS**.
+
+The site goes up at `https://chathi-eng.github.io/human-intelligence/` within a couple of minutes, and at `https://palamapp.com` once DNS propagates.
+
+### DNS records for palamapp.com (at the domain registrar)
+
+| Type  | Host/Name | Value           |
+| ----- | --------- | --------------- |
+| A     | `@`       | 185.199.108.153 |
+| A     | `@`       | 185.199.109.153 |
+| A     | `@`       | 185.199.110.153 |
+| A     | `@`       | 185.199.111.153 |
+| CNAME | `www`     | `chathi-eng.github.io` |
+
+All four A records on the apex (`@`), not just one. Propagation can take minutes to a few hours — Settings → Pages shows "DNS check successful" when it's done.
+
 ## Scripts
 
 | Command | What it does |

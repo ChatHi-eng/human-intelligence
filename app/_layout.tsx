@@ -84,6 +84,10 @@ export default function RootLayout() {
                   options={{ title: 'Edit account', presentation: 'modal' }}
                 />
                 <Stack.Screen
+                  name="delete-account"
+                  options={{ title: 'Delete account', presentation: 'modal' }}
+                />
+                <Stack.Screen
                   name="studio/calendar"
                   options={{ title: 'Calendar', presentation: 'card' }}
                 />

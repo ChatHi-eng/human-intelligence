@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -123,9 +123,15 @@ export default function YouScreen() {
         </View>
       )}
 
-      {/* ---------- Sign out ---------- */}
+      {/* ---------- Sign out / delete ---------- */}
       <View style={styles.section}>
         <Button title="Sign out" onPress={() => void signOut()} variant="ghost" />
+        <Pressable
+          onPress={() => router.push('/delete-account')}
+          style={({ pressed }) => [styles.deleteEntry, pressed && styles.deleteEntryPressed]}
+        >
+          <Text style={styles.deleteText}>Delete account</Text>
+        </Pressable>
       </View>
     </Screen>
   );
@@ -149,4 +155,7 @@ const styles = StyleSheet.create({
   expertActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   becomeTitle: { ...typography.heading, color: colors.textPrimary },
   becomeBody: { ...typography.body, color: colors.textSecondary, marginTop: spacing.xs },
+  deleteEntry: { alignItems: 'center', paddingVertical: spacing.md, marginTop: spacing.sm },
+  deleteEntryPressed: { opacity: 0.6 },
+  deleteText: { ...typography.caption, color: colors.danger },
 });
