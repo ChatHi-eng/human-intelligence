@@ -6,11 +6,11 @@ What it does:
   2. Adds Pages plumbing to dist/:
        CNAME      app.palamapp.com (custom domain)
        .nojekyll  (Pages must serve _expo/* folders verbatim)
-       404.html   copy of index.html — SPA fallback so deep links like
+       404.html   copy of index.html - SPA fallback so deep links like
                   /expert/<id> load the app shell and expo-router recovers
                   the route client-side
   3. Force-pushes dist/ as a fresh single-commit `main` to ChatHi-eng/palam-web
-     (creates the public repo with gh if it doesn't exist — built output only,
+     (creates the public repo with gh if it doesn't exist - built output only,
      no history worth keeping)
   4. Enables GitHub Pages on that repo via the API (prints the one manual
      step if the token can't)
@@ -29,7 +29,7 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
 }
 $ghCmd = Get-Command gh -ErrorAction SilentlyContinue
 if ($ghCmd) { $gh = $ghCmd.Source } else { $gh = 'C:\Program Files\GitHub CLI\gh.exe' }
-if (-not (Test-Path $gh)) { throw 'GitHub CLI (gh) not found — install it or fix the path in this script.' }
+if (-not (Test-Path $gh)) { throw 'GitHub CLI (gh) not found - install it or fix the path in this script.' }
 
 $root = Split-Path $PSScriptRoot -Parent
 Set-Location $root
@@ -39,7 +39,7 @@ npx expo export --platform web
 if ($LASTEXITCODE -ne 0) { throw 'expo export failed' }
 
 $dist = Join-Path $root 'dist'
-if (-not (Test-Path (Join-Path $dist 'index.html'))) { throw "No index.html in $dist — export produced nothing?" }
+if (-not (Test-Path (Join-Path $dist 'index.html'))) { throw "No index.html in $dist - export produced nothing?" }
 
 Write-Host "==> Adding CNAME / .nojekyll / 404.html"
 Set-Content -Path (Join-Path $dist 'CNAME') -Value $Domain -Encoding ascii
@@ -49,7 +49,7 @@ Copy-Item (Join-Path $dist 'index.html') (Join-Path $dist '404.html') -Force
 Write-Host "==> Ensuring repo $Repo exists"
 & $gh repo view $Repo --json name | Out-Null
 if ($LASTEXITCODE -ne 0) {
-  & $gh repo create $Repo --public --description 'Palam web app (app.palamapp.com) — built output published by scripts/deploy-web.ps1 in ChatHi-eng/human-intelligence'
+  & $gh repo create $Repo --public --description 'Palam web app (app.palamapp.com) - built output published by scripts/deploy-web.ps1 in ChatHi-eng/human-intelligence'
   if ($LASTEXITCODE -ne 0) { throw 'gh repo create failed' }
 }
 
@@ -70,7 +70,7 @@ try {
 Write-Host "==> Enabling GitHub Pages (branch main, root)"
 & $gh api -X POST "repos/$Repo/pages" -f 'source[branch]=main' -f 'source[path]=/'
 if ($LASTEXITCODE -ne 0) {
-  # Already enabled — make sure the branch/domain are right.
+  # Already enabled - make sure the branch/domain are right.
   & $gh api -X PUT "repos/$Repo/pages" -f "cname=$Domain" -f 'source[branch]=main' -f 'source[path]=/'
   if ($LASTEXITCODE -ne 0) {
     Write-Host ''
