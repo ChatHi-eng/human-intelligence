@@ -20,8 +20,8 @@ import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useExperts, useMyExpertProfile } from '@/hooks/useExperts';
 
 const DISCOVER_CAPTION = PHONE_SESSIONS_ENABLED
-  ? 'People who know, on call — verified experts by video or phone.'
-  : 'People who know, on call — verified experts on video.';
+  ? 'People who actually lived it — vetted, on call by video or phone. Not another AI answer.'
+  : 'People who actually lived it — vetted, on call. Not another AI answer.';
 
 type Filters = {
   industryId?: string;

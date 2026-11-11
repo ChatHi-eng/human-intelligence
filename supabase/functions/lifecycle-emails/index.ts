@@ -293,7 +293,7 @@ serve(async (req) => {
         [
           p(`Hi ${name},`),
           p(
-            "You're in. Palam is one simple thing: when you're stuck on something real, you talk to a human who knows. Real people — personally vetted, not scraped from a directory — who've spent years getting good at the thing you need help with.",
+            "You're in. Palam is one simple thing: when you're stuck on something real, you talk to a human who knows. Not an AI answer compiled from other people's work — a real person, personally vetted, whose knowledge was earned over years and never scraped.",
           ),
           p(
             'Sessions are 30 minutes, one-on-one, over video or phone. You pick a person, pick a time, and have a straight conversation. No courses, no chatbots, no waiting on a forum.',
