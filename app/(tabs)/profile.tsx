@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -9,6 +10,7 @@ import { RatingStars } from '@/components/ui/RatingStars';
 import { Screen } from '@/components/ui/Screen';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { industryById } from '@/constants/industries';
+import { PRIVACY_URL, SUPPORT_EMAIL, TERMS_URL } from '@/constants/links';
 import { colors, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useMyExpertProfile } from '@/hooks/useExperts';
@@ -125,6 +127,35 @@ export default function YouScreen() {
         </View>
       )}
 
+      {/* ---------- Support & legal ---------- */}
+      <View style={styles.section}>
+        <SectionHeader title="Support" />
+        <Card>
+          <View style={styles.supportRow}>
+            <Text style={styles.supportLabel}>Help &amp; contact</Text>
+            <Text style={styles.supportEmail} selectable>
+              {SUPPORT_EMAIL}
+            </Text>
+          </View>
+          <View style={styles.supportDivider} />
+          <Pressable
+            onPress={() => void WebBrowser.openBrowserAsync(TERMS_URL)}
+            style={({ pressed }) => [styles.supportRow, pressed && styles.supportRowPressed]}
+          >
+            <Text style={styles.supportLabel}>Terms</Text>
+            <Text style={styles.supportHint}>↗</Text>
+          </Pressable>
+          <View style={styles.supportDivider} />
+          <Pressable
+            onPress={() => void WebBrowser.openBrowserAsync(PRIVACY_URL)}
+            style={({ pressed }) => [styles.supportRow, pressed && styles.supportRowPressed]}
+          >
+            <Text style={styles.supportLabel}>Privacy</Text>
+            <Text style={styles.supportHint}>↗</Text>
+          </Pressable>
+        </Card>
+      </View>
+
       {/* ---------- Sign out / delete ---------- */}
       <View style={styles.section}>
         <Button title="Sign out" onPress={() => void signOut()} variant="ghost" />
@@ -157,6 +188,17 @@ const styles = StyleSheet.create({
   expertActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   becomeTitle: { ...typography.heading, color: colors.textPrimary },
   becomeBody: { ...typography.body, color: colors.textSecondary, marginTop: spacing.xs },
+  supportRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
+  },
+  supportRowPressed: { opacity: 0.6 },
+  supportLabel: { ...typography.body, color: colors.textPrimary },
+  supportEmail: { ...typography.caption, color: colors.textSecondary },
+  supportHint: { ...typography.caption, color: colors.textMuted },
+  supportDivider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
   deleteEntry: { alignItems: 'center', paddingVertical: spacing.md, marginTop: spacing.sm },
   deleteEntryPressed: { opacity: 0.6 },
   deleteText: { ...typography.caption, color: colors.danger },

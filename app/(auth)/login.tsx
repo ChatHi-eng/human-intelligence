@@ -2,11 +2,14 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import Toast from 'react-native-toast-message';
+import * as WebBrowser from 'expo-web-browser';
 import { Button } from '@/components/ui/Button';
 import { Screen } from '@/components/ui/Screen';
 import { CUSTOMER_BOOKING_ENABLED } from '@/constants/featureFlags';
+import { PRIVACY_URL, TERMS_URL } from '@/constants/links';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
+import { capture } from '@/services/analytics';
 import { fetchExpert } from '@/services/api';
 import { getCurrentSession } from '@/services/supabase';
 
@@ -30,6 +33,7 @@ export default function LoginScreen() {
     setSending(true);
     try {
       await signInWithMagicLink(trimmed);
+      capture('sign_in_code_requested');
       setCode('');
       setStage('enter-code');
     } catch (err) {
@@ -53,6 +57,18 @@ export default function LoginScreen() {
     setVerifying(true);
     try {
       await verifyEmailOtp(email.trim(), trimmedCode);
+      // An OTP sign-in whose account was created moments ago is a brand-new
+      // account (email OTP creates the account on first verify).
+      const sessionForAnalytics = await getCurrentSession().catch(() => null);
+      const createdAtMs = sessionForAnalytics
+        ? Date.parse(sessionForAnalytics.user.created_at)
+        : Number.NaN;
+      capture(
+        'sign_in_completed',
+        Number.isFinite(createdAtMs)
+          ? { new_account: Date.now() - createdAtMs < 5 * 60 * 1000 }
+          : undefined,
+      );
       Toast.show({ type: 'success', text1: 'Signed in' });
       router.replace('/(tabs)');
       // Supply-first launch: a sign-in with no expert application yet is almost
@@ -151,6 +167,23 @@ export default function LoginScreen() {
           style={styles.input}
         />
         <Button title="Send code" onPress={onSendCode} loading={sending} fullWidth />
+        <Text style={styles.legal}>
+          By continuing you agree to Palam&apos;s{' '}
+          <Text
+            style={styles.legalLink}
+            onPress={() => void WebBrowser.openBrowserAsync(TERMS_URL)}
+          >
+            Terms
+          </Text>{' '}
+          and{' '}
+          <Text
+            style={styles.legalLink}
+            onPress={() => void WebBrowser.openBrowserAsync(PRIVACY_URL)}
+          >
+            Privacy Policy
+          </Text>
+          .
+        </Text>
         <Button title="Back" variant="ghost" onPress={() => router.back()} fullWidth />
       </View>
     </Screen>
@@ -162,6 +195,8 @@ const styles = StyleSheet.create({
   emoji: { fontSize: 48, alignSelf: 'center' },
   title: { ...typography.display, color: colors.textPrimary },
   caption: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.md },
+  legal: { ...typography.caption, color: colors.textMuted, textAlign: 'center' },
+  legalLink: { color: colors.accent, textDecorationLine: 'underline' },
   bold: { ...typography.bodyStrong, color: colors.textPrimary },
   input: {
     backgroundColor: colors.surface,
