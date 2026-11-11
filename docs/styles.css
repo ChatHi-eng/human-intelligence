@@ -169,6 +169,28 @@ a:focus {
   margin: 16px 0;
 }
 
+/* Policy table (terms page) */
+.policy-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0 20px;
+  font-size: 0.95rem;
+}
+
+.policy-table th {
+  text-align: left;
+  background: var(--mint);
+  color: var(--green-deep);
+  font-weight: 700;
+}
+
+.policy-table th,
+.policy-table td {
+  border: 1px solid var(--rule);
+  padding: 10px 12px;
+  vertical-align: top;
+}
+
 /* Footer */
 .site-footer {
   border-top: 1px solid var(--rule);

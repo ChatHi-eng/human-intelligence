@@ -9,6 +9,7 @@ import {
   fetchExpert,
   fetchMyBookings,
   fetchPendingRequestsForExpert,
+  reportNoShow,
   updateBookingStatus,
 } from '@/services/api';
 import { addBookingToDeviceCalendar } from '@/services/calendar';
@@ -203,6 +204,24 @@ export const useCancelBooking = () => {
       }
     },
     onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['bookings'] });
+    },
+  });
+};
+
+// "Didn't happen? Report a no-show" — either party files one report per
+// booking; a human reviews every report within 48 hours (no automated
+// attendance tracking at launch).
+export const useReportNoShow = () => {
+  const userId = useAuthStore((s) => s.user?.id);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (bookingId: string) => {
+      if (!userId) throw new Error('Not signed in');
+      await reportNoShow(bookingId, userId);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['booking'] });
       void qc.invalidateQueries({ queryKey: ['bookings'] });
     },
   });

@@ -92,6 +92,8 @@ type BookingRow = {
   payment_status: PaymentStatus;
   price_cents: number;
   call_room_url: string | null;
+  no_show_reported_by?: string | null;
+  no_show_reported_at?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -185,6 +187,9 @@ const mapBooking = (row: BookingRow): Booking => ({
   paymentStatus: row.payment_status,
   priceCents: row.price_cents,
   callRoomUrl: row.call_room_url,
+  // ?? null keeps older databases working until migration 0012 is applied.
+  noShowReportedBy: row.no_show_reported_by ?? null,
+  noShowReportedAt: row.no_show_reported_at ?? null,
   createdAt: row.created_at,
 });
 
@@ -490,6 +495,22 @@ export const declineBooking = async (id: string, reason?: string): Promise<void>
     .update({ status: 'cancelled', cancellation_reason: reason ?? null })
     .eq('id', id);
   if (error) throw error;
+};
+
+// File a no-show report: first report wins (the `is null` filter makes a
+// second report a no-op), RLS limits writes to the booking's own parties.
+export const reportNoShow = async (bookingId: string, reporterId: string): Promise<void> => {
+  const { data, error } = await sb()
+    .from('bookings')
+    .update({
+      no_show_reported_by: reporterId,
+      no_show_reported_at: new Date().toISOString(),
+    })
+    .eq('id', bookingId)
+    .is('no_show_reported_by', null)
+    .select('id');
+  if (error) throw error;
+  if (!data || data.length === 0) throw new Error('This booking already has a report');
 };
 
 export const cancelBooking = async (id: string, reason?: string): Promise<void> => {

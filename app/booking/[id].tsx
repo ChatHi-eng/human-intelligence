@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
@@ -13,12 +13,18 @@ import { Screen } from '@/components/ui/Screen';
 import { MESSAGING_ENABLED } from '@/constants/featureFlags';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
-import { useBooking, useCancelBooking, useCompletePayment } from '@/hooks/useBookings';
+import {
+  useBooking,
+  useCancelBooking,
+  useCompletePayment,
+  useReportNoShow,
+} from '@/hooks/useBookings';
 import { useExpert } from '@/hooks/useExperts';
 import { useOpenConversation } from '@/hooks/useMessages';
 import { useMyReviewForBooking, useSubmitReview } from '@/hooks/useReviews';
 import { formatDateTime, minutesBetween } from '@/lib/date';
 import { formatCurrency } from '@/lib/format';
+import { isFreeCancellation, isWithinNoShowReportWindow } from '@/lib/policy';
 import { createRoomForBooking, openCallRoom } from '@/services/video';
 import type { BookingStatus, PaymentStatus } from '@/types/booking';
 
@@ -62,6 +68,7 @@ export default function BookingDetailScreen() {
   const { data: expert } = useExpert(booking?.expertId);
   const { mutate: cancel, isPending: cancelling } = useCancelBooking();
   const { mutate: completePayment, isPending: paying } = useCompletePayment();
+  const { mutate: reportNoShow, isPending: reporting } = useReportNoShow();
   const { data: myReview } = useMyReviewForBooking(id);
   const { mutate: submitReview, isPending: submittingReview } = useSubmitReview();
   const { mutate: openConversation, isPending: openingChat } = useOpenConversation();
@@ -69,6 +76,7 @@ export default function BookingDetailScreen() {
   const [stage, setStage] = useState<CallStage>('idle');
   const [rating, setRating] = useState<1 | 2 | 3 | 4 | 5 | null>(null);
   const [comment, setComment] = useState('');
+  const [confirmingNoShow, setConfirmingNoShow] = useState(false);
 
   if (isLoading && !booking) return <LoadingView label="Loading booking…" />;
   if (!booking) {
@@ -150,6 +158,20 @@ export default function BookingDetailScreen() {
     !myReview &&
     booking.status !== 'cancelled' &&
     (stage === 'review' || booking.status === 'completed' || (canJoin && callOver));
+
+  // Cancellation policy: free until 24h before the start. Inside 24h a
+  // customer can still cancel but forfeits the payment; the expert cancelling
+  // always refunds the customer (the Edge Function enforces the same rule).
+  const freeCancel = isFreeCancellation(booking.slot.startIso);
+  const forfeitsPayment = isCustomer && !freeCancel && booking.paymentStatus === 'captured';
+  // No-show reports: either party, from start+10min to start+72h, once.
+  const reportWindowOpen = isWithinNoShowReportWindow(booking.slot.startIso);
+  const reportableStatus =
+    booking.status === 'confirmed' ||
+    booking.status === 'in_progress' ||
+    booking.status === 'completed';
+  const canReportNoShow =
+    (isCustomer || isExpert) && reportableStatus && reportWindowOpen && !booking.noShowReportedAt;
 
   return (
     <Screen>
@@ -304,16 +326,33 @@ export default function BookingDetailScreen() {
           <Card style={{ marginTop: spacing.lg }}>
             <Text style={styles.sectionTitle}>Need to cancel?</Text>
             <Text style={styles.cardBody}>
-              Cancelling now releases the time slot. If you&apos;ve already paid, your card is
-              refunded automatically.
+              {isExpert
+                ? 'Cancelling releases the time slot and refunds the customer in full — their plans are in your hands, so please only cancel when you really have to.'
+                : 'Cancelling is free until 24 hours before your session — after that, the payment stays with the expert.'}
             </Text>
+            {forfeitsPayment && (
+              <Text style={styles.policyWarning}>
+                Less than 24 hours to go — cancelling now isn&apos;t refunded under Palam&apos;s
+                policy.
+              </Text>
+            )}
             <Button
-              title="Cancel booking"
+              title={forfeitsPayment ? 'Cancel anyway — no refund' : 'Cancel booking'}
               variant="danger"
               loading={cancelling}
               onPress={() =>
                 cancel(
-                  { id: booking.id, reason: isExpert ? 'declined by expert' : 'cancelled by customer' },
+                  {
+                    id: booking.id,
+                    reason: isExpert
+                      ? 'declined by expert'
+                      : forfeitsPayment
+                        ? 'cancelled by customer inside 24h — payment forfeited per policy'
+                        : 'cancelled by customer',
+                    // Inside 24h the customer forfeits the payment — don't
+                    // attempt a refund (the server would refuse it anyway).
+                    refund: !forfeitsPayment,
+                  },
                   {
                     onSuccess: () => {
                       Toast.show({ type: 'success', text1: 'Booking cancelled' });
@@ -331,6 +370,58 @@ export default function BookingDetailScreen() {
             />
           </Card>
         )}
+
+        {booking.noShowReportedAt ? (
+          <Card style={{ marginTop: spacing.lg }}>
+            <Text style={styles.sectionTitle}>Report received</Text>
+            <Text style={[styles.cardBody, { marginBottom: 0 }]}>
+              A human reviews every report within 48 hours. If a refund is due, it goes back to
+              the original payment method automatically.
+            </Text>
+          </Card>
+        ) : canReportNoShow && !confirmingNoShow ? (
+          <Pressable onPress={() => setConfirmingNoShow(true)} style={styles.noShowLink}>
+            <Text style={styles.noShowLinkText}>Didn&apos;t happen? Report a no-show</Text>
+          </Pressable>
+        ) : canReportNoShow && confirmingNoShow ? (
+          <Card style={{ marginTop: spacing.lg }}>
+            <Text style={styles.sectionTitle}>Report a no-show</Text>
+            <Text style={styles.cardBody}>
+              {isCustomer
+                ? `You're reporting that ${expert?.displayName ?? 'the expert'} didn't join this session. A human reviews every report within 48 hours.`
+                : "You're reporting that the customer didn't join this session. A human reviews every report within 48 hours."}
+            </Text>
+            <Button
+              title="Send report"
+              variant="danger"
+              loading={reporting}
+              onPress={() =>
+                reportNoShow(booking.id, {
+                  onSuccess: () => {
+                    setConfirmingNoShow(false);
+                    Toast.show({
+                      type: 'success',
+                      text1: 'Report received',
+                      text2: 'A human reviews every one within 48 hours.',
+                    });
+                  },
+                  onError: (err) =>
+                    Toast.show({
+                      type: 'error',
+                      text1: 'Could not send report',
+                      text2: err instanceof Error ? err.message : 'Unknown error',
+                    }),
+                })
+              }
+            />
+            <Button
+              title="Never mind"
+              variant="secondary"
+              onPress={() => setConfirmingNoShow(false)}
+              style={{ marginTop: spacing.sm }}
+            />
+          </Card>
+        ) : null}
       </ScrollView>
     </Screen>
   );
@@ -357,6 +448,9 @@ const styles = StyleSheet.create({
   value: { ...typography.bodyStrong, color: colors.textPrimary },
   sectionTitle: { ...typography.heading, color: colors.textPrimary, marginBottom: spacing.sm },
   cardBody: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.md },
+  policyWarning: { ...typography.bodyStrong, color: colors.danger, marginBottom: spacing.md },
+  noShowLink: { marginTop: spacing.lg, alignItems: 'center', paddingVertical: spacing.sm },
+  noShowLinkText: { ...typography.body, color: colors.textMuted },
   reviewInput: {
     minHeight: 96,
     borderRadius: radius.md,

@@ -22,11 +22,14 @@ export const PaymentSheet = ({ amountCents, expertName, onPay, loading }: Paymen
         <Text style={styles.total}>{formatCurrency(amountCents)}</Text>
       </View>
     </View>
-    <Text style={styles.notice}>
-      You&apos;ll be sent to Stripe Checkout to enter card details. The booking is held for the
-      expert to accept once payment goes through. Test mode card: 4242 4242 4242 4242, any future
-      expiry, any CVC.
-    </Text>
+    <View style={styles.fineprint}>
+      <Text style={styles.policy}>Free cancellation until 24 hours before your session.</Text>
+      <Text style={styles.notice}>
+        You&apos;ll be sent to Stripe Checkout to enter card details. The booking is held for the
+        expert to accept once payment goes through. Test mode card: 4242 4242 4242 4242, any
+        future expiry, any CVC.
+      </Text>
+    </View>
     <Button
       title={loading ? 'Opening Stripe Checkout…' : 'Continue to payment'}
       onPress={onPay}
@@ -50,5 +53,7 @@ const styles = StyleSheet.create({
   label: { ...typography.body, color: colors.textSecondary },
   value: { ...typography.bodyStrong, color: colors.textPrimary },
   total: { ...typography.title, color: colors.textPrimary },
+  fineprint: { gap: spacing.sm },
+  policy: { ...typography.caption, color: colors.textSecondary },
   notice: { ...typography.caption, color: colors.textMuted },
 });

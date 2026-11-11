@@ -157,6 +157,16 @@ Once a basic Checkout payment works, the next layer makes payments actually flow
 - The next customer booking will automatically split: 85% to the expert's Connect balance, 15% application fee to the platform.
 - Cancel a paid booking → the customer is automatically refunded via `refund-booking`.
 
+### Cancellation & no-show policy (launch version)
+
+Apply migration `0012_no_show_reports.sql` (Supabase → SQL Editor) before shipping a build with the report button. The policy, as enforced:
+
+- **Cancel/reschedule is free until 24 hours before the start**, for either side. Inside 24 hours a customer who cancels forfeits the payment (the expert keeps the payout); an expert who cancels always triggers a full refund. `refund-booking` enforces this server-side — a customer refund request inside 24h gets a 403 — and the app shows honest copy before an inside-24h cancel.
+- **No-show = not joining within 10 minutes of the start.** Customer no-show → the expert keeps the full payout. Expert no-show → full refund + a strike; two strikes in 90 days and the expert is removed.
+- **Either participant can report a no-show** from the booking screen, from 10 minutes after the start until 72 hours after. The report sets `no_show_reported_by` / `no_show_reported_at` on the booking — one report per booking.
+
+**Manual resolution flow (no automated attendance tracking at launch):** the alert email arrives → open the booking (Table Editor → `bookings`: who reported, `payment_status`, the row in `profiles` for names) → if the **expert** was the no-show, refund it (Stripe dashboard → Payments → the payment → Refund; the `charge.refunded` webhook flips `payment_status` to `refunded`) and note a strike against the expert — strikes are tracked manually for now, a running note per expert is enough. A **customer** no-show needs no action: the expert keeps the payout. Disputes come to info@palamapp.com within 48 hours and are adjudicated the same way.
+
 ### Setting up Daily.co (real video calls)
 
 The MVP flow opens the Daily room URL in an in-app web browser. Daily's hosted call page (camera, mic, screen share, chat) works on mobile browsers. The native in-app video tile comes once we're on a dev build.

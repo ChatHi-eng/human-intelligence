@@ -5,6 +5,12 @@
 // payment_intent. Sets payment_status='refunded' synchronously; the webhook
 // will also confirm via charge.refunded.
 //
+// Cancellation policy (enforced here, server-side):
+//   - The expert cancelling always refunds the customer in full, any time.
+//   - The customer is refunded only when the refund is requested more than
+//     24 hours before the session's start. Inside 24 hours the payment is
+//     forfeited (the expert keeps the payout) → 403 with a plain message.
+//
 // Deploy via Supabase dashboard. Toggle "Verify JWT" OFF.
 //
 // Secrets required:
@@ -62,13 +68,27 @@ serve(async (req) => {
 
   const { data: booking, error: bookingError } = await userClient
     .from('bookings')
-    .select('id, customer_id, expert_profile_id, payment_status, stripe_payment_intent_id')
+    .select('id, customer_id, expert_profile_id, start_at, payment_status, stripe_payment_intent_id')
     .eq('id', body.bookingId)
     .maybeSingle();
   if (bookingError) return json({ error: bookingError.message }, 500);
   if (!booking) return json({ error: 'Booking not found' }, 404);
   if (booking.customer_id !== user.id && booking.expert_profile_id !== user.id) {
     return json({ error: 'Forbidden' }, 403);
+  }
+
+  // Policy: the expert cancelling always refunds. The customer only gets a
+  // refund while the session is still more than 24 hours away.
+  const isExpertCaller = booking.expert_profile_id === user.id;
+  const msUntilStart = new Date(booking.start_at).getTime() - Date.now();
+  if (!isExpertCaller && msUntilStart < 24 * 60 * 60 * 1000) {
+    return json(
+      {
+        error:
+          "Palam's cancellation policy: cancellations less than 24 hours before the session aren't refunded. If something went wrong, email info@palamapp.com within 48 hours and a human will review it.",
+      },
+      403,
+    );
   }
   if (!booking.stripe_payment_intent_id) {
     return json({ error: 'No payment to refund' }, 409);

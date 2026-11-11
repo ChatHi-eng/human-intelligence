@@ -24,6 +24,8 @@ export type Booking = {
   paymentStatus: PaymentStatus;
   priceCents: number;
   callRoomUrl: string | null;
+  noShowReportedBy: string | null;
+  noShowReportedAt: string | null;
   createdAt: string;
 };
 
