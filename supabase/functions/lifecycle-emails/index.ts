@@ -5,7 +5,7 @@
 // transition into exactly one email per recipient:
 //
 //   profiles INSERT
-//     → new user: "You're in. Welcome to Palam"
+//     → new user: "Welcome to Palam"
 //   bookings INSERT (status 'requested')
 //     → expert:   "New booking request" (time, format, price, their cut)
 //     → customer: "Request sent. You'll hear back soon"
@@ -195,10 +195,10 @@ const formatWhen = (startIso: string, endIso: string, tz: string) => {
     }).format(start);
     const time = (d: Date) =>
       new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' }).format(d);
-    return `${day}, ${time(start)} &ndash; ${time(end)} (${tz})`;
+    return `${day}, ${time(start)} to ${time(end)} (${tz})`;
   } catch {
     // A bad PALAM_TIMEZONE value must never block a send.
-    return `${escapeHtml(startIso)} &ndash; ${escapeHtml(endIso)} (UTC)`;
+    return `${escapeHtml(startIso)} to ${escapeHtml(endIso)} (UTC)`;
   }
 };
 
@@ -288,20 +288,20 @@ serve(async (req) => {
     await sendEmail(resendKey, {
       from,
       to: email,
-      subject: "You're in. Welcome to Palam",
+      subject: 'Welcome to Palam',
       html: emailHtml(
         [
           p(`Hi ${name},`),
           p(
-            "You're in. Palam is one simple thing: when you're stuck on something real, you talk to a human who knows. Not an AI answer compiled from other people's work. A real person, personally vetted, whose knowledge was earned over years and never scraped.",
+            "Welcome to Palam. Search engines now answer with AI text compiled from other people's work. Here you talk to a person who has lived the problem you're stuck on. We vet every expert ourselves.",
           ),
           p(
-            'Sessions are 30 minutes, one-on-one, over video. You pick a person, pick a time, and have a straight conversation. No courses, no chatbots, no waiting on a forum.',
+            'Sessions are 30 minutes, one-on-one, over video. You pick a person, pick a time, and have a straight conversation.',
           ),
           p(
-            "Have a look around the app and see who's here. And if you're the one people keep coming to for advice, there's a seat on the other side of the table too. You can apply to become a Palam expert right in the app.",
+            "Have a look around the app and see who's here. If you're the one people come to for advice, you can apply to become a Palam expert in the app.",
           ),
-          signoff('Glad you have found us,'),
+          signoff("Glad you're here,"),
         ].join('\n'),
       ),
     });
@@ -358,7 +358,7 @@ serve(async (req) => {
               ['You earn', `${cut} (after Palam's ${pct}% fee)`],
             ]),
             note(TIMES_NOTE),
-            p(`If you decline, ${customerName} gets their money back in full. No hard feelings, no fees.`),
+            p(`If you decline, ${customerName} is refunded in full, with no fee to either of you.`),
             signoff('Thanks for being here,'),
           ].join('\n'),
         ),
@@ -443,7 +443,7 @@ serve(async (req) => {
             ]),
             note(TIMES_NOTE),
             p(
-              'Joining is simple: a few minutes before the start, open Palam, open this booking, and tap <strong>Join</strong>. The call runs right inside the app. Nothing to install, no links to dig for.',
+              'To join, open Palam a few minutes before the start, open this booking, and tap <strong>Join</strong>. The call runs inside the app, so there is nothing to install.',
             ),
             p(
               'One tip: thirty minutes goes faster than you think. Come with your question sharp and the backstory trimmed, and you&rsquo;ll get twice as much out of it.',
@@ -490,7 +490,7 @@ serve(async (req) => {
       // plainly; otherwise promise the refund that the app kicks off.
       const refundLine =
         booking.payment_status === 'refunded'
-          ? 'Your card was refunded in full. Depending on your bank, it can take 5&ndash;10 business days to show on your statement.'
+          ? 'Your card was refunded in full. Depending on your bank, it can take 5 to 10 business days to show on your statement.'
           : 'Your card will be refunded in full. If it was already charged, the refund is on its way.';
       await sendEmail(resendKey, {
         from,
@@ -530,7 +530,7 @@ serve(async (req) => {
             : 'Their payment is being refunded.';
       const why =
         booking.cancellation_reason === 'cancelled by customer'
-          ? `${customerName} cancelled the session below. ${refundNote} Your time is yours again. Nothing else to do on your side.`
+          ? `${customerName} cancelled the session below. ${refundNote} That time is open again, and there is nothing you need to do.`
           : booking.cancellation_reason === 'checkout session expired'
             ? `The request below was withdrawn. ${customerName}'s payment didn't go through, so the session never locked in. Nothing to do on your side.`
             : 'The session below was cancelled. Nothing to do on your side.';
@@ -571,7 +571,7 @@ serve(async (req) => {
             p(
               `The refund for your session with ${expertName} went through: ${price} back on your card, in full.`,
             ),
-            p('Depending on your bank, it can take 5&ndash;10 business days to show on your statement.'),
+            p('Depending on your bank, it can take 5 to 10 business days to show on your statement.'),
             signoff('Talk soon,'),
           ].join('\n'),
         ),

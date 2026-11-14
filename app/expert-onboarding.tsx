@@ -267,9 +267,8 @@ export default function ExpertOnboardingScreen() {
           <Text style={styles.doneEmoji}>📨</Text>
           <Text style={styles.doneTitle}>Application received</Text>
           <Text style={styles.doneBody}>
-            We personally review every expert on Palam. A real human reads every application.
-            You&apos;ll hear back within 2 to 3 days, and the moment you&apos;re approved your
-            Studio unlocks so you can open up availability.
+            A person on our team reads every application. You&apos;ll hear back within 2 to 3
+            days. Once you&apos;re approved, your Studio unlocks and you can open up availability.
           </Text>
           <Button title="Go to Studio" onPress={() => router.replace('/(tabs)/studio')} fullWidth />
         </View>
@@ -516,7 +515,7 @@ export default function ExpertOnboardingScreen() {
                   {formatCurrency(suggested.max)}/hr
                 </Text>
                 <Text style={styles.ratePanelHint}>
-                  A guide, not a rule. Advice calls usually price above your day rate.
+                  This is only a guide. Advice calls usually price above your day rate.
                 </Text>
                 <View style={styles.rateChips}>
                   {suggestedChips.map((v) => {
@@ -571,8 +570,8 @@ export default function ExpertOnboardingScreen() {
           <>
             <Text style={styles.title}>Add a profile photo</Text>
             <Text style={styles.caption}>
-              Your face is your card on Discover, and experts with a photo get booked far more.
-              Skippable, but strongly recommended.
+              Your photo is the first thing customers see on Discover. You can skip this step,
+              but we recommend adding one.
             </Text>
             <View style={styles.photoRow}>
               <Pressable onPress={pickPhoto} style={styles.photoPicker}>

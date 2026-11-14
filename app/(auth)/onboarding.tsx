@@ -18,17 +18,17 @@ export default function OnboardingScreen() {
             <Text style={styles.title}>Talk to a human who knows.</Text>
             <Text style={styles.body}>
               {PHONE_SESSIONS_ENABLED
-                ? 'Every search answers with AI now. Palam is a direct line to real people who actually lived it: lawyers, therapists, coders, designers, tradesmen. On a video or phone call, when you need them.'
-                : 'Every search answers with AI now. Palam is a direct line to real people who actually lived it: lawyers, therapists, coders, designers, tradesmen. On a video call, when you need them.'}
+                ? 'Every search answers with AI now. Palam is a direct line to people who have lived it: lawyers, therapists, coders, designers, tradesmen. Book a video or phone call with one when you need it.'
+                : 'Every search answers with AI now. Palam is a direct line to people who have lived it: lawyers, therapists, coders, designers, tradesmen. Book a video call with one when you need it.'}
             </Text>
           </>
         ) : (
           <>
             <Text style={styles.title}>Get paid for what you know.</Text>
             <Text style={styles.body}>
-              The internet answers everything with AI now, compiled from work it never did. Palam
-              pays the people who actually did it: real experts, 30-minute video sessions, your
-              rate. Join as an expert and be first in line when booking opens.
+              The internet answers everything with AI now, compiled from other people&apos;s work.
+              Palam pays the people who did that work. You set your rate and take 30-minute video
+              sessions. Apply now and you&apos;ll be first in line when booking opens.
             </Text>
           </>
         )}

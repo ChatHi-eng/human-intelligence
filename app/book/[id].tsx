@@ -54,7 +54,7 @@ export default function BookScreen() {
       <Screen>
         <EmptyState
           title="Booking opens soon"
-          description="Palam is welcoming experts first. Booking a session will open here shortly. Stay tuned."
+          description="Palam is signing up experts first. You will be able to book sessions here soon."
           emoji="🌱"
         />
       </Screen>

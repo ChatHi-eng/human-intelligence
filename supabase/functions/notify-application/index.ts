@@ -209,7 +209,7 @@ serve(async (req) => {
       html: [
         '<p>Hi,</p>',
         "<p>Good news: a human read your application and said yes. You're on Palam.</p>",
-        '<p>Open the app and head to <strong>Studio</strong> to set your weekly availability and connect payouts. Once that’s done, you’re live. Your knowledge, paid for, never scraped.</p>',
+        '<p>Open the app and head to <strong>Studio</strong> to set your weekly availability and connect payouts. Once that’s done, your profile is live.</p>',
         '<p>Welcome aboard,<br>Palam</p>',
       ].join('\n'),
     });

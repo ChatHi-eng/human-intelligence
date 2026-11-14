@@ -124,8 +124,8 @@ export default function YouScreen() {
             <Text style={styles.becomeTitle}>People pay for what you know</Text>
             <Text style={styles.becomeBody}>
               Years of experience in anything (law, code, pipes, paint) is worth real money to
-              someone stuck. It&apos;s the one thing AI can&apos;t fake: you were actually there.
-              Apply as an expert and get paid for the real thing.
+              someone who is stuck. AI can repeat what other people wrote, but you were there.
+              Apply as an expert and get paid for it.
             </Text>
             <Button
               title="Become an expert"
