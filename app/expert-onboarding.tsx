@@ -8,7 +8,12 @@ import Toast from 'react-native-toast-message';
 import { Button } from '@/components/ui/Button';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { Screen } from '@/components/ui/Screen';
-import { industries, industryById } from '@/constants/industries';
+import {
+  industries,
+  industryById,
+  industryDisplay,
+  OTHER_INDUSTRY_ID,
+} from '@/constants/industries';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useMyExpertProfile, useUpsertMyExpertProfile } from '@/hooks/useExperts';
 import { useUpdateMyProfile, useUploadImage, useUploadResume } from '@/hooks/useProfile';
@@ -25,6 +30,7 @@ const RESUME_MIME_TYPES = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ];
 const MAX_RESUME_BYTES = 10 * 1024 * 1024; // matches the bucket's 10 MB limit
+const MAX_TOPICS = 6;
 
 export default function ExpertOnboardingScreen() {
   const router = useRouter();
@@ -37,6 +43,12 @@ export default function ExpertOnboardingScreen() {
   const [step, setStep] = useState(0);
   const [done, setDone] = useState(false);
   const [industryId, setIndustryId] = useState('');
+  const [industrySearch, setIndustrySearch] = useState('');
+  const [industryCustom, setIndustryCustom] = useState('');
+  const [currentTitle, setCurrentTitle] = useState('');
+  const [currentCompany, setCurrentCompany] = useState('');
+  const [topics, setTopics] = useState<string[]>([]);
+  const [topicDraft, setTopicDraft] = useState('');
   const [years, setYears] = useState('');
   const [linkedinUrl, setLinkedinUrl] = useState('');
   const [resumePath, setResumePath] = useState('');
@@ -68,6 +80,25 @@ export default function ExpertOnboardingScreen() {
   }
 
   const industry = industryById(industryId);
+  const isOther = industryId === OTHER_INDUSTRY_ID;
+  const fieldDisplay = industryDisplay(industryId, industryCustom);
+  const searchNeedle = industrySearch.trim().toLowerCase();
+  const visibleIndustries = searchNeedle
+    ? industries.filter((i) => i.label.toLowerCase().includes(searchNeedle))
+    : industries;
+
+  const addTopic = () => {
+    const next = topicDraft.trim().replace(/,+$/, '');
+    if (!next) return;
+    if (topics.length >= MAX_TOPICS) {
+      Toast.show({ type: 'error', text1: `Up to ${MAX_TOPICS} topics` });
+      return;
+    }
+    if (!topics.some((t) => t.toLowerCase() === next.toLowerCase())) {
+      setTopics([...topics, next]);
+    }
+    setTopicDraft('');
+  };
 
   // Discover features the profile photo, so that's what the wizard asks for.
   const pickPhoto = async () => {
@@ -138,6 +169,10 @@ export default function ExpertOnboardingScreen() {
       Toast.show({ type: 'error', text1: 'Pick your field' });
       return false;
     }
+    if (step === 0 && isOther && !industryCustom.trim()) {
+      Toast.show({ type: 'error', text1: 'Type your field' });
+      return false;
+    }
     if (step === 1) {
       const y = Number(years);
       if (years.trim() === '' || !Number.isFinite(y) || y < 0) {
@@ -148,7 +183,7 @@ export default function ExpertOnboardingScreen() {
         Toast.show({
           type: 'error',
           text1: 'Add your LinkedIn or a resume',
-          text2: 'We verify every expert — we need at least one.',
+          text2: 'We verify every expert, so we need at least one.',
         });
         return false;
       }
@@ -171,8 +206,8 @@ export default function ExpertOnboardingScreen() {
     if (step === 5 && !applicationGoal.trim()) {
       Toast.show({
         type: 'error',
-        text1: 'Tell us what you\'re hoping for',
-        text2: 'One or two sentences is plenty.',
+        text1: 'Tell us what you have to offer',
+        text2: 'A few sentences on the value you bring.',
       });
       return false;
     }
@@ -200,6 +235,10 @@ export default function ExpertOnboardingScreen() {
         linkedinUrl: linkedinUrl.trim() || null,
         resumeUrl: resumePath || null,
         applicationGoal: applicationGoal.trim() || null,
+        industryCustom: isOther ? industryCustom.trim() : null,
+        currentTitle: currentTitle.trim() || null,
+        currentCompany: currentCompany.trim() || null,
+        topics,
       },
       {
         onSuccess: () => {
@@ -228,9 +267,9 @@ export default function ExpertOnboardingScreen() {
           <Text style={styles.doneEmoji}>📨</Text>
           <Text style={styles.doneTitle}>Application received</Text>
           <Text style={styles.doneBody}>
-            We personally review every expert on Palam — a real human reads every application.
-            You&apos;ll hear back within 2–3 days, and the moment you&apos;re approved your Studio
-            unlocks so you can open up availability.
+            We personally review every expert on Palam. A real human reads every application.
+            You&apos;ll hear back within 2 to 3 days, and the moment you&apos;re approved your
+            Studio unlocks so you can open up availability.
           </Text>
           <Button title="Go to Studio" onPress={() => router.replace('/(tabs)/studio')} fullWidth />
         </View>
@@ -269,11 +308,20 @@ export default function ExpertOnboardingScreen() {
           <>
             <Text style={styles.title}>What&apos;s your field?</Text>
             <Text style={styles.caption}>
-              Pick the closest fit — customers browse by category. The application takes about
-              four minutes, and a real person reads every one.
+              Search or pick the closest fit. Not listed? Choose &quot;Something else&quot; and
+              type your own. The application takes about four minutes, and a real person reads
+              every one.
             </Text>
+            <TextInput
+              placeholder="Search fields (try law, design, finance)"
+              placeholderTextColor={colors.textMuted}
+              value={industrySearch}
+              onChangeText={setIndustrySearch}
+              autoCorrect={false}
+              style={styles.input}
+            />
             <View style={styles.industryGrid}>
-              {industries.map((i) => {
+              {visibleIndustries.map((i) => {
                 const active = industryId === i.id;
                 return (
                   <Pressable
@@ -288,7 +336,36 @@ export default function ExpertOnboardingScreen() {
                   </Pressable>
                 );
               })}
+              <Pressable
+                onPress={() => {
+                  setIndustryId(OTHER_INDUSTRY_ID);
+                  // Carry a search that matched nothing straight into the field.
+                  if (!industryCustom && visibleIndustries.length === 0) {
+                    setIndustryCustom(industrySearch.trim());
+                  }
+                }}
+                style={[styles.industryTile, isOther && styles.industryTileActive]}
+              >
+                <Text style={styles.industryEmoji}>✨</Text>
+                <Text style={[styles.industryLabel, isOther && styles.industryLabelActive]}>
+                  Something else
+                </Text>
+              </Pressable>
             </View>
+            {isOther && (
+              <>
+                <Text style={styles.label}>Your field</Text>
+                <TextInput
+                  placeholder="e.g. Veterinary medicine, Aviation, Wine"
+                  placeholderTextColor={colors.textMuted}
+                  value={industryCustom}
+                  onChangeText={setIndustryCustom}
+                  style={styles.input}
+                  maxLength={60}
+                  autoFocus
+                />
+              </>
+            )}
           </>
         )}
 
@@ -296,9 +373,27 @@ export default function ExpertOnboardingScreen() {
           <>
             <Text style={styles.title}>Your background</Text>
             <Text style={styles.caption}>
-              This is what our review team weighs most. Share your LinkedIn or upload a resume —
-              at least one, so we can verify your experience.
+              This is what our review team weighs most. Share your LinkedIn or upload a resume.
+              We need at least one to verify your experience.
             </Text>
+            <Text style={styles.label}>Current role</Text>
+            <TextInput
+              placeholder="e.g. Senior Product Designer"
+              placeholderTextColor={colors.textMuted}
+              value={currentTitle}
+              onChangeText={setCurrentTitle}
+              style={styles.input}
+              maxLength={80}
+            />
+            <Text style={styles.label}>Company or practice (optional)</Text>
+            <TextInput
+              placeholder="e.g. Acme, or Self-employed"
+              placeholderTextColor={colors.textMuted}
+              value={currentCompany}
+              onChangeText={setCurrentCompany}
+              style={styles.input}
+              maxLength={80}
+            />
             <Text style={styles.label}>Years of experience</Text>
             <TextInput
               placeholder="10"
@@ -340,7 +435,7 @@ export default function ExpertOnboardingScreen() {
               </View>
             </Pressable>
             <Text style={styles.privacyNote}>
-              Your resume goes to our review team only — customers never see it.
+              Your resume goes to our review team only. Customers never see it.
             </Text>
           </>
         )}
@@ -372,6 +467,38 @@ export default function ExpertOnboardingScreen() {
               style={[styles.input, styles.longInput]}
               maxLength={1500}
             />
+            <Text style={styles.label}>Topics you can help with (up to {MAX_TOPICS})</Text>
+            <Text style={styles.privacyNote}>
+              The specific things people can ask you about. These show as tags on your profile
+              and help customers find you in search.
+            </Text>
+            <View style={styles.topicRow}>
+              <TextInput
+                placeholder="e.g. Portfolio reviews"
+                placeholderTextColor={colors.textMuted}
+                value={topicDraft}
+                onChangeText={setTopicDraft}
+                onSubmitEditing={addTopic}
+                returnKeyType="done"
+                blurOnSubmit={false}
+                style={[styles.input, { flex: 1 }]}
+                maxLength={40}
+              />
+              <Button title="Add" variant="secondary" onPress={addTopic} />
+            </View>
+            {topics.length > 0 && (
+              <View style={styles.topicChips}>
+                {topics.map((t) => (
+                  <Pressable
+                    key={t}
+                    onPress={() => setTopics(topics.filter((x) => x !== t))}
+                    style={styles.topicChip}
+                  >
+                    <Text style={styles.topicChipText}>{t}  ✕</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
           </>
         )}
 
@@ -379,17 +506,17 @@ export default function ExpertOnboardingScreen() {
           <>
             <Text style={styles.title}>Set your hourly rate</Text>
             <Text style={styles.caption}>
-              Sessions are 30 minutes — customers pay half your hourly rate per session. You can
-              change this anytime.
+              Sessions are 30 minutes, so customers pay half your hourly rate per session. You
+              can change this anytime.
             </Text>
             {suggested && industry ? (
               <View style={styles.ratePanel}>
                 <Text style={styles.ratePanelTitle}>
-                  Most {industry.label.toLowerCase()} charge{' '}
-                  {formatCurrency(suggested.min)}–{formatCurrency(suggested.max)}/hr
+                  Typical for {industry.label}: {formatCurrency(suggested.min)} to{' '}
+                  {formatCurrency(suggested.max)}/hr
                 </Text>
                 <Text style={styles.ratePanelHint}>
-                  A guide, not a rule — advice calls usually price above your day rate.
+                  A guide, not a rule. Advice calls usually price above your day rate.
                 </Text>
                 <View style={styles.rateChips}>
                   {suggestedChips.map((v) => {
@@ -444,7 +571,7 @@ export default function ExpertOnboardingScreen() {
           <>
             <Text style={styles.title}>Add a profile photo</Text>
             <Text style={styles.caption}>
-              Your face is your card on Discover — experts with a photo get booked far more.
+              Your face is your card on Discover, and experts with a photo get booked far more.
               Skippable, but strongly recommended.
             </Text>
             <View style={styles.photoRow}>
@@ -468,13 +595,13 @@ export default function ExpertOnboardingScreen() {
               One last question for our review team, then check that everything reads the way you
               want.
             </Text>
-            <Text style={styles.label}>What do you hope to get out of Palam?</Text>
+            <Text style={styles.label}>What expertise do you have to offer?</Text>
             <Text style={styles.privacyNote}>
-              A sentence or two is plenty. Just for our review team — this never appears on your
-              profile.
+              Your pitch to our review team: the value you bring, how you deliver it, and the
+              kinds of customers you can serve. It never appears on your profile.
             </Text>
             <TextInput
-              placeholder="e.g. A steady side practice helping early-career designers — and a reason to share what 15 years taught me."
+              placeholder="e.g. 15 years shipping consumer products. I can help early-career designers with portfolio reviews, interview prep, and getting unstuck on real projects."
               placeholderTextColor={colors.textMuted}
               value={applicationGoal}
               onChangeText={setApplicationGoal}
@@ -487,12 +614,13 @@ export default function ExpertOnboardingScreen() {
             <View style={styles.summaryCard}>
               <SummaryRow
                 label="Field"
-                value={industry ? `${industry.emoji} ${industry.label}` : '—'}
+                value={fieldDisplay ? `${fieldDisplay.emoji} ${fieldDisplay.label}` : '—'}
                 onEdit={() => setStep(0)}
               />
               <SummaryRow
                 label="Background"
                 value={[
+                  currentTitle.trim() || null,
                   `${years || '0'} yrs`,
                   linkedinUrl.trim() ? 'LinkedIn ✓' : null,
                   resumePath ? 'Resume ✓' : null,
@@ -502,6 +630,11 @@ export default function ExpertOnboardingScreen() {
                 onEdit={() => setStep(1)}
               />
               <SummaryRow label="Headline" value={headline || '—'} onEdit={() => setStep(2)} />
+              <SummaryRow
+                label="Topics"
+                value={topics.length > 0 ? topics.join(', ') : 'None added'}
+                onEdit={() => setStep(2)}
+              />
               <SummaryRow
                 label="Rate"
                 value={
@@ -603,7 +736,21 @@ const styles = StyleSheet.create({
   inputDimmed: { opacity: 0.4 },
   longInput: { minHeight: 140, textAlignVertical: 'top' },
   goalInput: { minHeight: 110, textAlignVertical: 'top' },
-  industryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  topicRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
+  topicChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
+  topicChip: {
+    backgroundColor: colors.accentSoft,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  topicChipText: { ...typography.caption, color: colors.accent },
+  industryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
   industryTile: {
     width: '47%',
     paddingVertical: spacing.lg,
@@ -616,7 +763,7 @@ const styles = StyleSheet.create({
   },
   industryTileActive: { backgroundColor: colors.textPrimary, borderColor: colors.textPrimary },
   industryEmoji: { fontSize: 28 },
-  industryLabel: { ...typography.bodyStrong, color: colors.textPrimary },
+  industryLabel: { ...typography.bodyStrong, color: colors.textPrimary, textAlign: 'center' },
   industryLabelActive: { color: '#FFFFFF' },
   resumeRow: {
     flexDirection: 'row',

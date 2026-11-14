@@ -20,8 +20,8 @@ import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useExperts, useMyExpertProfile } from '@/hooks/useExperts';
 
 const DISCOVER_CAPTION = PHONE_SESSIONS_ENABLED
-  ? 'People who actually lived it — vetted, on call by video or phone. Not another AI answer.'
-  : 'People who actually lived it — vetted, on call. Not another AI answer.';
+  ? 'People who actually lived it. Vetted, on call by video or phone. Not another AI answer.'
+  : 'People who actually lived it. Vetted, on call. Not another AI answer.';
 
 type Filters = {
   industryId?: string;
@@ -58,6 +58,13 @@ export default function DiscoverScreen() {
     maxHourlyRateCents: filters.maxHourlyRateCents,
   });
 
+  // Filter chips only for fields that actually have experts, so a long field
+  // list never shows as a row of empty categories.
+  const { data: allExperts } = useExperts({});
+  const chipIndustries = industries.filter((i) =>
+    (allExperts ?? []).some((e) => e.industryId === i.id),
+  );
+
   // Supply-first launch: anyone signed in without an expert application gets a
   // front-and-center path into it (the You tab entry stays, but is buried).
   const { data: myExpert, isFetched: myExpertFetched } = useMyExpertProfile();
@@ -65,9 +72,9 @@ export default function DiscoverScreen() {
 
   const applyCard = showApplyCard ? (
     <Pressable onPress={() => router.push('/expert-onboarding')} style={styles.applyCard}>
-      <Text style={styles.applyTitle}>Become a founding expert</Text>
+      <Text style={styles.applyTitle}>Become an expert</Text>
       <Text style={styles.applyBody}>
-        Set your own rate and get paid for 30-minute video sessions. Applying takes about 2
+        Set your own rate and get paid for 30-minute video sessions. Applying takes a few
         minutes.
       </Text>
       <Text style={styles.applyCta}>Start your application →</Text>
@@ -95,7 +102,7 @@ export default function DiscoverScreen() {
           {applyCard}
           <EmptyState
             title="No experts yet"
-            description="Be the first human on Palam — your application takes about 2 minutes."
+            description="Be the first human on Palam. Your application takes a few minutes."
             emoji="🌱"
           />
         </View>
@@ -145,7 +152,7 @@ export default function DiscoverScreen() {
                   active={filters.industryId === undefined}
                   onPress={() => setFilters({ ...filters, industryId: undefined })}
                 />
-                {industries.map((i) => (
+                {chipIndustries.map((i) => (
                   <FilterChip
                     key={i.id}
                     label={`${i.emoji}  ${i.label}`}

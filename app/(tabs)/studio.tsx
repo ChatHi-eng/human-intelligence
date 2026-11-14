@@ -45,7 +45,7 @@ export default function StudioScreen() {
         <View style={styles.statusWrap}>
           <EmptyState
             title="Application under review"
-            description={`Thanks for applying, ${firstName}. A real person is reading your application now — your pitch, experience, LinkedIn, and resume. You'll hear back within 2–3 days, and the moment you're approved your Studio unlocks with availability, bookings, and earnings.`}
+            description={`Thanks for applying, ${firstName}. A real person is reading your application now: your pitch, experience, LinkedIn, and resume. You'll hear back within 2 to 3 days, and the moment you're approved your Studio unlocks with availability, bookings, and earnings.`}
             emoji="⏳"
           />
         </View>
@@ -58,7 +58,7 @@ export default function StudioScreen() {
         <View style={styles.statusWrap}>
           <EmptyState
             title="We couldn't approve your application"
-            description="Thanks for your interest in Palam. We weren't able to approve your application this time. If your situation changes — or you think we got it wrong — get in touch and we'll gladly take another look."
+            description="Thanks for your interest in Palam. We weren't able to approve your application this time. If your situation changes, or you think we got it wrong, get in touch and we'll gladly take another look."
             emoji="💌"
           />
         </View>
@@ -136,7 +136,7 @@ export default function StudioScreen() {
         {todays.length === 0 ? (
           <EmptyState
             title="No calls today"
-            description="Enjoy the breather — or open up more availability."
+            description="Enjoy the breather, or open up more availability."
             emoji="☕"
           />
         ) : (

@@ -46,6 +46,13 @@ export type Expert = Profile & {
   status: ExpertStatus;
   linkedinUrl: string | null;
   industryId: string;
+  // Their own field name when industryId is 'other'.
+  industryCustom: string | null;
+  // Current role, shown as "Title at Company".
+  currentTitle: string | null;
+  currentCompany: string | null;
+  // Specific things they can be asked about.
+  topics: string[];
   headline: string;
   // Cents. null = applicant chose "I'll decide later" — the app shows
   // "Rate coming soon" and booking stays off until they set one.

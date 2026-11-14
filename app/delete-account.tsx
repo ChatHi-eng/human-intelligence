@@ -8,7 +8,7 @@ import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useDeleteAccount } from '@/hooks/useAccount';
 import { useAuth } from '@/hooks/useAuth';
 
-// Confirmation lives in this screen itself — no browser confirm()/Alert — so
+// Confirmation lives in this screen itself, no browser confirm()/Alert, so
 // the flow is identical on web and native: read what happens, type DELETE,
 // press the red button.
 export default function DeleteAccountScreen() {
@@ -32,18 +32,18 @@ export default function DeleteAccountScreen() {
   return (
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <SectionHeader title="Delete your account" caption="This is the real thing — no undo." />
+        <SectionHeader title="Delete your account" caption="This is permanent. There is no undo." />
 
         <Text style={styles.body}>
           Deleting your account permanently removes your profile, expert application, bookings,
           reviews, and messages. Once it&apos;s gone, it&apos;s gone.
         </Text>
         <Text style={styles.body}>
-          Got an upcoming or active booking? Cancel it first — we won&apos;t delete an account
+          Got an upcoming or active booking? Cancel it first. We won&apos;t delete an account
           someone is still counting on.
         </Text>
         <Text style={styles.body}>
-          If you set up payouts, your Stripe account stays yours and isn&apos;t touched — only its
+          If you set up payouts, your Stripe account stays yours and isn&apos;t touched. Only its
           link to Palam goes away.
         </Text>
 

@@ -15,7 +15,7 @@ import {
   MESSAGING_ENABLED,
   PHONE_SESSIONS_ENABLED,
 } from '@/constants/featureFlags';
-import { industryById } from '@/constants/industries';
+import { industryDisplay } from '@/constants/industries';
 import { MARKETING_URL } from '@/constants/links';
 import { colors, radius, shadow, spacing, typography } from '@/constants/theme';
 import Toast from 'react-native-toast-message';
@@ -54,7 +54,8 @@ export default function ExpertProfileScreen() {
     );
   }
 
-  const industry = industryById(expert.industryId);
+  const industry = industryDisplay(expert.industryId, expert.industryCustom);
+  const roleLine = [expert.currentTitle, expert.currentCompany].filter(Boolean).join(' at ');
   // Mirror what the booking screen will actually offer: stale one-off dates
   // (or windows that only produce past times) must not light up the Book bar.
   const hasAvailability =
@@ -81,6 +82,7 @@ export default function ExpertProfileScreen() {
             <Avatar uri={expert.avatarUrl} name={expert.displayName} size={64} />
             <View style={{ flex: 1 }}>
               <Text style={styles.name}>{expert.displayName}</Text>
+              {roleLine ? <Text style={styles.roleLine}>{roleLine}</Text> : null}
               <Text style={styles.headline}>{expert.headline}</Text>
             </View>
           </View>
@@ -96,6 +98,17 @@ export default function ExpertProfileScreen() {
           ) : (
             <Text style={styles.newHere}>New on Palam</Text>
           )}
+
+          {expert.topics.length > 0 ? (
+            <>
+              <Text style={styles.sectionTitle}>Ask me about</Text>
+              <View style={styles.badgeRow}>
+                {expert.topics.map((t) => (
+                  <Badge key={t} label={t} tone="accent" />
+                ))}
+              </View>
+            </>
+          ) : null}
 
           {expert.howICanHelp ? (
             <>
@@ -228,6 +241,7 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   name: { ...typography.title, color: colors.textPrimary },
   headline: { ...typography.body, color: colors.textSecondary },
+  roleLine: { ...typography.bodyStrong, color: colors.textPrimary },
   badgeRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
   newHere: { ...typography.caption, color: colors.textMuted },
   sectionTitle: { ...typography.heading, color: colors.textPrimary, marginTop: spacing.md },

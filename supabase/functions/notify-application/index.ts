@@ -1,4 +1,4 @@
-// Supabase Edge Function — notify-application
+// Supabase Edge Function, notify-application
 //
 // Receives a Supabase Database Webhook POST whenever a row in expert_profiles
 // is inserted or updated (trigger created by migration 0010). Two jobs:
@@ -7,13 +7,13 @@
 //      short welcome.
 // Emails go out through the Resend API. The request is authenticated by a
 // shared secret header (x-webhook-secret) that the migration-0010 trigger
-// sends — not by a JWT.
+// sends, not by a JWT.
 //
 // Secrets required (Supabase → Edge Functions → Secrets):
-//   RESEND_API_KEY          — re_... (Resend → API Keys)
-//   WEBHOOK_SECRET          — any long random string; must be the exact same
+//   RESEND_API_KEY         , re_... (Resend → API Keys)
+//   WEBHOOK_SECRET         , any long random string; must be the exact same
 //                             value pasted into migration 0010
-//   APPLICATION_ALERT_EMAIL — optional; where new-application alerts go
+//   APPLICATION_ALERT_EMAIL, optional; where new-application alerts go
 //                             (default vkinatukara@gmail.com)
 //   SUPABASE_SERVICE_ROLE_KEY (auto-provided by Supabase)
 //
@@ -34,6 +34,12 @@ type ExpertProfileRow = {
   status: string;
   linkedin_url: string | null;
   how_i_can_help: string | null;
+  // Application v3 (migration 0017) and the review-only pitch (0011).
+  industry_custom?: string | null;
+  current_title?: string | null;
+  current_company?: string | null;
+  topics?: string[] | null;
+  application_goal?: string | null;
 };
 
 // Shape of the payload supabase_functions.http_request POSTs for row events.
@@ -146,9 +152,17 @@ serve(async (req) => {
   const applicantEmail = userData?.user?.email ?? null;
 
   if (newApplication) {
+    const field = record.industry_custom?.trim()
+      ? `${record.industry_custom.trim()} (typed in)`
+      : record.industry_id;
+    const role = [record.current_title, record.current_company]
+      .map((part) => part?.trim())
+      .filter(Boolean)
+      .join(' at ');
     const rows: [string, string][] = [
       ['Headline', escapeHtml(record.headline)],
-      ['Industry', escapeHtml(record.industry_id)],
+      ['Field', escapeHtml(field)],
+      ['Current role', role ? escapeHtml(role) : 'Not provided'],
       // hourly_rate_cents is nullable since migration 0011 ("I'll decide later").
       [
         'Rate',
@@ -157,10 +171,16 @@ serve(async (req) => {
           : `$${(record.hourly_rate_cents / 100).toFixed(2)}/hr`,
       ],
       ['Experience', `${record.years_experience} years`],
-      ['LinkedIn', record.linkedin_url ? escapeHtml(record.linkedin_url) : '—'],
+      ['LinkedIn', record.linkedin_url ? escapeHtml(record.linkedin_url) : 'Not provided'],
     ];
+    if (record.topics && record.topics.length > 0) {
+      rows.push(['Topics', escapeHtml(record.topics.join(', '))]);
+    }
+    if (record.application_goal) {
+      rows.push(['Expertise they offer (their pitch)', escapeHtml(record.application_goal)]);
+    }
     if (record.how_i_can_help) {
-      rows.push(['How they can help', escapeHtml(record.how_i_can_help)]);
+      rows.push(['Profile bio', escapeHtml(record.how_i_can_help)]);
     }
     rows.push(['Applicant email', applicantEmail ? escapeHtml(applicantEmail) : 'unknown']);
 
@@ -180,16 +200,16 @@ serve(async (req) => {
     // NOTE: Resend's test sender (onboarding@resend.dev) can only deliver to
     // the Resend account owner's own address. This welcome reaches real
     // applicants only after the owner verifies a domain in Resend and the
-    // `from` below moves to that domain. Until then, sends to anyone else fail
-    // — which is fine: sendEmail logs the error and we still return 200.
+    // `from` below moves to that domain. Until then, sends to anyone else
+    // fail, which is fine: sendEmail logs the error and we still return 200.
     await sendEmail(resendKey, {
       from: palamSender,
       to: applicantEmail,
       subject: "You're on Palam",
       html: [
         '<p>Hi,</p>',
-        "<p>Good news — a human read your application and said yes. You're on Palam.</p>",
-        '<p>Open the app and head to <strong>Studio</strong> to set your weekly availability and connect payouts. Once that’s done, you’re live — your knowledge, paid for, never scraped.</p>',
+        "<p>Good news: a human read your application and said yes. You're on Palam.</p>",
+        '<p>Open the app and head to <strong>Studio</strong> to set your weekly availability and connect payouts. Once that’s done, you’re live. Your knowledge, paid for, never scraped.</p>',
         '<p>Welcome aboard,<br>Palam</p>',
       ].join('\n'),
     });

@@ -49,7 +49,7 @@ export default function LoginScreen() {
 
   const onVerify = async () => {
     const trimmedCode = code.trim();
-    // Supabase OTP length is configurable (6-10 digits) — don't hard-require 6.
+    // Supabase OTP length is configurable (6-10 digits), don't hard-require 6.
     if (trimmedCode.length < 6) {
       Toast.show({ type: 'error', text1: 'Enter the code from your email' });
       return;
@@ -72,7 +72,7 @@ export default function LoginScreen() {
       Toast.show({ type: 'success', text1: 'Signed in' });
       router.replace('/(tabs)');
       // Supply-first launch: a sign-in with no expert application yet is almost
-      // certainly a prospective expert — walk them straight into the
+      // certainly a prospective expert, walk them straight into the
       // application. Tabs stay beneath it, so Cancel lands on Discover.
       if (!CUSTOMER_BOOKING_ENABLED) {
         try {
@@ -81,7 +81,7 @@ export default function LoginScreen() {
             router.push('/expert-onboarding');
           }
         } catch {
-          // The nudge is best-effort — never block sign-in on it.
+          // The nudge is best-effort, never block sign-in on it.
         }
       }
     } catch (err) {

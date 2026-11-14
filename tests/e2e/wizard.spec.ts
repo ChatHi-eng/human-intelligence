@@ -40,7 +40,7 @@ const session = {
     id: TEST_USER_ID,
     aud: 'authenticated',
     role: 'authenticated',
-    email: 'founding-expert@palam.test',
+    email: 'expert@palam.test',
     created_at: NOW_ISO,
     app_metadata: { provider: 'email' },
     user_metadata: {},
@@ -99,12 +99,39 @@ test('expert application wizard walks all six steps and submits', async ({ page 
   await page.goto('/expert-onboarding');
   await expect(page.getByText(/What.s your field\?/)).toBeVisible({ timeout: 90_000 });
   await expect(page.getByText('Step 1 of 6 · Field')).toBeVisible();
-  await page.getByText('Coders', { exact: true }).click();
+  // Applications are written with an upsert; keep the body to check the new
+  // v3 fields actually reach the database call.
+  let submitted: Record<string, unknown> | null = null;
+  page.on('request', (req) => {
+    if (req.method() === 'POST' && req.url().includes('/rest/v1/expert_profiles')) {
+      const body: unknown = req.postDataJSON();
+      submitted = (Array.isArray(body) ? body[0] : body) as Record<string, unknown>;
+    }
+  });
+
+  // The full list is there, not the old eight.
+  await expect(page.getByText('Finance & Investing', { exact: true })).toBeVisible();
+  await expect(page.getByText('Real Estate', { exact: true })).toBeVisible();
+  // A field we don't list: search finds nothing, "Something else" picks up
+  // what was typed.
+  const search = page.getByPlaceholder(/Search fields/);
+  await search.fill('Beekeeping');
+  await expect(page.getByText('Software Engineering', { exact: true })).toBeHidden();
+  await page.getByText('Something else', { exact: true }).click();
+  await expect(page.getByPlaceholder(/Veterinary medicine/)).toHaveValue('Beekeeping');
+  await shot('wizard-1b-custom-field');
+  // Searching narrows the list to a listed field.
+  await search.fill('soft');
+  await expect(page.getByText('Real Estate', { exact: true })).toBeHidden();
+  await page.getByText('Software Engineering', { exact: true }).click();
+  await search.fill('');
   await shot('wizard-1-field');
   await next();
 
   // ---- Step 2 · Experience (proof gate: LinkedIn OR resume) -------------
   await expect(page.getByText('Your background')).toBeVisible();
+  await page.getByPlaceholder('e.g. Senior Product Designer').fill('Staff Engineer');
+  await page.getByPlaceholder('e.g. Acme, or Self-employed').fill('Acme');
   await page.getByPlaceholder('10').fill('12');
   await next(); // no LinkedIn, no resume → blocked
   await expect(page.getByText('Add your LinkedIn or a resume')).toBeVisible();
@@ -131,11 +158,18 @@ test('expert application wizard walks all six steps and submits', async ({ page 
   await page
     .getByPlaceholder(/Who are you for/)
     .fill('I help engineers level up:\n• Code & architecture reviews\n• Career strategy calls');
+  const topic = page.getByPlaceholder('e.g. Portfolio reviews');
+  await topic.fill('Code reviews');
+  await page.getByText('Add', { exact: true }).click();
+  await topic.fill('System design');
+  await topic.press('Enter');
+  await expect(page.getByText(/Code reviews\s+✕/)).toBeVisible();
+  await expect(page.getByText(/System design\s+✕/)).toBeVisible();
   await shot('wizard-3-pitch');
   await next();
 
   // ---- Step 4 · Rate (suggested range + preset chips) --------------------
-  await expect(page.getByText(/Most coders charge/)).toBeVisible();
+  await expect(page.getByText(/Typical for Software Engineering/)).toBeVisible();
   await page.getByText('$175', { exact: true }).click();
   await shot('wizard-4-rate');
   await next();
@@ -147,15 +181,24 @@ test('expert application wizard walks all six steps and submits', async ({ page 
 
   // ---- Step 6 · Review & submit ------------------------------------------
   await expect(page.getByText('Before you submit')).toBeVisible();
-  await expect(page.getByText('12 yrs · LinkedIn ✓ · Resume ✓')).toBeVisible();
+  await expect(page.getByText('Staff Engineer · 12 yrs · LinkedIn ✓ · Resume ✓')).toBeVisible();
   await expect(page.getByText('$175/hr')).toBeVisible();
+  await expect(page.getByText('Code reviews, System design')).toBeVisible();
+  await expect(page.getByText('What expertise do you have to offer?')).toBeVisible();
   await page
-    .getByPlaceholder(/A steady side practice/)
-    .fill('A paying side practice sharing fifteen years of engineering experience.');
+    .getByPlaceholder(/15 years shipping consumer products/)
+    .fill('Fifteen years building backend systems. I help engineers with code reviews and career moves.');
   await shot('wizard-6-review');
   await page.getByText('Submit application', { exact: true }).click();
 
   // ---- Received ------------------------------------------------------------
   await expect(page.getByText('Application received')).toBeVisible();
+  expect(submitted).toMatchObject({
+    industry_id: 'coders',
+    industry_custom: null,
+    current_title: 'Staff Engineer',
+    current_company: 'Acme',
+    topics: ['Code reviews', 'System design'],
+  });
   await shot('wizard-7-received');
 });

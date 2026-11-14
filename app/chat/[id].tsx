@@ -86,7 +86,7 @@ export default function ChatScreen() {
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
               <Text style={styles.emptyText}>
-                Start the conversation — introductions, questions, scheduling details.
+                Start the conversation: introductions, questions, scheduling details.
               </Text>
             </View>
           }

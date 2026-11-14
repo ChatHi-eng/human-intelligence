@@ -41,6 +41,10 @@ type ExpertProfileRow = {
   status: ExpertStatus;
   linkedin_url: string | null;
   industry_id: string;
+  industry_custom?: string | null;
+  current_title?: string | null;
+  current_company?: string | null;
+  topics?: string[] | null;
   headline: string;
   hourly_rate_cents: number | null;
   years_experience: number;
@@ -160,6 +164,10 @@ const mapExpert = (row: ExpertWithRelations): Expert | null => {
     avatarUrl: row.profiles.avatar_url,
     bio: row.profiles.bio,
     industryId: row.industry_id,
+    industryCustom: row.industry_custom ?? null,
+    currentTitle: row.current_title ?? null,
+    currentCompany: row.current_company ?? null,
+    topics: row.topics ?? [],
     headline: row.headline,
     hourlyRate: row.hourly_rate_cents,
     yearsExperience: row.years_experience,
@@ -207,7 +215,8 @@ const mapReview = (row: ReviewRow): Review => ({
 
 // Shared select string for Expert + relations.
 const EXPERT_SELECT = `
-  profile_id, status, linkedin_url, industry_id, headline, hourly_rate_cents, years_experience,
+  profile_id, status, linkedin_url, industry_id, industry_custom, current_title, current_company,
+  topics, headline, hourly_rate_cents, years_experience,
   verified, cover_image_url, rating_average, rating_count, how_i_can_help,
   stripe_connect_account_id, stripe_connect_payouts_enabled, created_at, updated_at,
   profiles!inner(id, display_name, avatar_url, bio, created_at, updated_at),
@@ -333,7 +342,7 @@ export const fetchExperts = async (filters: ExpertsFilters = {}): Promise<Expert
   if (!filters.query) return experts;
   const needle = filters.query.toLowerCase();
   return experts.filter((e) =>
-    `${e.displayName} ${e.headline} ${e.bio ?? ''} ${e.howICanHelp ?? ''}`
+    `${e.displayName} ${e.headline} ${e.bio ?? ''} ${e.howICanHelp ?? ''} ${e.industryCustom ?? ''} ${e.currentTitle ?? ''} ${e.currentCompany ?? ''} ${e.topics.join(' ')}`
       .toLowerCase()
       .includes(needle),
   );
@@ -362,6 +371,12 @@ export type ExpertProfileInput = {
   // Optional so ordinary profile edits leave them untouched.
   resumeUrl?: string | null;
   applicationGoal?: string | null;
+  // Set by the application wizard; optional so profile edits that don't
+  // carry them leave the stored values alone.
+  industryCustom?: string | null;
+  currentTitle?: string | null;
+  currentCompany?: string | null;
+  topics?: string[];
 };
 
 export const upsertMyExpertProfile = async (
@@ -385,6 +400,10 @@ export const upsertMyExpertProfile = async (
   if (input.linkedinUrl !== undefined) row.linkedin_url = input.linkedinUrl;
   if (input.resumeUrl !== undefined) row.resume_url = input.resumeUrl;
   if (input.applicationGoal !== undefined) row.application_goal = input.applicationGoal;
+  if (input.industryCustom !== undefined) row.industry_custom = input.industryCustom;
+  if (input.currentTitle !== undefined) row.current_title = input.currentTitle;
+  if (input.currentCompany !== undefined) row.current_company = input.currentCompany;
+  if (input.topics !== undefined) row.topics = input.topics;
   const { error } = await sb().from('expert_profiles').upsert(row);
   if (error) throw error;
 };

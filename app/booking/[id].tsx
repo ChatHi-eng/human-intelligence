@@ -97,7 +97,7 @@ export default function BookingDetailScreen() {
         ? { url: booking.callRoomUrl, name: '' }
         : await createRoomForBooking(booking.id);
       // openBrowserAsync returns quickly once the browser has actually opened.
-      // We don't await the entire call session — the user can navigate back
+      // We don't await the entire call session, the user can navigate back
       // any time and hit 'Review the call' when finished.
       await openCallRoom(room.url);
       setStage('review');
@@ -262,7 +262,7 @@ export default function BookingDetailScreen() {
             <Text style={styles.sectionTitle}>Payment received</Text>
             <Text style={styles.cardBody}>
               {(expert?.displayName ?? 'The expert') +
-                " has been notified. You'll get a confirmation as soon as they accept — and a full refund if they can't make it."}
+                " has been notified. You'll get a confirmation as soon as they accept, and a full refund if they can't make it."}
             </Text>
           </Card>
         )}
@@ -328,17 +328,17 @@ export default function BookingDetailScreen() {
             <Text style={styles.sectionTitle}>Need to cancel?</Text>
             <Text style={styles.cardBody}>
               {isExpert
-                ? 'Cancelling releases the time slot and refunds the customer in full — their plans are in your hands, so please only cancel when you really have to.'
-                : 'Cancelling is free until 24 hours before your session — after that, the payment stays with the expert.'}
+                ? 'Cancelling releases the time slot and refunds the customer in full. Their plans are in your hands, so please only cancel when you really have to.'
+                : 'Cancelling is free until 24 hours before your session. After that, the payment stays with the expert.'}
             </Text>
             {forfeitsPayment && (
               <Text style={styles.policyWarning}>
-                Less than 24 hours to go — cancelling now isn&apos;t refunded under Palam&apos;s
+                Less than 24 hours to go. Cancelling now isn&apos;t refunded under Palam&apos;s
                 policy.
               </Text>
             )}
             <Button
-              title={forfeitsPayment ? 'Cancel anyway — no refund' : 'Cancel booking'}
+              title={forfeitsPayment ? 'Cancel anyway (no refund)' : 'Cancel booking'}
               variant="danger"
               loading={cancelling}
               onPress={() =>
@@ -348,9 +348,9 @@ export default function BookingDetailScreen() {
                     reason: isExpert
                       ? 'declined by expert'
                       : forfeitsPayment
-                        ? 'cancelled by customer inside 24h — payment forfeited per policy'
+                        ? 'cancelled by customer inside 24h, payment forfeited per policy'
                         : 'cancelled by customer',
-                    // Inside 24h the customer forfeits the payment — don't
+                    // Inside 24h the customer forfeits the payment, don't
                     // attempt a refund (the server would refuse it anyway).
                     refund: !forfeitsPayment,
                   },

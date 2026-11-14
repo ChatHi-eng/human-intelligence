@@ -1,14 +1,14 @@
-// Supabase Edge Function — lifecycle-emails
+// Supabase Edge Function, lifecycle-emails
 //
 // Palam's transactional-email layer. Receives Supabase Database Webhook POSTs
 // (triggers created by migration 0013) for two tables and turns each row
 // transition into exactly one email per recipient:
 //
 //   profiles INSERT
-//     → new user: "You're in — welcome to Palam"
+//     → new user: "You're in. Welcome to Palam"
 //   bookings INSERT (status 'requested')
 //     → expert:   "New booking request" (time, format, price, their cut)
-//     → customer: "Request sent — you'll hear back soon"
+//     → customer: "Request sent. You'll hear back soon"
 //   bookings UPDATE, status requested → confirmed
 //     → customer: "You're booked" (time + join instructions)
 //     → expert:   short confirmation (session lands in their Today list)
@@ -16,7 +16,7 @@
 //     → the OTHER party, copy branching on cancellation_reason
 //       ('declined by expert' → customer; anything else → expert)
 //   bookings UPDATE, payment_status → refunded
-//     → customer: "Your refund is through" — skipped when the same event is a
+//     → customer: "Your refund is through", skipped when the same event is a
 //       decline, because the decline email already says "refunded in full"
 //   bookings UPDATE, no_show_reported_by set (null → value)
 //     → owner alert (APPLICATION_ALERT_EMAIL) + a short acknowledgment to the
@@ -28,24 +28,24 @@
 //
 // Emails go out through the Resend API. The request is authenticated by a
 // shared secret header (x-webhook-secret) that the migration-0013 triggers
-// send — not by a JWT.
+// send, not by a JWT.
 //
 // Secrets required (Supabase → Edge Functions → Secrets):
-//   RESEND_API_KEY     — re_... (Resend → API Keys); same key as notify-application
-//   WEBHOOK_SECRET     — same value as notify-application / migration 0010/0013
+//   RESEND_API_KEY    , re_... (Resend → API Keys); same key as notify-application
+//   WEBHOOK_SECRET    , same value as notify-application / migration 0010/0013
 //   SUPABASE_SERVICE_ROLE_KEY (auto-provided by Supabase)
 // Optional:
-//   PALAM_SENDER       — from-address override, e.g. "Palam <hello@palamapp.com>".
+//   PALAM_SENDER      , from-address override, e.g. "Palam <hello@palamapp.com>".
 //                        Set it once palamapp.com is verified in Resend; until
 //                        then the test sender below can only deliver to the
 //                        Resend account owner's address (other sends fail, are
-//                        logged, and we still return 200 — nothing retries).
-//   PALAM_TIMEZONE     — IANA zone for times in emails (default UTC). The app
+//                        logged, and we still return 200, nothing retries).
+//   PALAM_TIMEZONE    , IANA zone for times in emails (default UTC). The app
 //                        always shows the reader's local time.
-//   APPLICATION_ALERT_EMAIL — where owner alerts (no-show reports) go; same
+//   APPLICATION_ALERT_EMAIL, where owner alerts (no-show reports) go; same
 //                        secret notify-application uses (default
 //                        vkinatukara@gmail.com).
-//   PLATFORM_FEE_PCT   — same secret create-checkout-session reads (default 0.15);
+//   PLATFORM_FEE_PCT  , same secret create-checkout-session reads (default 0.15);
 //                        used here only to show the expert their cut.
 //
 // Deploy via the Supabase dashboard: Edge Functions → New Function → paste this.
@@ -57,7 +57,7 @@ import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
 // ---------------------------------------------------------------------------
-// Sender — the single place the from-address lives. Until palamapp.com is
+// Sender, the single place the from-address lives. Until palamapp.com is
 // verified in Resend, this test sender only delivers to the account owner.
 // After verification, set the PALAM_SENDER secret (wins without a redeploy)
 // or change this constant and redeploy.
@@ -142,7 +142,7 @@ const sendEmail = async (
 
 // ---------------------------------------------------------------------------
 // Tiny shared template: wordmark header, body copy, muted footer. Minimal
-// HTML on purpose — plain and readable beats clever in a transactional inbox.
+// HTML on purpose, plain and readable beats clever in a transactional inbox.
 // ---------------------------------------------------------------------------
 const emailHtml = (body: string) =>
   [
@@ -253,7 +253,7 @@ serve(async (req) => {
   });
 
   // Emails live in auth.users; display names live in profiles. Lookups are
-  // best-effort — a missing name degrades to friendly copy, a missing email
+  // best-effort, a missing name degrades to friendly copy, a missing email
   // skips that recipient (logged), and the webhook still gets its 200.
   const emailOf = async (userId: string): Promise<string | null> => {
     const { data, error } = await admin.auth.admin.getUserById(userId);
@@ -280,7 +280,7 @@ serve(async (req) => {
     const profile = payload.record as ProfileRow;
     const email = await emailOf(profile.id);
     if (!email) {
-      console.error('welcome email skipped — no address for', profile.id);
+      console.error('welcome email skipped, no address for', profile.id);
       return json({ ok: true, skipped: true });
     }
     const name = profile.display_name ? escapeHtml(profile.display_name) : 'there';
@@ -288,18 +288,18 @@ serve(async (req) => {
     await sendEmail(resendKey, {
       from,
       to: email,
-      subject: "You're in — welcome to Palam",
+      subject: "You're in. Welcome to Palam",
       html: emailHtml(
         [
           p(`Hi ${name},`),
           p(
-            "You're in. Palam is one simple thing: when you're stuck on something real, you talk to a human who knows. Not an AI answer compiled from other people's work — a real person, personally vetted, whose knowledge was earned over years and never scraped.",
+            "You're in. Palam is one simple thing: when you're stuck on something real, you talk to a human who knows. Not an AI answer compiled from other people's work. A real person, personally vetted, whose knowledge was earned over years and never scraped.",
           ),
           p(
-            'Sessions are 30 minutes, one-on-one, over video or phone. You pick a person, pick a time, and have a straight conversation. No courses, no chatbots, no waiting on a forum.',
+            'Sessions are 30 minutes, one-on-one, over video. You pick a person, pick a time, and have a straight conversation. No courses, no chatbots, no waiting on a forum.',
           ),
           p(
-            "Have a look around the app and see who's here. And if you're the one people keep coming to for advice, there's a seat on the other side of the table too — you can apply to become a Palam expert right in the app.",
+            "Have a look around the app and see who's here. And if you're the one people keep coming to for advice, there's a seat on the other side of the table too. You can apply to become a Palam expert right in the app.",
           ),
           signoff('Glad you have found us,'),
         ].join('\n'),
@@ -349,7 +349,7 @@ serve(async (req) => {
           [
             p(`Hi ${expertName},`),
             p(
-              `${customerName} just asked to book a session with you. It's waiting in <strong>Studio &rarr; Requests</strong> — accept it if the time works, decline if it doesn't. Either way, the sooner you answer, the better it feels on their end.`,
+              `${customerName} just asked to book a session with you. It's waiting in <strong>Studio &rarr; Requests</strong>. Accept it if the time works, decline if it doesn't. Either way, the sooner you answer, the better it feels on their end.`,
             ),
             details([
               ['When', when],
@@ -358,20 +358,20 @@ serve(async (req) => {
               ['You earn', `${cut} (after Palam's ${pct}% fee)`],
             ]),
             note(TIMES_NOTE),
-            p(`If you decline, ${customerName} gets their money back in full — no hard feelings, no fees.`),
+            p(`If you decline, ${customerName} gets their money back in full. No hard feelings, no fees.`),
             signoff('Thanks for being here,'),
           ].join('\n'),
         ),
       });
     } else {
-      console.error('request email skipped — no address for expert', booking.expert_profile_id);
+      console.error('request email skipped, no address for expert', booking.expert_profile_id);
     }
 
     if (customerEmail) {
       await sendEmail(resendKey, {
         from,
         to: customerEmail,
-        subject: "Request sent — you'll hear back soon",
+        subject: "Request sent. You'll hear back soon",
         html: emailHtml(
           [
             p(`Hi ${customerName},`),
@@ -386,14 +386,14 @@ serve(async (req) => {
             ]),
             note(TIMES_NOTE),
             p(
-              `About your payment: you pay when you book, and that's what holds your spot. If ${expertName} declines or can't make it, your card is refunded in full. You can cancel for a full refund too, up to 24 hours before the start — inside 24 hours, cancellations aren't refunded.`,
+              `About your payment: you pay when you book, and that's what holds your spot. If ${expertName} declines or can't make it, your card is refunded in full. You can cancel for a full refund too, up to 24 hours before the start. Inside 24 hours, cancellations aren't refunded.`,
             ),
             signoff('Talk soon,'),
           ].join('\n'),
         ),
       });
     } else {
-      console.error('request email skipped — no address for customer', booking.customer_id);
+      console.error('request email skipped, no address for customer', booking.customer_id);
     }
 
     return json({ ok: true });
@@ -431,7 +431,7 @@ serve(async (req) => {
       await sendEmail(resendKey, {
         from,
         to: customerEmail,
-        subject: `You're booked — ${expertName} confirmed`,
+        subject: `You're booked: ${expertName} confirmed`,
         html: emailHtml(
           [
             p(`Hi ${customerName},`),
@@ -443,7 +443,7 @@ serve(async (req) => {
             ]),
             note(TIMES_NOTE),
             p(
-              'Joining is simple: a few minutes before the start, open Palam, open this booking, and tap <strong>Join</strong>. The call runs right inside the app — nothing to install, no links to dig for.',
+              'Joining is simple: a few minutes before the start, open Palam, open this booking, and tap <strong>Join</strong>. The call runs right inside the app. Nothing to install, no links to dig for.',
             ),
             p(
               'One tip: thirty minutes goes faster than you think. Come with your question sharp and the backstory trimmed, and you&rsquo;ll get twice as much out of it.',
@@ -453,7 +453,7 @@ serve(async (req) => {
         ),
       });
     } else {
-      console.error('confirmation email skipped — no address for customer', booking.customer_id);
+      console.error('confirmation email skipped, no address for customer', booking.customer_id);
     }
 
     if (expertEmail) {
@@ -465,7 +465,7 @@ serve(async (req) => {
           [
             p(`Hi ${expertName},`),
             p(
-              `You accepted — your session with ${customerName} is locked in. It'll be waiting in your <strong>Today</strong> list in Studio when the day comes.`,
+              `You accepted. Your session with ${customerName} is locked in. It'll be waiting in your <strong>Today</strong> list in Studio when the day comes.`,
             ),
             details([
               ['When', when],
@@ -478,7 +478,7 @@ serve(async (req) => {
         ),
       });
     } else {
-      console.error('confirmation email skipped — no address for expert', booking.expert_profile_id);
+      console.error('confirmation email skipped, no address for expert', booking.expert_profile_id);
     }
   }
 
@@ -491,7 +491,7 @@ serve(async (req) => {
       const refundLine =
         booking.payment_status === 'refunded'
           ? 'Your card was refunded in full. Depending on your bank, it can take 5&ndash;10 business days to show on your statement.'
-          : 'Your card will be refunded in full — if it was already charged, the refund is on its way.';
+          : 'Your card will be refunded in full. If it was already charged, the refund is on its way.';
       await sendEmail(resendKey, {
         from,
         to: customerEmail,
@@ -500,7 +500,7 @@ serve(async (req) => {
           [
             p(`Hi ${customerName},`),
             p(
-              `${expertName} declined your session request. It happens — schedules are messy and good people are busy.`,
+              `${expertName} declined your session request. It happens. Schedules are messy and good people are busy.`,
             ),
             details([
               ['When', when],
@@ -515,7 +515,7 @@ serve(async (req) => {
         ),
       });
     } else {
-      console.error('decline email skipped — no address for customer', booking.customer_id);
+      console.error('decline email skipped, no address for customer', booking.customer_id);
     }
   }
 
@@ -526,13 +526,13 @@ serve(async (req) => {
         booking.payment_status === 'refunded'
           ? 'Their payment was refunded in full.'
           : cancelledInside24h
-            ? "Per Palam's cancellation policy, cancellations within 24 hours of the session aren't refunded — your payout is unchanged."
+            ? "Per Palam's cancellation policy, cancellations within 24 hours of the session aren't refunded, so your payout is unchanged."
             : 'Their payment is being refunded.';
       const why =
         booking.cancellation_reason === 'cancelled by customer'
-          ? `${customerName} cancelled the session below. ${refundNote} Your time is yours again — nothing else to do on your side.`
+          ? `${customerName} cancelled the session below. ${refundNote} Your time is yours again. Nothing else to do on your side.`
           : booking.cancellation_reason === 'checkout session expired'
-            ? `The request below was withdrawn — ${customerName}'s payment didn't go through, so the session never locked in. Nothing to do on your side.`
+            ? `The request below was withdrawn. ${customerName}'s payment didn't go through, so the session never locked in. Nothing to do on your side.`
             : 'The session below was cancelled. Nothing to do on your side.';
       await sendEmail(resendKey, {
         from,
@@ -551,7 +551,7 @@ serve(async (req) => {
         ),
       });
     } else {
-      console.error('cancellation email skipped — no address for expert', booking.expert_profile_id);
+      console.error('cancellation email skipped, no address for expert', booking.expert_profile_id);
     }
   }
 
@@ -569,7 +569,7 @@ serve(async (req) => {
           [
             p(`Hi ${customerName},`),
             p(
-              `The refund for your session with ${expertName} went through — ${price} back on your card, in full.`,
+              `The refund for your session with ${expertName} went through: ${price} back on your card, in full.`,
             ),
             p('Depending on your bank, it can take 5&ndash;10 business days to show on your statement.'),
             signoff('Talk soon,'),
@@ -577,7 +577,7 @@ serve(async (req) => {
         ),
       });
     } else {
-      console.error('refund email skipped — no address for customer', booking.customer_id);
+      console.error('refund email skipped, no address for customer', booking.customer_id);
     }
   }
 
@@ -589,7 +589,7 @@ serve(async (req) => {
     await sendEmail(resendKey, {
       from,
       to: alertEmail,
-      subject: `No-show reported — booking ${booking.id}`,
+      subject: `No-show reported: booking ${booking.id}`,
       html: emailHtml(
         [
           p('A no-show was just reported.'),
@@ -600,7 +600,7 @@ serve(async (req) => {
             ['Price', price],
           ]),
           p(
-            'Policy: customer no-show — expert keeps the payout; expert no-show — full refund + strike. Resolve with the refund tool.',
+            'Policy: for a customer no-show, the expert keeps the payout. For an expert no-show, full refund plus a strike. Resolve with the refund tool.',
           ),
         ].join('\n'),
       ),
@@ -616,7 +616,7 @@ serve(async (req) => {
           [
             p(`Hi ${reporterIsCustomer ? customerName : expertName},`),
             p(
-              "We got your report — a human reviews every one within 48 hours, and you'll hear from us as soon as it's resolved. Nothing more to do on your side.",
+              "We got your report. A human reviews every one within 48 hours, and you'll hear from us as soon as it's resolved. Nothing more to do on your side.",
             ),
             details([
               ['When', when],
@@ -627,7 +627,7 @@ serve(async (req) => {
         ),
       });
     } else {
-      console.error('no-show ack skipped — no address for reporter', reporterId);
+      console.error('no-show ack skipped, no address for reporter', reporterId);
     }
   }
 

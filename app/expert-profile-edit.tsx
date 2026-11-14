@@ -106,7 +106,7 @@ export default function ExpertProfileEditScreen() {
       Toast.show({ type: 'error', text1: 'Add a headline' });
       return;
     }
-    // Empty is allowed ("deciding later" from the application) — the profile
+    // Empty is allowed ("deciding later" from the application), the profile
     // shows "Rate coming soon" and can't be booked until a rate is set.
     const rateEmpty = form.hourlyRateDollars.trim() === '';
     const rate = Number(form.hourlyRateDollars);
@@ -210,7 +210,7 @@ export default function ExpertProfileEditScreen() {
 
         <Text style={styles.label}>Hourly rate (USD)</Text>
         <Text style={styles.helper}>
-          Blank shows &quot;Rate coming soon&quot; — customers can&apos;t book you until you set one.
+          Blank shows &quot;Rate coming soon&quot;. Customers can&apos;t book you until you set one.
         </Text>
         <TextInput
           placeholder="150"
@@ -371,7 +371,7 @@ const PayoutsCard = ({
           <Text style={payoutsStyles.title}>Stripe Connect</Text>
           <Text style={payoutsStyles.body}>
             Customers pay you through Stripe. Until you finish onboarding, payments are held by the
-            platform. Test mode uses fake bank info — fill anything plausible.
+            platform. Test mode uses fake bank info. Fill in anything plausible.
           </Text>
         </View>
         <Badge label={status.label} tone={status.tone} />

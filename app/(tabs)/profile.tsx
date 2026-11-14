@@ -9,7 +9,7 @@ import { LoadingView } from '@/components/ui/LoadingView';
 import { RatingStars } from '@/components/ui/RatingStars';
 import { Screen } from '@/components/ui/Screen';
 import { SectionHeader } from '@/components/ui/SectionHeader';
-import { industryById } from '@/constants/industries';
+import { industryDisplay } from '@/constants/industries';
 import { PRIVACY_URL, SUPPORT_EMAIL, TERMS_URL } from '@/constants/links';
 import { colors, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
@@ -23,6 +23,10 @@ export default function YouScreen() {
   const { data: expertProfile, isLoading: expertLoading } = useMyExpertProfile();
 
   if (!user) return <LoadingView label="Loading…" />;
+
+  const expertField = expertProfile
+    ? industryDisplay(expertProfile.industryId, expertProfile.industryCustom)
+    : null;
 
   return (
     <Screen>
@@ -54,8 +58,8 @@ export default function YouScreen() {
               expertProfile.status === 'approved'
                 ? 'Customers see this on Discover.'
                 : expertProfile.status === 'pending'
-                  ? 'Application under review — not on Discover yet.'
-                  : 'Application closed — not visible on Discover.'
+                  ? 'Application under review. Not on Discover yet.'
+                  : 'Application closed. Not visible on Discover.'
             }
           />
           <Card>
@@ -69,13 +73,8 @@ export default function YouScreen() {
                   · {expertProfile.yearsExperience}y experience
                 </Text>
                 <View style={styles.expertBadgeRow}>
-                  {industryById(expertProfile.industryId) && (
-                    <Badge
-                      label={`${industryById(expertProfile.industryId)?.emoji}  ${
-                        industryById(expertProfile.industryId)?.label
-                      }`}
-                      tone="neutral"
-                    />
+                  {expertField && (
+                    <Badge label={`${expertField.emoji}  ${expertField.label}`} tone="neutral" />
                   )}
                   {expertProfile.verified && <Badge label="Verified" tone="success" />}
                   <Badge
@@ -109,7 +108,7 @@ export default function YouScreen() {
                 style={{ flex: 1 }}
               />
             </View>
-            {/* Share only works once approved — anon RLS hides other rows. */}
+            {/* Share only works once approved, anon RLS hides other rows. */}
             {expertProfile.status === 'approved' && (
               <Button
                 title="Share your profile"
@@ -124,7 +123,7 @@ export default function YouScreen() {
           <Card>
             <Text style={styles.becomeTitle}>People pay for what you know</Text>
             <Text style={styles.becomeBody}>
-              Years of experience in anything — law, code, pipes, paint — is worth real money to
+              Years of experience in anything (law, code, pipes, paint) is worth real money to
               someone stuck. It&apos;s the one thing AI can&apos;t fake: you were actually there.
               Apply as an expert and get paid for the real thing.
             </Text>

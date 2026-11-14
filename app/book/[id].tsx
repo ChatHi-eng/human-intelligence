@@ -54,7 +54,7 @@ export default function BookScreen() {
       <Screen>
         <EmptyState
           title="Booking opens soon"
-          description="Palam is welcoming its founding experts first. Booking a session will open here shortly — stay tuned."
+          description="Palam is welcoming experts first. Booking a session will open here shortly. Stay tuned."
           emoji="🌱"
         />
       </Screen>
@@ -80,14 +80,14 @@ export default function BookScreen() {
       </Screen>
     );
   }
-  // Experts who chose "I'll decide later" on the application have no rate yet —
+  // Experts who chose "I'll decide later" on the application have no rate yet,
   // there's nothing to charge, so booking stays closed (deep links included).
   if (expert.hourlyRate === null) {
     return (
       <Screen>
         <EmptyState
           title="Rate coming soon"
-          description={`${expert.displayName} hasn't set a session rate yet. Check back soon — booking opens the moment they do.`}
+          description={`${expert.displayName} hasn't set a session rate yet. Check back soon. Booking opens the moment they do.`}
           emoji="🕰️"
         />
       </Screen>

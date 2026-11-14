@@ -4,10 +4,10 @@ import {
   Manrope_700Bold,
   useFonts,
 } from '@expo-google-fonts/manrope';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -117,6 +117,20 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
+
+  // On web the page isn't reloaded between accounts, so cached queries from
+  // the previous sign-in would survive. Drop everything whenever the
+  // signed-in user changes (sign-out, or straight to a different account).
+  const queryClient = useQueryClient();
+  const lastUserId = useRef<string | null | undefined>(undefined);
+  const userId = user?.id ?? null;
+  useEffect(() => {
+    if (!isHydrated) return;
+    if (lastUserId.current !== undefined && lastUserId.current !== userId) {
+      queryClient.clear();
+    }
+    lastUserId.current = userId;
+  }, [isHydrated, userId, queryClient]);
 
   useEffect(() => {
     if (!isHydrated || configError) return;

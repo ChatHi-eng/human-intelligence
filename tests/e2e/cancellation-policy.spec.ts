@@ -137,9 +137,9 @@ test('customer inside 24h sees the no-refund warning before cancelling', async (
     timeout: 90_000,
   });
   await expect(
-    page.getByText(/Less than 24 hours to go — cancelling now isn't refunded/),
+    page.getByText(/Less than 24 hours to go\. Cancelling now isn't refunded/),
   ).toBeVisible();
-  await expect(page.getByText('Cancel anyway — no refund', { exact: true })).toBeVisible();
+  await expect(page.getByText('Cancel anyway (no refund)', { exact: true })).toBeVisible();
   // The policy line is stated in the card too.
   await expect(page.getByText(/free until 24 hours before/)).toBeVisible();
 

@@ -94,7 +94,7 @@ export const AvailabilityCalendarEditor = ({ dates }: AvailabilityCalendarEditor
         <Text style={styles.panelTitle}>{selectedDate}</Text>
 
         {todays.length === 0 ? (
-          <Text style={styles.empty}>No windows yet — add one below.</Text>
+          <Text style={styles.empty}>No windows yet. Add one below.</Text>
         ) : (
           todays.map((d) => (
             <View key={d.id} style={styles.entryRow}>

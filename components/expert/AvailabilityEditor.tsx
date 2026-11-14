@@ -77,7 +77,7 @@ export const AvailabilityEditor = ({ initial }: AvailabilityEditorProps) => {
   return (
     <View style={{ gap: spacing.md }}>
       {windows.length === 0 ? (
-        <Text style={styles.empty}>No availability set — customers won&apos;t see any times.</Text>
+        <Text style={styles.empty}>No availability set. Customers won&apos;t see any times.</Text>
       ) : (
         windows.map((w, idx) => (
           <View key={idx} style={styles.row}>
