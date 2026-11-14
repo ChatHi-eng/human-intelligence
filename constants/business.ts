@@ -7,5 +7,5 @@
 // fee, or expert earnings snapshots will be slightly off until the next sync.
 export const PLATFORM_FEE_PCT = 0.15;
 
-// The share of each session an expert keeps, as a whole percent, for copy.
-export const EXPERT_KEEP_PCT = Math.round((1 - PLATFORM_FEE_PCT) * 100);
+// Palam's fee as a whole percent, for copy.
+export const PLATFORM_FEE_DISPLAY_PCT = Math.round(PLATFORM_FEE_PCT * 100);

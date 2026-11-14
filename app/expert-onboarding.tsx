@@ -14,7 +14,7 @@ import {
   industryDisplay,
   OTHER_INDUSTRY_ID,
 } from '@/constants/industries';
-import { EXPERT_KEEP_PCT } from '@/constants/business';
+import { PLATFORM_FEE_DISPLAY_PCT } from '@/constants/business';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useMyExpertProfile, useUpsertMyExpertProfile } from '@/hooks/useExperts';
 import { useUpdateMyProfile, useUploadImage, useUploadResume } from '@/hooks/useProfile';
@@ -506,9 +506,9 @@ export default function ExpertOnboardingScreen() {
           <>
             <Text style={styles.title}>Set your hourly rate</Text>
             <Text style={styles.caption}>
-              Sessions are 30 minutes, so customers pay half your hourly rate per session. You
-              keep {EXPERT_KEEP_PCT}% of each session and Palam keeps the rest. You can change your
-              rate anytime.
+              Sessions are 30 minutes, so customers pay half your hourly rate per session.
+              Palam&apos;s fee is {PLATFORM_FEE_DISPLAY_PCT}% of each session. You can change your rate
+              anytime.
             </Text>
             {suggested && industry ? (
               <View style={styles.ratePanel}>

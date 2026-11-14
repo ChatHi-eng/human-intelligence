@@ -16,7 +16,7 @@
 - A human reads every application.
 - AI can repeat what other people wrote, but you were there.
 - Get paid for what you know.
-- You keep 85% of every session. (Stated twice only: the wizard's rate step and step 3 of the landing page's expert card.)
+- Palam's fee is 15% of each session. (Stated twice only: the wizard's rate step and step 3 of the landing page's expert card.)
 
 **Lines retired in the Nov 13 rewrite (restore any you miss):** "Real perspective can't be compiled." / "Your experience isn't training data. It's a living." / "Not another AI answer." / "Your knowledge, paid for, never scraped." / "No algorithms deciding who gets in."
 
@@ -49,7 +49,7 @@
 > You spent years getting good at your work. On Palam you charge for what you learned: you set your rate and talk directly with someone who wanted a person's answer instead of a chatbot's.
 > 1. **Apply in about four minutes.** Tell us your field, your background and what you can help with. A person reads every application and replies within 2 to 3 days.
 > 2. **Set your rate and your hours.** You decide what a session costs and when you are available, and you can change both later.
-> 3. **Get booked and get paid.** Sessions are 30-minute video calls inside the app. You keep 85% of every session, paid out through Stripe.
+> 3. **Get booked and get paid.** Sessions are 30-minute video calls inside the app. Palam's fee is 15% of each session, and you are paid out through Stripe.
 >
 > Palam is opening to experts first. If people keep coming to you for advice about law, therapy, code, design, a trade, or anything else you know well, apply in the Palam app. Experts who join now are first in line when customer booking opens.
 > Button: **Start your application**
@@ -130,7 +130,7 @@ Legal pages (Privacy, Terms, Delete your account) live in `docs/` and are not re
 - **Topics you can help with (up to 6)**: The specific things people can ask you about. These show as tags on your profile and help customers find you in search. ("e.g. Portfolio reviews")
 
 **Step 4: Set your hourly rate**
-> Sessions are 30 minutes, so customers pay half your hourly rate per session. You keep 85% of each session and Palam keeps the rest. You can change your rate anytime.
+> Sessions are 30 minutes, so customers pay half your hourly rate per session. Palam's fee is 15% of each session. You can change your rate anytime.
 - Guidance: "Typical for {field}: $X to $Y/hr. This is only a guide. Advice calls usually price above your day rate."
 - Opt-out: **I'll decide later.** Apply without a rate. Your profile shows "Rate coming soon" and you can set it in Studio whenever you're ready.
 
@@ -205,5 +205,5 @@ When customer booking opens, the middle two paragraphs switch to: "Sessions are 
 - **Welcome email** currently goes out the moment someone asks for a code, before they have signed in. It should wait until the first sign-in.
 - **Store listings** (Play and App Store descriptions) don't exist yet. Write them from Section 1 when the developer accounts clear.
 - **When booking opens:** set the `CUSTOMER_BOOKING_ENABLED` secret to `true` in Supabase so the welcome email switches to the customer version, flip the app flag, and move the landing page hero back to the customer pitch.
-- **Terms of Service** do not state Palam's 15% fee. The wizard and the landing page tell experts they keep 85%, so the Terms should say the same.
+- **Terms of Service** do not state Palam's 15% fee. The wizard and the landing page state it, so the Terms should too.
 - **Proof the landing page still lacks:** how many experts are approved, two or three named experts willing to be featured, and one real quote from an expert about why they joined. None of these exist yet, so nothing was invented.
