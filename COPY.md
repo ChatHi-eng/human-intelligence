@@ -107,7 +107,7 @@ Legal pages (Privacy, Terms, Delete your account) live in `docs/` and are not re
 **Step 1: What's your field?**
 > Search or pick the closest fit. Not listed? Choose "Something else" and type your own. The application takes about four minutes, and a real person reads every one.
 - Search box: "Search fields (try law, design, finance)"
-- 30 fields: Law, Therapy & Mental Health, Software Engineering, Product & UX Design, Engineering, Skilled Trades, Writing & Editing, Art & Illustration, Product Management, Startups & Founding, Marketing, Sales, Finance & Investing, Accounting & Tax, Real Estate, Medicine & Health, Nutrition & Fitness, Career Coaching, Leadership & Management, HR & Recruiting, Data & AI, Operations, Education & Tutoring, Architecture, Film & Photography, Music, Food & Hospitality, Parenting, Immigration, Nonprofit
+- 30 fields: Law, Therapy & Mental Health, Software Engineering, Product & UX Design, Engineering, Skilled Trades, Writing & Editing, Art & Illustration, Product Management, Startups & Founding, Marketing & Growth, Sales, Finance & Investing, Accounting & Tax, Real Estate, Medicine & Health, Nutrition & Fitness, Career & Job Search, Leadership & Management, HR & Recruiting, Data & AI, Operations & Logistics, Teaching & Education, Architecture & Interiors, Film & Photography, Music & Audio, Food & Hospitality, Parenting & Family, Immigration & Relocation, Nonprofit & Public Sector
 - Last tile: **Something else**, which opens **Your field** ("e.g. Veterinary medicine, Aviation, Wine")
 
 **Step 2: Your background**
@@ -181,7 +181,7 @@ Every email carries the header **palam** / *Talk to a human who knows.* and the 
 
 **Cancelled, to the expert** (subject: *Cancelled: session with {name}*): three versions. Customer cancelled: "{name} cancelled the session below. {refund status} Your time is yours again. Nothing else to do on your side." Payment failed: "The request below was withdrawn. {name}'s payment didn't go through, so the session never locked in." Otherwise: "The session below was cancelled. Nothing to do on your side."
 
-**Refund, to the customer** (subject: *Your refund is through*): The refund for your session with {expert} went through: {amount} back on your card, in full. Depending on your bank, it can take 5 to 10 business days to show on your statement.
+**Refund, to the customer** (subject: *Your refund is through*): The refund for your session with {expert} went through: {amount} back on your card, in full. Depending on your bank, it can take 5–10 business days to show on your statement.
 
 **No-show report, to you** (subject: *No-show reported: booking {id}*): details plus the policy reminder. **Acknowledgment, to the reporter** (subject: *We got your no-show report*): We got your report. A human reviews every one within 48 hours, and you'll hear from us as soon as it's resolved. Nothing more to do on your side.
 
