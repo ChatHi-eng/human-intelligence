@@ -290,7 +290,6 @@ serve(async (req) => {
     // Supply-first launch: until the CUSTOMER_BOOKING_ENABLED secret is 'true'
     // the welcome email recruits experts and does not promise booking.
     const bookingOpen = Deno.env.get('CUSTOMER_BOOKING_ENABLED') === 'true';
-    
 
     await sendEmail(resendKey, {
       from,
