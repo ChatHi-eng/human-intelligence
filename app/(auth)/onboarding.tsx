@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Button } from '@/components/ui/Button';
 import { Screen } from '@/components/ui/Screen';
 import { CUSTOMER_BOOKING_ENABLED, PHONE_SESSIONS_ENABLED } from '@/constants/featureFlags';
-import { EXPERT_KEEP_PCT } from '@/constants/business';
+
 import { colors, spacing, typography } from '@/constants/theme';
 
 export default function OnboardingScreen() {
@@ -28,9 +28,8 @@ export default function OnboardingScreen() {
             <Text style={styles.title}>Get paid for what you know.</Text>
             <Text style={styles.body}>
               The internet answers everything with AI now, compiled from other people&apos;s work.
-              Palam pays the people who did that work. You set your rate, take 30-minute video
-              sessions, and keep {EXPERT_KEEP_PCT}% of each one. Apply now and you&apos;ll be first in
-              line when booking opens.
+              Palam pays the people who did that work. You set your rate and take 30-minute video
+              sessions. Apply now and you&apos;ll be first in line when booking opens.
             </Text>
           </>
         )}

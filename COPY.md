@@ -16,7 +16,7 @@
 - A human reads every application.
 - AI can repeat what other people wrote, but you were there.
 - Get paid for what you know.
-- You keep 85% of every session.
+- You keep 85% of every session. (Stated twice only: the wizard's rate step and step 3 of the landing page's expert card.)
 
 **Lines retired in the Nov 13 rewrite (restore any you miss):** "Real perspective can't be compiled." / "Your experience isn't training data. It's a living." / "Not another AI answer." / "Your knowledge, paid for, never scraped." / "No algorithms deciding who gets in."
 
@@ -70,7 +70,7 @@ Legal pages (Privacy, Terms, Delete your account) live in `docs/` and are not re
 
 **Welcome screen (current, expert-recruiting mode)**
 > **Get paid for what you know.**
-> The internet answers everything with AI now, compiled from other people's work. Palam pays the people who did that work. You set your rate, take 30-minute video sessions, and keep 85% of each one. Apply now and you'll be first in line when booking opens.
+> The internet answers everything with AI now, compiled from other people's work. Palam pays the people who did that work. You set your rate and take 30-minute video sessions. Apply now and you'll be first in line when booking opens.
 > Button: **Start your application** (reads "Get started" once customer booking opens)
 
 **Welcome screen (customer mode, when booking opens)**
@@ -90,7 +90,7 @@ Legal pages (Privacy, Terms, Delete your account) live in `docs/` and are not re
 
 **Discover header:** **Talk to a human.** Vetted people who have lived what you need help with.
 
-**Discover apply card (people who haven't applied):** **Become an expert.** Set your own rate and keep 85% of every 30-minute video session. Applying takes about four minutes. Link: Start your application
+**Discover apply card (people who haven't applied):** **Become an expert.** Set your own rate and get paid for 30-minute video sessions. Applying takes about four minutes. Link: Start your application
 
 **Discover when empty:** **No experts yet.** Be the first human on Palam. Your application takes about four minutes.
 
@@ -163,7 +163,7 @@ Every email carries the header **palam** / *Talk to a human who knows.* and the 
 **Welcome** (subject: *Welcome to Palam*)
 > Welcome to Palam. Search engines now answer with AI text compiled from other people's work. Here you talk to a person who has lived the problem you're stuck on. We vet every expert ourselves.
 > We're signing up experts first, so you can't book a session yet. You can still look around the app and see who's here.
-> If you're the one people come to for advice, apply to become an expert in the app. It takes about four minutes and a person reads every application. You keep 85% of every session.
+> If you're the one people come to for advice, apply to become an expert in the app. It takes about four minutes and a person reads every application.
 > Glad you're here, Palam
 
 When customer booking opens, the middle two paragraphs switch to: "Sessions are 30 minutes, one-on-one, over video. You pick a person, pick a time, and have a straight conversation." / "Have a look around the app and see who's here. If you're the one people come to for advice, you can apply to become a Palam expert in the app."
@@ -205,5 +205,5 @@ When customer booking opens, the middle two paragraphs switch to: "Sessions are 
 - **Welcome email** currently goes out the moment someone asks for a code, before they have signed in. It should wait until the first sign-in.
 - **Store listings** (Play and App Store descriptions) don't exist yet. Write them from Section 1 when the developer accounts clear.
 - **When booking opens:** set the `CUSTOMER_BOOKING_ENABLED` secret to `true` in Supabase so the welcome email switches to the customer version, flip the app flag, and move the landing page hero back to the customer pitch.
-- **Terms of Service** do not state Palam's 15% fee. The app and website now tell experts they keep 85%, so the Terms should say the same.
+- **Terms of Service** do not state Palam's 15% fee. The wizard and the landing page tell experts they keep 85%, so the Terms should say the same.
 - **Proof the landing page still lacks:** how many experts are approved, two or three named experts willing to be featured, and one real quote from an expert about why they joined. None of these exist yet, so nothing was invented.

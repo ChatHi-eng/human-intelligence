@@ -290,7 +290,7 @@ serve(async (req) => {
     // Supply-first launch: until the CUSTOMER_BOOKING_ENABLED secret is 'true'
     // the welcome email recruits experts and does not promise booking.
     const bookingOpen = Deno.env.get('CUSTOMER_BOOKING_ENABLED') === 'true';
-    const keepPct = 100 - Math.round(feePct() * 100);
+    
 
     await sendEmail(resendKey, {
       from,
@@ -316,7 +316,7 @@ serve(async (req) => {
                   "We're signing up experts first, so you can't book a session yet. You can still look around the app and see who's here.",
                 ),
                 p(
-                  `If you're the one people come to for advice, apply to become an expert in the app. It takes about four minutes and a person reads every application. You keep ${keepPct}% of every session.`,
+                  `If you're the one people come to for advice, apply to become an expert in the app. It takes about four minutes and a person reads every application.`,
                 ),
               ]),
           signoff("Glad you're here,"),
