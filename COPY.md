@@ -1,6 +1,6 @@
 # Palam: Copy Inventory
 
-*Every user-facing line across the product, as of Nov 13, 2026, after the humanizer pass. No dashes used as punctuation, and "expert" (never "founding expert").*
+*Every user-facing line across the product, as of Nov 13, 2026, after the copywriting review and humanizer pass. No dashes used as punctuation, and "expert" (never "founding expert").*
 
 ---
 
@@ -16,6 +16,7 @@
 - A human reads every application.
 - AI can repeat what other people wrote, but you were there.
 - Get paid for what you know.
+- You keep 85% of every session.
 
 **Lines retired in the Nov 13 rewrite (restore any you miss):** "Real perspective can't be compiled." / "Your experience isn't training data. It's a living." / "Not another AI answer." / "Your knowledge, paid for, never scraped." / "No algorithms deciding who gets in."
 
@@ -25,11 +26,12 @@
 
 **Browser title:** Palam: Talk to a human who knows.
 
-**Meta description (Google result):** Every search answers with AI now. Palam is a direct line to real, personally vetted humans. Book a 30-minute video session with someone who has lived it.
+**Meta description (Google result):** Every search answers with AI now. Palam is a direct line to real, personally vetted humans on 30-minute paid video calls. Now accepting expert applications.
 
 **Hero**
 > **Talk to a human who knows.**
-> Search anything today and a machine answers. The feeds are full of AI text compiled from other people's work. On Palam you talk to a person who has lived what you're asking about: a vetted expert, on a 30-minute video call, working through your situation with you.
+> Search anything today and a machine answers. LinkedIn and Reddit are filling up with the same AI text, compiled from other people's work. Palam is a direct line to a person who has lived what you're asking about: a vetted expert on a 30-minute video call.
+> We're signing up experts first. If you're the one people come to for advice, apply now and you'll be listed when booking opens.
 > Button: **Apply as an expert**
 > Takes about four minutes. A human reads every application.
 
@@ -38,14 +40,18 @@
 - **Personally vetted.** A person on our team reads every application and decides who gets in before a profile appears.
 - **A direct line.** Thirty minutes on video with the person who has the experience you need.
 
-**How it works**
+**How a session works**
 1. **Pick your person.** Browse vetted experts by field: lawyers, therapists, coders, designers, tradesmen. Each profile shows who they are and how long they have done the work.
 2. **Book 30 minutes.** Pick a time and pay once. Free cancellation until 24 hours before your session.
 3. **Talk, human to human.** A video call with their full attention, and answers that come from their own experience.
 
 **Become an expert**
 > You spent years getting good at your work. On Palam you charge for what you learned: you set your rate and talk directly with someone who wanted a person's answer instead of a chatbot's.
-> Palam is opening to experts first. If people keep coming to you for advice about law, therapy, code, design, a trade, or anything else you know well, apply in the Palam app. A person reads and vets every application. Experts who join now are first in line when customer booking opens.
+> 1. **Apply in about four minutes.** Tell us your field, your background and what you can help with. A person reads every application and replies within 2 to 3 days.
+> 2. **Set your rate and your hours.** You decide what a session costs and when you are available, and you can change both later.
+> 3. **Get booked and get paid.** Sessions are 30-minute video calls inside the app. You keep 85% of every session, paid out through Stripe.
+>
+> Palam is opening to experts first. If people keep coming to you for advice about law, therapy, code, design, a trade, or anything else you know well, apply in the Palam app. Experts who join now are first in line when customer booking opens.
 > Button: **Start your application**
 
 **Contact:** Questions? Write to us at **info@palamapp.com**. A human reads it.
@@ -64,8 +70,8 @@ Legal pages (Privacy, Terms, Delete your account) live in `docs/` and are not re
 
 **Welcome screen (current, expert-recruiting mode)**
 > **Get paid for what you know.**
-> The internet answers everything with AI now, compiled from other people's work. Palam pays the people who did that work. You set your rate and take 30-minute video sessions. Apply now and you'll be first in line when booking opens.
-> Button: **Get started**
+> The internet answers everything with AI now, compiled from other people's work. Palam pays the people who did that work. You set your rate, take 30-minute video sessions, and keep 85% of each one. Apply now and you'll be first in line when booking opens.
+> Button: **Start your application** (reads "Get started" once customer booking opens)
 
 **Welcome screen (customer mode, when booking opens)**
 > **Talk to a human who knows.**
@@ -84,9 +90,9 @@ Legal pages (Privacy, Terms, Delete your account) live in `docs/` and are not re
 
 **Discover header:** **Talk to a human.** Vetted people who have lived what you need help with.
 
-**Discover apply card (people who haven't applied):** **Become an expert.** Set your own rate and get paid for 30-minute video sessions. Applying takes a few minutes. Link: Start your application
+**Discover apply card (people who haven't applied):** **Become an expert.** Set your own rate and keep 85% of every 30-minute video session. Applying takes about four minutes. Link: Start your application
 
-**Discover when empty:** **No experts yet.** Be the first human on Palam. Your application takes a few minutes.
+**Discover when empty:** **No experts yet.** Be the first human on Palam. Your application takes about four minutes.
 
 **You tab, become-expert card:** **People pay for what you know.** Years of experience in anything (law, code, pipes, paint) is worth real money to someone who is stuck. AI can repeat what other people wrote, but you were there. Apply as an expert and get paid for it. Button: **Become an expert**
 
@@ -124,7 +130,7 @@ Legal pages (Privacy, Terms, Delete your account) live in `docs/` and are not re
 - **Topics you can help with (up to 6)**: The specific things people can ask you about. These show as tags on your profile and help customers find you in search. ("e.g. Portfolio reviews")
 
 **Step 4: Set your hourly rate**
-> Sessions are 30 minutes, so customers pay half your hourly rate per session. You can change this anytime.
+> Sessions are 30 minutes, so customers pay half your hourly rate per session. You keep 85% of each session and Palam keeps the rest. You can change your rate anytime.
 - Guidance: "Typical for {field}: $X to $Y/hr. This is only a guide. Advice calls usually price above your day rate."
 - Opt-out: **I'll decide later.** Apply without a rate. Your profile shows "Rate coming soon" and you can set it in Studio whenever you're ready.
 
@@ -156,9 +162,11 @@ Every email carries the header **palam** / *Talk to a human who knows.* and the 
 
 **Welcome** (subject: *Welcome to Palam*)
 > Welcome to Palam. Search engines now answer with AI text compiled from other people's work. Here you talk to a person who has lived the problem you're stuck on. We vet every expert ourselves.
-> Sessions are 30 minutes, one-on-one, over video. You pick a person, pick a time, and have a straight conversation.
-> Have a look around the app and see who's here. If you're the one people come to for advice, you can apply to become a Palam expert in the app.
+> We're signing up experts first, so you can't book a session yet. You can still look around the app and see who's here.
+> If you're the one people come to for advice, apply to become an expert in the app. It takes about four minutes and a person reads every application. You keep 85% of every session.
 > Glad you're here, Palam
+
+When customer booking opens, the middle two paragraphs switch to: "Sessions are 30 minutes, one-on-one, over video. You pick a person, pick a time, and have a straight conversation." / "Have a look around the app and see who's here. If you're the one people come to for advice, you can apply to become a Palam expert in the app."
 
 **New application alert, to you** (subject: *New expert application: {headline}*): headline, field (marked "typed in" when it is their own), current role, rate, experience, LinkedIn, topics, "Expertise they offer (their pitch)", profile bio, applicant email, and where to review it.
 
@@ -196,3 +204,6 @@ Every email carries the header **palam** / *Talk to a human who knows.* and the 
 - **Payment sheet (book screen)** still shows the Stripe test card line. Remove it when Stripe goes live.
 - **Welcome email** currently goes out the moment someone asks for a code, before they have signed in. It should wait until the first sign-in.
 - **Store listings** (Play and App Store descriptions) don't exist yet. Write them from Section 1 when the developer accounts clear.
+- **When booking opens:** set the `CUSTOMER_BOOKING_ENABLED` secret to `true` in Supabase so the welcome email switches to the customer version, flip the app flag, and move the landing page hero back to the customer pitch.
+- **Terms of Service** do not state Palam's 15% fee. The app and website now tell experts they keep 85%, so the Terms should say the same.
+- **Proof the landing page still lacks:** how many experts are approved, two or three named experts willing to be featured, and one real quote from an expert about why they joined. None of these exist yet, so nothing was invented.

@@ -6,3 +6,6 @@
 // only drives the earnings *display* — keep the two in sync when changing the
 // fee, or expert earnings snapshots will be slightly off until the next sync.
 export const PLATFORM_FEE_PCT = 0.15;
+
+// The share of each session an expert keeps, as a whole percent, for copy.
+export const EXPERT_KEEP_PCT = Math.round((1 - PLATFORM_FEE_PCT) * 100);

@@ -47,6 +47,9 @@
 //                        vkinatukara@gmail.com).
 //   PLATFORM_FEE_PCT  , same secret create-checkout-session reads (default 0.15);
 //                        used here only to show the expert their cut.
+//   CUSTOMER_BOOKING_ENABLED, set to "true" when customer booking opens. Until
+//                        then the welcome email recruits experts and says
+//                        booking is not open yet.
 //
 // Deploy via the Supabase dashboard: Edge Functions → New Function → paste this.
 // IMPORTANT: when creating the function in the dashboard, toggle OFF "Verify JWT".
@@ -284,6 +287,10 @@ serve(async (req) => {
       return json({ ok: true, skipped: true });
     }
     const name = profile.display_name ? escapeHtml(profile.display_name) : 'there';
+    // Supply-first launch: until the CUSTOMER_BOOKING_ENABLED secret is 'true'
+    // the welcome email recruits experts and does not promise booking.
+    const bookingOpen = Deno.env.get('CUSTOMER_BOOKING_ENABLED') === 'true';
+    const keepPct = 100 - Math.round(feePct() * 100);
 
     await sendEmail(resendKey, {
       from,
@@ -295,12 +302,23 @@ serve(async (req) => {
           p(
             "Welcome to Palam. Search engines now answer with AI text compiled from other people's work. Here you talk to a person who has lived the problem you're stuck on. We vet every expert ourselves.",
           ),
-          p(
-            'Sessions are 30 minutes, one-on-one, over video. You pick a person, pick a time, and have a straight conversation.',
-          ),
-          p(
-            "Have a look around the app and see who's here. If you're the one people come to for advice, you can apply to become a Palam expert in the app.",
-          ),
+          ...(bookingOpen
+            ? [
+                p(
+                  'Sessions are 30 minutes, one-on-one, over video. You pick a person, pick a time, and have a straight conversation.',
+                ),
+                p(
+                  "Have a look around the app and see who's here. If you're the one people come to for advice, you can apply to become a Palam expert in the app.",
+                ),
+              ]
+            : [
+                p(
+                  "We're signing up experts first, so you can't book a session yet. You can still look around the app and see who's here.",
+                ),
+                p(
+                  `If you're the one people come to for advice, apply to become an expert in the app. It takes about four minutes and a person reads every application. You keep ${keepPct}% of every session.`,
+                ),
+              ]),
           signoff("Glad you're here,"),
         ].join('\n'),
       ),

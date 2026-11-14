@@ -89,6 +89,10 @@ a:focus {
   max-width: 36rem;
 }
 
+.lede + .lede {
+  margin-top: 14px;
+}
+
 .lede.punch {
   font-weight: 800;
   color: var(--green-deep);
@@ -207,6 +211,18 @@ a:focus {
 
 .card p {
   margin: 0 0 12px;
+}
+
+.card .steps {
+  margin: 4px 0 14px;
+}
+
+.card .steps li {
+  color: inherit;
+}
+
+.card .steps li::before {
+  background: #ffffff;
 }
 
 .card p:last-child {

@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Screen } from '@/components/ui/Screen';
 import { SectionHeader } from '@/components/ui/SectionHeader';
+import { EXPERT_KEEP_PCT } from '@/constants/business';
 import { CUSTOMER_BOOKING_ENABLED, PHONE_SESSIONS_ENABLED } from '@/constants/featureFlags';
 import { industries } from '@/constants/industries';
 import { colors, radius, spacing, typography } from '@/constants/theme';
@@ -74,8 +75,8 @@ export default function DiscoverScreen() {
     <Pressable onPress={() => router.push('/expert-onboarding')} style={styles.applyCard}>
       <Text style={styles.applyTitle}>Become an expert</Text>
       <Text style={styles.applyBody}>
-        Set your own rate and get paid for 30-minute video sessions. Applying takes a few
-        minutes.
+        Set your own rate and keep {EXPERT_KEEP_PCT}% of every 30-minute video session. Applying
+        takes about four minutes.
       </Text>
       <Text style={styles.applyCta}>Start your application →</Text>
     </Pressable>
@@ -102,7 +103,7 @@ export default function DiscoverScreen() {
           {applyCard}
           <EmptyState
             title="No experts yet"
-            description="Be the first human on Palam. Your application takes a few minutes."
+            description="Be the first human on Palam. Your application takes about four minutes."
             emoji="🌱"
           />
         </View>
