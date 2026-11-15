@@ -62,7 +62,11 @@ const stubSupabase = async (page: Page) => {
     auto_accept: boolean;
     intro_enabled: boolean;
     intro_weekly_limit: number;
+    headline: string;
+    hourly_rate_cents: number;
   } = {
+    headline: 'Read your contract with someone who writes them',
+    hourly_rate_cents: 20000,
     windows: [],
     timezone: null,
     paused: false,
@@ -87,8 +91,8 @@ const stubSupabase = async (page: Page) => {
     auto_accept: state.auto_accept,
     intro_enabled: state.intro_enabled,
     intro_weekly_limit: state.intro_weekly_limit,
-    headline: 'Read your contract with someone who writes them',
-    hourly_rate_cents: 20000,
+    headline: state.headline,
+    hourly_rate_cents: state.hourly_rate_cents,
     years_experience: 14,
     verified: true,
     cover_image_url: null,
@@ -132,8 +136,12 @@ const stubSupabase = async (page: Page) => {
   });
   await page.route('**/rest/v1/expert_profiles*', (route) => {
     const request = route.request();
-    if (request.method() === 'PATCH') {
-      Object.assign(state, request.postDataJSON() as Partial<typeof state>);
+    // PATCH = a settings switch; POST = the profile upsert from an editor.
+    if (request.method() === 'PATCH' || request.method() === 'POST') {
+      const body = request.postDataJSON() as Partial<typeof state>;
+      for (const key of Object.keys(state) as (keyof typeof state)[]) {
+        if (key in body && key !== 'windows') Object.assign(state, { [key]: body[key] });
+      }
       return route.fulfill({ status: 204, body: '' });
     }
     const wantsObject = (request.headers().accept ?? '').includes('vnd.pgrst.object');
@@ -228,6 +236,38 @@ test('expert sets weekly hours in a few taps and shows up as bookable', async ({
   await expect(page.getByText('No one matches yet. Tell us what you need')).toBeVisible();
   await expect(search).toBeFocused();
   await shot('discover-card');
+
+  // The expert edits their profile from the page customers see: one section
+  // at a time, each with its own Save.
+  await page.goto(`/expert/${EXPERT_ID}`);
+  await expect(page.getByText('This is what customers see')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('What to expect')).toBeVisible();
+  await page.getByLabel('Edit who you are').click();
+  const headline = page.getByPlaceholder('One sentence on what you offer');
+  await expect(headline).toHaveValue('Read your contract with someone who writes them');
+  await expect(page.getByText('No changes yet')).toBeVisible();
+  await headline.fill('');
+  await page.getByText('Save', { exact: true }).click();
+  // The problem shows under the field, and nothing is sent.
+  await expect(page.getByText('Write one line on what you offer.')).toBeVisible();
+  await headline.fill('Employment lawyer. I read severance offers before you sign.');
+  await page.getByText('Save', { exact: true }).click();
+  await expect(page.getByText('Saved. Live on your profile now.')).toBeVisible();
+  expect(state.headline).toBe('Employment lawyer. I read severance offers before you sign.');
+  // The untouched parts of the profile were sent back unchanged.
+  expect(state.hourly_rate_cents).toBe(20000);
+  await expect(page.getByText('Employment lawyer. I read severance offers')).toBeVisible();
+  await shot('profile-owner-view');
+
+  // Price lives in Session settings, with what the expert takes home.
+  await page.goto('/studio/session-settings');
+  const price = page.getByLabel('Price per session');
+  await expect(price).toHaveValue('200', { timeout: 30_000 });
+  await price.fill('90');
+  await expect(page.getByText(/You receive \$76\.50 per session/)).toBeVisible();
+  await page.getByText('Save price', { exact: true }).click();
+  await expect.poll(() => state.hourly_rate_cents).toBe(9000);
+  await shot('session-settings');
 
   // Pausing hides the expert from Discover and says so on their own screens.
   await page.goto('/studio/availability');

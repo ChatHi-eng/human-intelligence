@@ -1,101 +1,127 @@
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { Redirect, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { BackgroundEditor } from '@/components/expert/BackgroundEditor';
-import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { Screen } from '@/components/ui/Screen';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { industries, OTHER_INDUSTRY_ID } from '@/constants/industries';
 import { colors, radius, spacing, typography } from '@/constants/theme';
-import {
-  useMyExpertProfile,
-  useStartConnectOnboarding,
-  useSyncConnectStatus,
-  useUpsertMyExpertProfile,
-} from '@/hooks/useExperts';
+import { useAuth } from '@/hooks/useAuth';
+import { useMyExpertProfile, useUpsertMyExpertProfile } from '@/hooks/useExperts';
 import { useUploadImage } from '@/hooks/useProfile';
+import { currentProfileInput } from '@/lib/expertProfile';
 
-type Form = {
-  industryId: string;
-  headline: string;
-  sessionPriceDollars: string;
-  yearsExperience: string;
-  coverImageUrl: string;
-  howICanHelp: string;
-  industryCustom: string;
-  currentTitle: string;
-  currentCompany: string;
-  topics: string[];
+// One section of the expert profile at a time. The expert reaches this from
+// the Edit link beside a section on their own profile page, changes that one
+// thing, and saves it. Nothing else on the profile is touched.
+type Section = 'identity' | 'topics' | 'help' | 'cover' | 'background';
+
+const SECTIONS: Record<Section, { title: string; caption: string }> = {
+  identity: {
+    title: 'Who you are',
+    caption: 'Your field, role and the one line under your name.',
+  },
+  topics: {
+    title: 'Ask me about',
+    caption: 'The specific things people can ask you about. Up to six.',
+  },
+  help: {
+    title: 'How I can help',
+    caption: 'The part customers read most closely before they book.',
+  },
+  cover: { title: 'Cover image', caption: 'The wide image at the top of your profile.' },
+  background: {
+    title: 'Background',
+    caption: 'Work, education and certifications that back up what you offer.',
+  },
 };
 
 const MAX_TOPICS = 6;
 
-const emptyForm: Form = {
-  industryId: '',
-  headline: '',
-  sessionPriceDollars: '',
-  yearsExperience: '',
-  coverImageUrl: '',
-  howICanHelp: '',
-  industryCustom: '',
-  currentTitle: '',
-  currentCompany: '',
-  topics: [],
-};
+const isSection = (value: unknown): value is Section =>
+  typeof value === 'string' && value in SECTIONS;
 
 export default function ExpertProfileEditScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const params = useLocalSearchParams<{ section?: string }>();
   const { data: existing, isLoading } = useMyExpertProfile();
   const { mutate: upsert, isPending } = useUpsertMyExpertProfile();
   const { mutateAsync: upload, isPending: uploadingCover } = useUploadImage();
-  const [form, setForm] = useState<Form>(emptyForm);
-  const [topicDraft, setTopicDraft] = useState('');
 
-  const addTopic = () => {
-    const next = topicDraft.trim().replace(/,+$/, '');
-    if (!next) return;
-    if (form.topics.length >= MAX_TOPICS) {
-      Toast.show({ type: 'error', text1: `Up to ${MAX_TOPICS} topics` });
-      return;
-    }
-    if (!form.topics.some((t) => t.toLowerCase() === next.toLowerCase())) {
-      setForm({ ...form, topics: [...form.topics, next] });
-    }
-    setTopicDraft('');
-  };
+  const [industryId, setIndustryId] = useState('');
+  const [industryCustom, setIndustryCustom] = useState('');
+  const [currentTitle, setCurrentTitle] = useState('');
+  const [currentCompany, setCurrentCompany] = useState('');
+  const [years, setYears] = useState('');
+  const [headline, setHeadline] = useState('');
+  const [howICanHelp, setHowICanHelp] = useState('');
+  const [topics, setTopics] = useState<string[]>([]);
+  const [topicDraft, setTopicDraft] = useState('');
+  const [coverImageUrl, setCoverImageUrl] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   useEffect(() => {
-    if (existing) {
-      setForm({
-        industryId: existing.industryId,
-        headline: existing.headline,
-        sessionPriceDollars:
-          existing.sessionPrice !== null ? (existing.sessionPrice / 100).toString() : '',
-        yearsExperience: existing.yearsExperience.toString(),
-        coverImageUrl: existing.coverImageUrl ?? '',
-        howICanHelp: existing.howICanHelp ?? '',
-        industryCustom: existing.industryCustom ?? '',
-        currentTitle: existing.currentTitle ?? '',
-        currentCompany: existing.currentCompany ?? '',
-        topics: existing.topics,
-      });
-    }
+    if (!existing) return;
+    setIndustryId(existing.industryId);
+    setIndustryCustom(existing.industryCustom ?? '');
+    setCurrentTitle(existing.currentTitle ?? '');
+    setCurrentCompany(existing.currentCompany ?? '');
+    setYears(String(existing.yearsExperience));
+    setHeadline(existing.headline);
+    setHowICanHelp(existing.howICanHelp ?? '');
+    setTopics(existing.topics);
+    setCoverImageUrl(existing.coverImageUrl ?? '');
   }, [existing]);
 
   if (isLoading) return <LoadingView label="Loading your profile…" />;
   // First-time setup goes through the step-by-step wizard instead.
   if (!existing) return <Redirect href="/expert-onboarding" />;
+  // With no section named, the profile page itself is the place to edit from.
+  if (!isSection(params.section)) {
+    return <Redirect href={{ pathname: '/expert/[id]', params: { id: user?.id ?? existing.id } }} />;
+  }
+  const section = params.section;
+  const other = industryId === OTHER_INDUSTRY_ID;
+
+  const dirty =
+    section === 'identity'
+      ? industryId !== existing.industryId ||
+        industryCustom.trim() !== (existing.industryCustom ?? '') ||
+        currentTitle.trim() !== (existing.currentTitle ?? '') ||
+        currentCompany.trim() !== (existing.currentCompany ?? '') ||
+        years.trim() !== String(existing.yearsExperience) ||
+        headline.trim() !== existing.headline
+      : section === 'topics'
+        ? topics.join('|') !== existing.topics.join('|')
+        : section === 'help'
+          ? howICanHelp.trim() !== (existing.howICanHelp ?? '')
+          : section === 'cover'
+            ? coverImageUrl !== (existing.coverImageUrl ?? '')
+            : false;
+
+  const addTopic = () => {
+    const next = topicDraft.trim().replace(/,+$/, '');
+    if (!next) return;
+    if (topics.length >= MAX_TOPICS) {
+      setErrors({ topics: `You can list up to ${MAX_TOPICS}. Remove one to add another.` });
+      return;
+    }
+    if (!topics.some((t) => t.toLowerCase() === next.toLowerCase())) setTopics([...topics, next]);
+    setTopicDraft('');
+    setErrors({});
+  };
 
   const pickCover = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (perm.status !== 'granted') {
-      Toast.show({ type: 'error', text1: 'Photo permission needed' });
+      setErrors({ cover: 'Palam needs permission to open your photos.' });
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -113,60 +139,49 @@ export default function ExpertProfileEditScreen() {
         uri: asset.uri,
         mimeType: asset.mimeType ?? 'image/jpeg',
       });
-      setForm({ ...form, coverImageUrl: url });
+      setCoverImageUrl(url);
+      setErrors({});
     } catch (err) {
-      Toast.show({
-        type: 'error',
-        text1: 'Cover upload failed',
-        text2: err instanceof Error ? err.message : 'Unknown error',
-      });
+      setErrors({ cover: err instanceof Error ? err.message : 'The upload failed. Try again.' });
     }
   };
 
   const onSave = () => {
-    if (!form.industryId) {
-      Toast.show({ type: 'error', text1: 'Pick an industry' });
-      return;
+    const found: Record<string, string> = {};
+    const yearsNumber = Number(years);
+    if (section === 'identity') {
+      if (!industryId) found.field = 'Pick your field.';
+      if (other && !industryCustom.trim()) found.fieldCustom = 'Type the name of your field.';
+      if (!headline.trim()) found.headline = 'Write one line on what you offer.';
+      if (!Number.isFinite(yearsNumber) || yearsNumber < 0 || years.trim() === '') {
+        found.years = 'Enter a number, 0 or more.';
+      }
     }
-    if (form.industryId === OTHER_INDUSTRY_ID && !form.industryCustom.trim()) {
-      Toast.show({ type: 'error', text1: 'Type your field' });
-      return;
-    }
-    if (!form.headline.trim()) {
-      Toast.show({ type: 'error', text1: 'Add a headline' });
-      return;
-    }
-    // Empty is allowed ("deciding later" from the application), the profile
-    // shows "Price coming soon" and can't be booked until a price is set.
-    const rateEmpty = form.sessionPriceDollars.trim() === '';
-    const rate = Number(form.sessionPriceDollars);
-    if (!rateEmpty && (!Number.isFinite(rate) || rate <= 0)) {
-      Toast.show({ type: 'error', text1: 'Session price must be a positive number' });
-      return;
-    }
-    const years = Number(form.yearsExperience);
-    if (!Number.isFinite(years) || years < 0) {
-      Toast.show({ type: 'error', text1: 'Years of experience must be 0 or more' });
-      return;
-    }
+    setErrors(found);
+    if (Object.keys(found).length > 0) return;
+
+    const changes =
+      section === 'identity'
+        ? {
+            industryId,
+            industryCustom: other ? industryCustom.trim() : null,
+            currentTitle: currentTitle.trim() || null,
+            currentCompany: currentCompany.trim() || null,
+            yearsExperience: Math.floor(yearsNumber),
+            headline: headline.trim(),
+          }
+        : section === 'topics'
+          ? { topics }
+          : section === 'help'
+            ? { howICanHelp: howICanHelp.trim() || null }
+            : { coverImageUrl: coverImageUrl || null };
+
     upsert(
-      {
-        industryId: form.industryId,
-        headline: form.headline.trim(),
-        sessionPriceCents: rateEmpty ? null : Math.round(rate * 100),
-        yearsExperience: Math.floor(years),
-        coverImageUrl: form.coverImageUrl || null,
-        howICanHelp: form.howICanHelp.trim() || null,
-        industryCustom:
-          form.industryId === OTHER_INDUSTRY_ID ? form.industryCustom.trim() : null,
-        currentTitle: form.currentTitle.trim() || null,
-        currentCompany: form.currentCompany.trim() || null,
-        topics: form.topics,
-      },
+      { ...currentProfileInput(existing), ...changes },
       {
         onSuccess: () => {
-          Toast.show({ type: 'success', text1: existing ? 'Profile updated' : 'You are live' });
-          if (!existing) router.replace('/(tabs)/studio');
+          Toast.show({ type: 'success', text1: 'Saved. Live on your profile now.' });
+          router.back();
         },
         onError: (err) =>
           Toast.show({
@@ -178,214 +193,255 @@ export default function ExpertProfileEditScreen() {
     );
   };
 
+  const onCancel = () => {
+    if (dirty) setConfirmDiscard(true);
+    else router.back();
+  };
+
   return (
     <Screen>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <SectionHeader
-          title={existing ? 'Edit expert profile' : 'Become an expert'}
-          caption="Fill these in to appear on Discover. You can edit anytime."
-        />
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+      >
+        <SectionHeader title={SECTIONS[section].title} caption={SECTIONS[section].caption} />
 
-        <Text style={styles.label}>Cover image</Text>
-        <Pressable onPress={pickCover} style={styles.coverPicker}>
-          {form.coverImageUrl ? (
-            <Image source={{ uri: form.coverImageUrl }} style={styles.coverImage} contentFit="cover" />
-          ) : (
-            <Text style={styles.coverPlaceholder}>
-              {uploadingCover ? 'Uploading…' : 'Tap to choose a cover photo'}
-            </Text>
-          )}
-        </Pressable>
-
-        <Text style={styles.label}>Industry</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chips}
-        >
-          {industries.map((i) => {
-            const active = form.industryId === i.id;
-            return (
-              <Pressable
-                key={i.id}
-                onPress={() => setForm({ ...form, industryId: i.id })}
-                style={[chipStyles.chip, active && chipStyles.active]}
-              >
-                <Text style={[chipStyles.text, active && chipStyles.activeText]}>
-                  {i.emoji} {i.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-          <Pressable
-            onPress={() => setForm({ ...form, industryId: OTHER_INDUSTRY_ID })}
-            style={[chipStyles.chip, form.industryId === OTHER_INDUSTRY_ID && chipStyles.active]}
-          >
-            <Text
-              style={[
-                chipStyles.text,
-                form.industryId === OTHER_INDUSTRY_ID && chipStyles.activeText,
-              ]}
-            >
-              ✨ Something else
-            </Text>
-          </Pressable>
-        </ScrollView>
-        {form.industryId === OTHER_INDUSTRY_ID ? (
-          <TextInput
-            placeholder="Your field, e.g. Veterinary medicine"
-            placeholderTextColor={colors.textMuted}
-            value={form.industryCustom}
-            onChangeText={(industryCustom) => setForm({ ...form, industryCustom })}
-            style={styles.input}
-            maxLength={60}
-          />
-        ) : null}
-
-        <Text style={styles.label}>Current role</Text>
-        <TextInput
-          placeholder="e.g. Senior Product Designer"
-          placeholderTextColor={colors.textMuted}
-          value={form.currentTitle}
-          onChangeText={(currentTitle) => setForm({ ...form, currentTitle })}
-          style={styles.input}
-          maxLength={80}
-        />
-
-        <Text style={styles.label}>Company or practice (optional)</Text>
-        <TextInput
-          placeholder="e.g. Acme, or Self-employed"
-          placeholderTextColor={colors.textMuted}
-          value={form.currentCompany}
-          onChangeText={(currentCompany) => setForm({ ...form, currentCompany })}
-          style={styles.input}
-          maxLength={80}
-        />
-
-        <Text style={styles.label}>Headline</Text>
-        <TextInput
-          placeholder="One sentence on what you offer"
-          placeholderTextColor={colors.textMuted}
-          value={form.headline}
-          onChangeText={(headline) => setForm({ ...form, headline })}
-          style={styles.input}
-          maxLength={120}
-        />
-
-        <Text style={styles.label}>How can I help?</Text>
-        <Text style={styles.helper}>
-          Spell out who you&apos;re for and the kinds of problems you can solve.
-        </Text>
-        <TextInput
-          placeholder={'e.g. I help early founders pressure-test their go-to-market and pricing.\n• 1:1 strategy calls\n• Pitch deck reviews\n• Hiring plans'}
-          placeholderTextColor={colors.textMuted}
-          value={form.howICanHelp}
-          onChangeText={(howICanHelp) => setForm({ ...form, howICanHelp })}
-          multiline
-          style={[styles.input, styles.longInput]}
-          maxLength={1500}
-        />
-
-        <Text style={styles.label}>Topics you can help with (up to {MAX_TOPICS})</Text>
-        <Text style={styles.helper}>
-          Shown as tags on your profile, and used when customers search.
-        </Text>
-        <View style={styles.topicRow}>
-          <TextInput
-            placeholder="e.g. Portfolio reviews"
-            placeholderTextColor={colors.textMuted}
-            value={topicDraft}
-            onChangeText={setTopicDraft}
-            onSubmitEditing={addTopic}
-            returnKeyType="done"
-            blurOnSubmit={false}
-            style={[styles.input, { flex: 1 }]}
-            maxLength={40}
-          />
-          <Button title="Add" variant="secondary" onPress={addTopic} />
-        </View>
-        {form.topics.length > 0 ? (
-          <View style={styles.topicChips}>
-            {form.topics.map((t) => (
-              <Pressable
-                key={t}
-                onPress={() => setForm({ ...form, topics: form.topics.filter((x) => x !== t) })}
-                style={styles.topicChip}
-              >
-                <Text style={styles.topicChipText}>{t}  ✕</Text>
-              </Pressable>
-            ))}
-          </View>
-        ) : null}
-
-        <Text style={styles.label}>Price per 30-minute session (USD)</Text>
-        <Text style={styles.helper}>
-          This is exactly what a customer pays for one session. Blank shows &quot;Price coming
-          soon&quot;, and customers can&apos;t book you until you set one.
-        </Text>
-        <TextInput
-          placeholder="75"
-          placeholderTextColor={colors.textMuted}
-          value={form.sessionPriceDollars}
-          onChangeText={(sessionPriceDollars) => setForm({ ...form, sessionPriceDollars })}
-          keyboardType="decimal-pad"
-          style={styles.input}
-        />
-
-        <Text style={styles.label}>Years of experience</Text>
-        <TextInput
-          placeholder="10"
-          placeholderTextColor={colors.textMuted}
-          value={form.yearsExperience}
-          onChangeText={(yearsExperience) => setForm({ ...form, yearsExperience })}
-          keyboardType="number-pad"
-          style={styles.input}
-        />
-
-        <Button
-          title={existing ? 'Save changes' : 'Save and continue'}
-          onPress={onSave}
-          loading={isPending}
-          fullWidth
-          style={{ marginTop: spacing.lg }}
-        />
-
-        {existing && (
+        {section === 'identity' ? (
           <>
-            <SectionHeader title="Payouts" caption="Get paid via Stripe Connect (test mode)." />
-            <PayoutsCard expert={existing} />
+            <Text style={styles.label}>Field</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.chips}
+            >
+              {industries.map((i) => (
+                <Chip
+                  key={i.id}
+                  label={`${i.emoji} ${i.label}`}
+                  active={industryId === i.id}
+                  onPress={() => setIndustryId(i.id)}
+                />
+              ))}
+              <Chip
+                label="✨ Something else"
+                active={other}
+                onPress={() => setIndustryId(OTHER_INDUSTRY_ID)}
+              />
+            </ScrollView>
+            <FieldError message={errors.field} />
+            {other ? (
+              <>
+                <TextInput
+                  placeholder="Your field, e.g. Veterinary medicine"
+                  placeholderTextColor={colors.textMuted}
+                  value={industryCustom}
+                  onChangeText={setIndustryCustom}
+                  style={[styles.input, errors.fieldCustom ? styles.inputError : null]}
+                  maxLength={60}
+                />
+                <FieldError message={errors.fieldCustom} />
+              </>
+            ) : null}
 
-            <SectionHeader title="Background" caption="Work, education, certifications." />
-            <BackgroundEditor entries={existing.credentials} />
-
-            <SectionHeader title="Availability" caption="Weekly hours, extra dates and days off." />
-            <Button
-              title="Manage availability"
-              variant="secondary"
-              onPress={() => router.push('/studio/availability')}
+            <Text style={styles.label}>Current role</Text>
+            <TextInput
+              placeholder="e.g. Senior Product Designer"
+              placeholderTextColor={colors.textMuted}
+              value={currentTitle}
+              onChangeText={setCurrentTitle}
+              style={styles.input}
+              maxLength={80}
             />
+
+            <Text style={styles.label}>Company or practice (optional)</Text>
+            <TextInput
+              placeholder="e.g. Acme, or Self-employed"
+              placeholderTextColor={colors.textMuted}
+              value={currentCompany}
+              onChangeText={setCurrentCompany}
+              style={styles.input}
+              maxLength={80}
+            />
+
+            <Text style={styles.label}>Years of experience</Text>
+            <TextInput
+              placeholder="10"
+              placeholderTextColor={colors.textMuted}
+              value={years}
+              onChangeText={setYears}
+              keyboardType="number-pad"
+              style={[styles.input, errors.years ? styles.inputError : null]}
+            />
+            <FieldError message={errors.years} />
+
+            <Text style={styles.label}>Headline</Text>
+            <Text style={styles.helper}>
+              One line: who you help and with what. For example, &quot;Employment lawyer. I read
+              severance offers before you sign.&quot;
+            </Text>
+            <TextInput
+              placeholder="One sentence on what you offer"
+              placeholderTextColor={colors.textMuted}
+              value={headline}
+              onChangeText={setHeadline}
+              style={[styles.input, errors.headline ? styles.inputError : null]}
+              maxLength={120}
+            />
+            <Text style={styles.count}>{headline.length}/120</Text>
+            <FieldError message={errors.headline} />
+          </>
+        ) : null}
+
+        {section === 'topics' ? (
+          <>
+            <Text style={styles.helper}>
+              Write them the way a customer would ask: &quot;Reading a severance offer&quot; says
+              more than &quot;Employment law&quot;.
+            </Text>
+            <View style={styles.topicRow}>
+              <TextInput
+                placeholder="e.g. Portfolio reviews"
+                placeholderTextColor={colors.textMuted}
+                value={topicDraft}
+                onChangeText={setTopicDraft}
+                onSubmitEditing={addTopic}
+                returnKeyType="done"
+                blurOnSubmit={false}
+                style={[styles.input, { flex: 1 }]}
+                maxLength={40}
+              />
+              <Button title="Add" variant="secondary" onPress={addTopic} />
+            </View>
+            <FieldError message={errors.topics} />
+            <View style={styles.topicChips}>
+              {topics.map((t) => (
+                <Pressable
+                  key={t}
+                  onPress={() => setTopics(topics.filter((x) => x !== t))}
+                  style={styles.topicChip}
+                  accessibilityLabel={`Remove ${t}`}
+                >
+                  <Text style={styles.topicChipText}>{t}  ✕</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={styles.count}>
+              {topics.length}/{MAX_TOPICS}
+            </Text>
+          </>
+        ) : null}
+
+        {section === 'help' ? (
+          <>
+            <Text style={styles.helper}>
+              A formula that works: who you are for, the problems you solve, and what someone
+              walks away with after 30 minutes.
+            </Text>
+            <TextInput
+              placeholder={
+                'e.g. I help early founders pressure-test their pricing.\n• Who should pay, and how much\n• Reading the first ten sales calls\n• You leave with a price to try this week'
+              }
+              placeholderTextColor={colors.textMuted}
+              value={howICanHelp}
+              onChangeText={setHowICanHelp}
+              multiline
+              style={[styles.input, styles.longInput]}
+              maxLength={1500}
+            />
+            <Text style={styles.count}>{howICanHelp.length}/1500</Text>
+          </>
+        ) : null}
+
+        {section === 'cover' ? (
+          <>
+            <Pressable onPress={() => void pickCover()} style={styles.coverPicker}>
+              {coverImageUrl ? (
+                <Image source={{ uri: coverImageUrl }} style={styles.coverImage} contentFit="cover" />
+              ) : (
+                <Text style={styles.coverPlaceholder}>
+                  {uploadingCover ? 'Uploading…' : 'Tap to choose an image'}
+                </Text>
+              )}
+            </Pressable>
+            <FieldError message={errors.cover} />
+            {coverImageUrl ? (
+              <Button
+                title="Remove the cover image"
+                variant="ghost"
+                onPress={() => setCoverImageUrl('')}
+              />
+            ) : null}
+          </>
+        ) : null}
+
+        {section === 'background' ? (
+          <>
+            <Text style={styles.helper}>Each entry is saved as you add or remove it.</Text>
+            <BackgroundEditor entries={existing.credentials} />
+            <Button title="Done" onPress={() => router.back()} fullWidth />
+          </>
+        ) : (
+          <>
+            {confirmDiscard ? (
+              <View style={styles.discard}>
+                <Text style={styles.discardText}>You have changes that are not saved.</Text>
+                <View style={styles.discardActions}>
+                  <Button
+                    title="Discard changes"
+                    variant="danger"
+                    onPress={() => router.back()}
+                    style={{ flex: 1 }}
+                  />
+                  <Button
+                    title="Keep editing"
+                    variant="secondary"
+                    onPress={() => setConfirmDiscard(false)}
+                    style={{ flex: 1 }}
+                  />
+                </View>
+              </View>
+            ) : null}
+            <Button
+              title={dirty ? 'Save' : 'No changes yet'}
+              onPress={onSave}
+              loading={isPending}
+              disabled={!dirty}
+              fullWidth
+              style={{ marginTop: spacing.lg }}
+            />
+            <Button title="Cancel" variant="ghost" onPress={onCancel} fullWidth />
           </>
         )}
-
-        <Button title="Done" variant="ghost" onPress={() => router.back()} fullWidth />
       </ScrollView>
     </Screen>
   );
 }
 
+const Chip = ({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) => (
+  <Pressable onPress={onPress} style={[styles.chip, active && styles.chipActive]}>
+    <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
+  </Pressable>
+);
+
+// The problem is shown right under the field it belongs to.
+const FieldError = ({ message }: { message?: string }) =>
+  message ? <Text style={styles.error}>{message}</Text> : null;
+
 const styles = StyleSheet.create({
-  scroll: { paddingTop: spacing.lg, paddingBottom: spacing.xxxl, gap: spacing.md },
+  scroll: { paddingTop: spacing.lg, paddingBottom: spacing.xxxl, gap: spacing.sm },
   label: { ...typography.label, color: colors.textSecondary, marginTop: spacing.md },
-  helper: { ...typography.caption, color: colors.textMuted, marginBottom: spacing.xs },
-  topicRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  topicChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  topicChip: {
-    backgroundColor: colors.accentSoft,
-    borderRadius: radius.lg,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-  },
-  topicChipText: { ...typography.caption, color: colors.accent },
+  helper: { ...typography.caption, color: colors.textMuted },
+  count: { ...typography.caption, color: colors.textMuted, textAlign: 'right' },
+  error: { ...typography.caption, color: colors.danger },
   input: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
@@ -396,10 +452,29 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
-  longInput: { minHeight: 140, textAlignVertical: 'top' },
+  inputError: { borderColor: colors.danger, borderWidth: 1 },
+  longInput: { minHeight: 180, textAlignVertical: 'top' },
   chips: { gap: spacing.sm, paddingVertical: spacing.xs },
+  chip: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceAlt,
+  },
+  chipActive: { backgroundColor: colors.textPrimary },
+  chipText: { ...typography.bodyStrong, color: colors.textPrimary },
+  chipTextActive: { color: '#FFFFFF' },
+  topicRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  topicChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  topicChip: {
+    backgroundColor: colors.accentSoft,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  topicChipText: { ...typography.caption, color: colors.accent },
   coverPicker: {
-    height: 160,
+    height: 180,
     borderRadius: radius.lg,
     backgroundColor: colors.surfaceAlt,
     borderWidth: StyleSheet.hairlineWidth,
@@ -410,120 +485,13 @@ const styles = StyleSheet.create({
   },
   coverImage: { width: '100%', height: '100%' },
   coverPlaceholder: { ...typography.body, color: colors.textMuted },
-});
-
-const chipStyles = StyleSheet.create({
-  chip: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
+  discard: {
+    marginTop: spacing.lg,
+    padding: spacing.md,
+    borderRadius: radius.lg,
     backgroundColor: colors.surfaceAlt,
+    gap: spacing.sm,
   },
-  active: { backgroundColor: colors.textPrimary },
-  text: { ...typography.bodyStrong, color: colors.textPrimary },
-  activeText: { color: '#FFFFFF' },
-});
-
-const PayoutsCard = ({
-  expert,
-}: {
-  expert: { stripeConnectAccountId: string | null; stripeConnectPayoutsEnabled: boolean };
-}) => {
-  const { mutate: start, isPending } = useStartConnectOnboarding();
-  const { mutate: sync, isPending: syncing } = useSyncConnectStatus();
-  const isReady = expert.stripeConnectPayoutsEnabled;
-  const isStarted = Boolean(expert.stripeConnectAccountId) && !isReady;
-
-  const status = isReady
-    ? { label: 'Ready', tone: 'success' as const }
-    : isStarted
-      ? { label: 'In progress', tone: 'warning' as const }
-      : { label: 'Not set up', tone: 'neutral' as const };
-
-  const onPress = () =>
-    start(undefined, {
-      onSuccess: (result) => {
-        const nowReady = result.status?.payoutsEnabled;
-        Toast.show({
-          type: 'success',
-          text1: nowReady ? 'Payouts enabled' : 'Returned from Stripe',
-          text2: nowReady
-            ? 'Ready to accept bookings that pay out to you.'
-            : result.status?.status === 'action-required'
-              ? 'Stripe still needs some info. Tap "Finish Stripe setup" again.'
-              : 'We will pick up your status from Stripe.',
-        });
-      },
-      onError: (err) =>
-        Toast.show({
-          type: 'error',
-          text1: 'Could not open Stripe',
-          text2: err instanceof Error ? err.message : 'Unknown error',
-        }),
-    });
-
-  const onRefresh = () =>
-    sync(undefined, {
-      onSuccess: (result) => {
-        Toast.show({
-          type: result.payoutsEnabled ? 'success' : 'info',
-          text1: result.payoutsEnabled ? 'Payouts enabled' : 'Not ready yet',
-          text2:
-            result.missingRequirements && result.missingRequirements.length > 0
-              ? `Stripe needs: ${result.missingRequirements.slice(0, 2).join(', ')}${
-                  result.missingRequirements.length > 2 ? '…' : ''
-                }`
-              : `Status: ${result.status}`,
-        });
-      },
-      onError: (err) =>
-        Toast.show({
-          type: 'error',
-          text1: 'Could not check status',
-          text2: err instanceof Error ? err.message : 'Unknown error',
-        }),
-    });
-
-  return (
-    <Card>
-      <View style={payoutsStyles.row}>
-        <View style={{ flex: 1 }}>
-          <Text style={payoutsStyles.title}>Stripe Connect</Text>
-          <Text style={payoutsStyles.body}>
-            Customers pay you through Stripe. Until you finish onboarding, payments are held by the
-            platform. Test mode uses fake bank info. Fill in anything plausible.
-          </Text>
-        </View>
-        <Badge label={status.label} tone={status.tone} />
-      </View>
-      <Button
-        title={
-          isReady
-            ? 'Update payout info'
-            : isStarted
-              ? 'Finish Stripe setup'
-              : 'Set up payouts via Stripe'
-        }
-        variant="secondary"
-        onPress={onPress}
-        loading={isPending}
-        style={{ marginTop: spacing.md }}
-      />
-      {isStarted && (
-        <Button
-          title={syncing ? 'Checking Stripe…' : 'Refresh status'}
-          variant="ghost"
-          onPress={onRefresh}
-          loading={syncing}
-          style={{ marginTop: spacing.xs }}
-        />
-      )}
-    </Card>
-  );
-};
-
-const payoutsStyles = StyleSheet.create({
-  row: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },
-  title: { ...typography.bodyStrong, color: colors.textPrimary },
-  body: { ...typography.body, color: colors.textSecondary, marginTop: spacing.xs },
+  discardText: { ...typography.bodyStrong, color: colors.textPrimary },
+  discardActions: { flexDirection: 'row', gap: spacing.sm },
 });

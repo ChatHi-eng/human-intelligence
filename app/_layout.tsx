@@ -70,7 +70,7 @@ export default function RootLayout() {
                 <Stack.Screen name="chat/[id]" options={{ title: 'Chat', presentation: 'card' }} />
                 <Stack.Screen
                   name="expert-profile-edit"
-                  options={{ title: 'Expert profile', presentation: 'modal' }}
+                  options={{ title: 'Edit profile', presentation: 'modal' }}
                 />
                 <Stack.Screen
                   name="expert-onboarding"
@@ -87,6 +87,10 @@ export default function RootLayout() {
                 <Stack.Screen
                   name="studio/calendar"
                   options={{ title: 'Calendar', presentation: 'card' }}
+                />
+                <Stack.Screen
+                  name="studio/session-settings"
+                  options={{ title: 'Session settings', presentation: 'card' }}
                 />
                 <Stack.Screen
                   name="studio/availability"

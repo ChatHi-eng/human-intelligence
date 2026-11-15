@@ -99,14 +99,14 @@ export default function StudioScreen() {
       title: 'Set your session price',
       body: 'Your profile shows "Price coming soon" until you do.',
       action: 'Set price',
-      href: '/expert-profile-edit' as const,
+      href: '/studio/session-settings' as const,
     },
     {
       done: expertProfile.stripeConnectPayoutsEnabled,
       title: 'Connect payouts',
       body: 'So we can pay you after each session.',
       action: 'Set up payouts',
-      href: '/expert-profile-edit' as const,
+      href: '/studio/session-settings' as const,
     },
     {
       done: Boolean(expertProfile.avatarUrl),
@@ -135,10 +135,25 @@ export default function StudioScreen() {
         </View>
 
         {/* Only approved experts reach this screen, so the link always resolves. */}
+        <View style={styles.profileActions}>
+          <Button
+            title="View and edit profile"
+            variant="secondary"
+            onPress={() =>
+              router.push({ pathname: '/expert/[id]', params: { id: expertProfile.id } })
+            }
+            style={{ flex: 1 }}
+          />
+          <Button
+            title="Share"
+            variant="secondary"
+            onPress={() => void copyExpertShareLink(expertProfile.id)}
+          />
+        </View>
         <Button
-          title="Share your profile"
-          variant="secondary"
-          onPress={() => void copyExpertShareLink(expertProfile.id)}
+          title="Session settings: price and payouts"
+          variant="ghost"
+          onPress={() => router.push('/studio/session-settings')}
           style={styles.shareButton}
         />
 
@@ -422,6 +437,7 @@ const styles = StyleSheet.create({
   heroTitle: { ...typography.title, color: colors.textPrimary },
   heroSubtitle: { ...typography.body, color: colors.textSecondary },
   shareButton: { marginBottom: spacing.lg },
+  profileActions: { flexDirection: 'row', gap: spacing.sm },
   stats: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
   statLabel: { ...typography.caption, color: colors.textSecondary },
   statValue: { ...typography.title, color: colors.textPrimary, marginTop: 4 },

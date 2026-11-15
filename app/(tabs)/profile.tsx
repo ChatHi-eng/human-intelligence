@@ -99,7 +99,9 @@ export default function YouScreen() {
               <Button
                 title="Edit expert profile"
                 variant="secondary"
-                onPress={() => router.push('/expert-profile-edit')}
+                onPress={() =>
+                  router.push({ pathname: '/expert/[id]', params: { id: expertProfile.id } })
+                }
                 style={{ flex: 1 }}
               />
               <Button
