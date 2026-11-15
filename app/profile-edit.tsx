@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Toast from 'react-native-toast-message';
+import { ReminderSettings } from '@/components/account/ReminderSettings';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { LoadingView } from '@/components/ui/LoadingView';
@@ -129,6 +130,8 @@ export default function ProfileEditScreen() {
           style={{ marginTop: spacing.lg }}
         />
         <Button title="Cancel" variant="ghost" onPress={() => router.back()} fullWidth />
+
+        <ReminderSettings userId={user.id} />
       </ScrollView>
     </Screen>
   );

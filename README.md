@@ -292,6 +292,18 @@ Every email is derived by comparing the row's old and new values, so webhook ret
 
 **What delivers today vs. after domain verification:** until `palamapp.com` is verified in Resend, the test sender (`onboarding@resend.dev`) can only deliver to the Resend account owner's own address — so the two **owner alerts deliver now**, and every customer/expert-facing email fails quietly (logged, returns 200, never retried). To go fully live: Resend → **Domains** → add `palamapp.com` and set the DNS records it shows → once verified, add the secret `PALAM_SENDER` = `Palam <hello@palamapp.com>` (any address on the verified domain). Every email in the table starts delivering immediately — no redeploy needed. The same applies to `notify-application`'s approval email (its `from` still needs the one-line switch described above).
 
+## Reminders
+
+Both people on a confirmed session are reminded twice: once a day before (sent between 28 and 24 hours ahead) and once about an hour before.
+
+- **Email** is on by default. Anyone can switch it off under You, Edit account.
+- **Phone notifications** work in store and development builds only. The app asks for permission after a customer books or an expert accepts, and stores one token per device in `push_tokens`.
+- **Text messages** stay off until three secrets exist in Supabase (Edge Functions, Secrets): `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`. People opt in and enter a number under You, Edit account. Numbers live in `notification_prefs`, which only the owner of the row can read. In the US the Twilio number must be registered for application-to-person messaging before carriers deliver the texts.
+
+How it runs: migration `0019_reminders.sql` creates the tables. A `pg_cron` job named `palam-send-reminders` calls the `send-reminders` Edge Function every ten minutes. The job authenticates with the shared webhook secret, read from Supabase Vault (`palam_webhook_secret`), so the value never appears in this public repository. The function records each reminder in `booking_reminders` before sending, so nothing is sent twice.
+
+To check it: Supabase, Database, Cron shows the job, and Edge Functions, `send-reminders`, Logs shows each run.
+
 ## Account deletion
 
 Google Play requires apps with sign-up to offer in-app account deletion. The flow lives on the **You** tab → "Delete account": the user types DELETE, the `delete-account` Edge Function verifies them, refuses if they still have an upcoming/active booking, and otherwise deletes the auth user — the schema's `on delete cascade` chain removes the profile, expert application, bookings, reviews, and messages. Stripe is never touched: an expert's Connect account stays theirs.

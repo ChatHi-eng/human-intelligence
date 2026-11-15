@@ -15,6 +15,7 @@ import {
 import { capture } from '@/services/analytics';
 import { addBookingToDeviceCalendar } from '@/services/calendar';
 import { scheduleBookingReminder } from '@/services/notifications';
+import { registerForPush } from '@/services/push';
 import {
   createCheckoutSession,
   openCheckout,
@@ -144,6 +145,7 @@ export const useCreateBooking = () => {
       return { bookingId: booking.id, checkoutResult: result.type };
     },
     onSuccess: () => {
+      if (userId) void registerForPush(userId);
       capture('booking_requested');
       void qc.invalidateQueries({ queryKey: ['bookings'] });
     },
@@ -152,6 +154,7 @@ export const useCreateBooking = () => {
 
 export const useAcceptBooking = () => {
   const qc = useQueryClient();
+  const userId = useAuthStore((s) => s.user?.id);
   return useMutation({
     mutationFn: async (booking: { id: string; expertName: string; startIso: string; endIso: string }) => {
       await acceptBooking(booking.id);
@@ -172,6 +175,7 @@ export const useAcceptBooking = () => {
       );
     },
     onSuccess: () => {
+      if (userId) void registerForPush(userId);
       capture('booking_confirmed');
       void qc.invalidateQueries({ queryKey: ['bookings'] });
     },

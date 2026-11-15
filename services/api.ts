@@ -887,3 +887,57 @@ export const markConversationRead = async (
   const { error } = await sb().from('conversations').update(patch).eq('id', conversationId);
   if (error) throw error;
 };
+
+// ---------- Reminder settings and push tokens (migration 0019) ----------
+
+export type NotificationPrefs = {
+  emailReminders: boolean;
+  smsReminders: boolean;
+  // E.164, e.g. +14155550123. Private: only the owner can read it.
+  phone: string | null;
+};
+
+// No row yet means the defaults: email on, texts off.
+export const fetchMyNotificationPrefs = async (userId: string): Promise<NotificationPrefs> => {
+  const { data, error } = await sb()
+    .from('notification_prefs')
+    .select('email_reminders, sms_reminders, phone')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  return {
+    emailReminders: data?.email_reminders ?? true,
+    smsReminders: data?.sms_reminders ?? false,
+    phone: data?.phone ?? null,
+  };
+};
+
+export const saveMyNotificationPrefs = async (
+  userId: string,
+  prefs: NotificationPrefs,
+): Promise<void> => {
+  const wantsSms = prefs.smsReminders && Boolean(prefs.phone);
+  const { error } = await sb()
+    .from('notification_prefs')
+    .upsert({
+      user_id: userId,
+      email_reminders: prefs.emailReminders,
+      sms_reminders: wantsSms,
+      phone: prefs.phone,
+      // The consent box is the switch itself, so record when it was turned on.
+      sms_consent_at: wantsSms ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    });
+  if (error) throw error;
+};
+
+export const savePushToken = async (
+  userId: string,
+  token: string,
+  platform: string,
+): Promise<void> => {
+  const { error } = await sb()
+    .from('push_tokens')
+    .upsert({ token, user_id: userId, platform, updated_at: new Date().toISOString() });
+  if (error) throw error;
+};
