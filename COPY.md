@@ -129,10 +129,10 @@ Legal pages (Privacy, Terms, Delete your account) live in `docs/` and are not re
 - **How can you help? (optional, recommended)** ("Who are you for, and what problems do you solve?")
 - **Topics you can help with (up to 6)**: The specific things people can ask you about. These show as tags on your profile and help customers find you in search. ("e.g. Portfolio reviews")
 
-**Step 4: Set your hourly rate**
-> Sessions are 30 minutes, so customers pay half your hourly rate per session. Palam's fee is 15% of each session. You can change your rate anytime.
-- Guidance: "Typical for {field}: $X to $Y/hr. This is only a guide. Advice calls usually price above your day rate."
-- Opt-out: **I'll decide later.** Apply without a rate. Your profile shows "Rate coming soon" and you can set it in Studio whenever you're ready.
+**Step 4: Set your session price**
+> This is exactly what a customer pays for one 30-minute session. Palam's fee is 15% of each session. You can change your price anytime.
+- Guidance: "Typical for {field}: $X to $Y per session. This is only a guide. Half an hour of advice usually prices above half an hour of your day rate."
+- Opt-out: **I'll decide later.** Apply without a price. Your profile shows "Price coming soon" and you can set it in Studio whenever you're ready.
 
 **Step 5: Add a profile photo**
 > Your photo is the first thing customers see on Discover. You can skip this step, but we recommend adding one.

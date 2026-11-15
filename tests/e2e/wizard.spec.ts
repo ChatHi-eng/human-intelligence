@@ -169,8 +169,9 @@ test('expert application wizard walks all six steps and submits', async ({ page 
   await next();
 
   // ---- Step 4 · Rate (suggested range + preset chips) --------------------
-  await expect(page.getByText(/Typical for Software Engineering/)).toBeVisible();
-  await page.getByText('$175', { exact: true }).click();
+  await expect(page.getByText(/Typical for Software Engineering: \$50 to/)).toBeVisible();
+  await expect(page.getByText(/\$125 per session/)).toBeVisible();
+  await page.getByText('$100', { exact: true }).click();
   await shot('wizard-4-rate');
   await next();
 
@@ -182,7 +183,7 @@ test('expert application wizard walks all six steps and submits', async ({ page 
   // ---- Step 6 · Review & submit ------------------------------------------
   await expect(page.getByText('Before you submit')).toBeVisible();
   await expect(page.getByText('Staff Engineer · 12 yrs · LinkedIn ✓ · Resume ✓')).toBeVisible();
-  await expect(page.getByText('$175/hr')).toBeVisible();
+  await expect(page.getByText('$100 per session')).toBeVisible();
   await expect(page.getByText('Code reviews, System design')).toBeVisible();
   await expect(page.getByText('What expertise do you have to offer?')).toBeVisible();
   await page

@@ -55,10 +55,10 @@ export const ExpertCard = ({ expert, onPress }: ExpertCardProps) => {
             <Text style={styles.newLabel}>New on Palam</Text>
           )}
           <Text style={styles.dot}> · </Text>
-          {expert.hourlyRate !== null ? (
-            `${formatCurrency(expert.hourlyRate)}/hr`
+          {expert.sessionPrice !== null ? (
+            `${formatCurrency(expert.sessionPrice)} per session`
           ) : (
-            <Text style={styles.newLabel}>Rate coming soon</Text>
+            <Text style={styles.newLabel}>Price coming soon</Text>
           )}
           <Text style={styles.dot}> · </Text>
           {opening ? (

@@ -94,10 +94,10 @@ export default function StudioScreen() {
       href: '/studio/availability' as const,
     },
     {
-      done: expertProfile.hourlyRate !== null,
-      title: 'Set your rate',
-      body: 'Your profile shows "Rate coming soon" until you do.',
-      action: 'Set rate',
+      done: expertProfile.sessionPrice !== null,
+      title: 'Set your session price',
+      body: 'Your profile shows "Price coming soon" until you do.',
+      action: 'Set price',
       href: '/expert-profile-edit' as const,
     },
     {

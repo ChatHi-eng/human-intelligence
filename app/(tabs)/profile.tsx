@@ -68,9 +68,9 @@ export default function YouScreen() {
               <View style={{ flex: 1, gap: 4 }}>
                 <Text style={styles.expertHeadline}>{expertProfile.headline}</Text>
                 <Text style={styles.expertMeta}>
-                  {expertProfile.hourlyRate !== null
-                    ? `${formatCurrency(expertProfile.hourlyRate)}/hr`
-                    : 'Rate coming soon'}{' '}
+                  {expertProfile.sessionPrice !== null
+                    ? `${formatCurrency(expertProfile.sessionPrice)} per session`
+                    : 'Price coming soon'}{' '}
                   · {expertProfile.yearsExperience}y experience
                 </Text>
                 <View style={styles.expertBadgeRow}>

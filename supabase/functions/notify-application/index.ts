@@ -165,10 +165,10 @@ serve(async (req) => {
       ['Current role', role ? escapeHtml(role) : 'Not provided'],
       // hourly_rate_cents is nullable since migration 0011 ("I'll decide later").
       [
-        'Rate',
+        'Session price',
         record.hourly_rate_cents == null
           ? 'Deciding later'
-          : `$${(record.hourly_rate_cents / 100).toFixed(2)}/hr`,
+          : `$${(record.hourly_rate_cents / 100).toFixed(2)} per 30-minute session`,
       ],
       ['Experience', `${record.years_experience} years`],
       ['LinkedIn', record.linkedin_url ? escapeHtml(record.linkedin_url) : 'Not provided'],

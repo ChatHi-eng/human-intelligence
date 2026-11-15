@@ -178,7 +178,7 @@ const mapExpert = (row: ExpertWithRelations): Expert | null => {
     currentCompany: row.current_company ?? null,
     topics: row.topics ?? [],
     headline: row.headline,
-    hourlyRate: row.hourly_rate_cents,
+    sessionPrice: row.hourly_rate_cents,
     yearsExperience: row.years_experience,
     ratingAverage: Number(row.rating_average),
     ratingCount: row.rating_count,
@@ -337,7 +337,7 @@ export type ExpertsFilters = {
   industryId?: string;
   query?: string;
   minRating?: number;
-  maxHourlyRateCents?: number;
+  maxSessionPriceCents?: number;
 };
 
 export const fetchExperts = async (filters: ExpertsFilters = {}): Promise<Expert[]> => {
@@ -351,8 +351,8 @@ export const fetchExperts = async (filters: ExpertsFilters = {}): Promise<Expert
     .order('rating_average', { ascending: false });
   if (filters.industryId) q = q.eq('industry_id', filters.industryId);
   if (typeof filters.minRating === 'number') q = q.gte('rating_average', filters.minRating);
-  if (typeof filters.maxHourlyRateCents === 'number') {
-    q = q.lte('hourly_rate_cents', filters.maxHourlyRateCents);
+  if (typeof filters.maxSessionPriceCents === 'number') {
+    q = q.lte('hourly_rate_cents', filters.maxSessionPriceCents);
   }
   const { data, error } = await q;
   if (error) throw error;
@@ -400,7 +400,7 @@ export type ExpertProfileInput = {
   industryId: string;
   headline: string;
   // null = "I'll decide later" on the application wizard.
-  hourlyRateCents: number | null;
+  sessionPriceCents: number | null;
   yearsExperience: number;
   coverImageUrl?: string | null;
   howICanHelp?: string | null;
@@ -425,7 +425,7 @@ export const upsertMyExpertProfile = async (
     profile_id: userId,
     industry_id: input.industryId,
     headline: input.headline,
-    hourly_rate_cents: input.hourlyRateCents,
+    hourly_rate_cents: input.sessionPriceCents,
     years_experience: input.yearsExperience,
     cover_image_url: input.coverImageUrl ?? null,
     how_i_can_help: input.howICanHelp ?? null,

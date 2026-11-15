@@ -58,7 +58,7 @@ export type Expert = Profile & {
   headline: string;
   // Cents. null = applicant chose "I'll decide later" — the app shows
   // "Rate coming soon" and booking stays off until they set one.
-  hourlyRate: number | null;
+  sessionPrice: number | null;
   yearsExperience: number;
   ratingAverage: number;
   ratingCount: number;

@@ -100,12 +100,12 @@ export default function BookScreen() {
   }
   // Experts who chose "I'll decide later" on the application have no rate yet,
   // there's nothing to charge, so booking stays closed (deep links included).
-  if (expert.hourlyRate === null) {
+  if (expert.sessionPrice === null) {
     return (
       <Screen>
         <EmptyState
-          title="Rate coming soon"
-          description={`${expert.displayName} hasn't set a session rate yet. Check back soon. Booking opens the moment they do.`}
+          title="Price coming soon"
+          description={`${expert.displayName} hasn't set a session price yet. Check back soon. Booking opens the moment they do.`}
           emoji="🕰️"
         />
       </Screen>
@@ -246,7 +246,7 @@ export default function BookScreen() {
 
             <View style={{ marginTop: spacing.lg }}>
               <PaymentSheet
-                amountCents={expert.hourlyRate}
+                amountCents={expert.sessionPrice}
                 expertName={expert.displayName}
                 onPay={onConfirm}
                 loading={isPending}

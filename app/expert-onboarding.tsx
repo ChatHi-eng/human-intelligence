@@ -198,7 +198,7 @@ export default function ExpertOnboardingScreen() {
       if (!Number.isFinite(rate) || rate <= 0) {
         Toast.show({
           type: 'error',
-          text1: 'Set an hourly rate',
+          text1: 'Set a session price',
           text2: 'Or choose "I\'ll decide later" below.',
         });
         return false;
@@ -230,7 +230,7 @@ export default function ExpertOnboardingScreen() {
       {
         industryId,
         headline: headline.trim(),
-        hourlyRateCents: decideLater ? null : Math.round(Number(rateDollars) * 100),
+        sessionPriceCents: decideLater ? null : Math.round(Number(rateDollars) * 100),
         yearsExperience: Math.floor(Number(years)),
         howICanHelp: howICanHelp.trim() || null,
         linkedinUrl: linkedinUrl.trim() || null,
@@ -277,7 +277,7 @@ export default function ExpertOnboardingScreen() {
     );
   }
 
-  const suggested = industry?.suggestedRateCents;
+  const suggested = industry?.suggestedPriceCents;
   const suggestedChips = suggested
     ? [
         suggested.min / 100,
@@ -504,20 +504,20 @@ export default function ExpertOnboardingScreen() {
 
         {step === 3 && (
           <>
-            <Text style={styles.title}>Set your hourly rate</Text>
+            <Text style={styles.title}>Set your session price</Text>
             <Text style={styles.caption}>
-              Sessions are 30 minutes, so customers pay half your hourly rate per session.
-              Palam&apos;s fee is {PLATFORM_FEE_DISPLAY_PCT}% of each session. You can change your rate
-              anytime.
+              This is exactly what a customer pays for one 30-minute session. Palam&apos;s fee
+              is {PLATFORM_FEE_DISPLAY_PCT}% of each session. You can change your price anytime.
             </Text>
             {suggested && industry ? (
               <View style={styles.ratePanel}>
                 <Text style={styles.ratePanelTitle}>
                   Typical for {industry.label}: {formatCurrency(suggested.min)} to{' '}
-                  {formatCurrency(suggested.max)}/hr
+                  {formatCurrency(suggested.max)} per session
                 </Text>
                 <Text style={styles.ratePanelHint}>
-                  This is only a guide. Advice calls usually price above your day rate.
+                  This is only a guide. Half an hour of advice usually prices above half an hour
+                  of your day rate.
                 </Text>
                 <View style={styles.rateChips}>
                   {suggestedChips.map((v) => {
@@ -540,9 +540,9 @@ export default function ExpertOnboardingScreen() {
                 </View>
               </View>
             ) : null}
-            <Text style={styles.label}>Hourly rate (USD)</Text>
+            <Text style={styles.label}>Price per 30-minute session (USD)</Text>
             <TextInput
-              placeholder="150"
+              placeholder="75"
               placeholderTextColor={colors.textMuted}
               value={rateDollars}
               onChangeText={(v) => {
@@ -560,8 +560,8 @@ export default function ExpertOnboardingScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.decideLaterTitle}>I&apos;ll decide later</Text>
                 <Text style={styles.decideLaterHint}>
-                  Apply without a rate. Your profile shows &quot;Rate coming soon&quot; and you can
-                  set it in Studio whenever you&apos;re ready.
+                  Apply without a price. Your profile shows &quot;Price coming soon&quot; and you
+                  can set it in Studio whenever you&apos;re ready.
                 </Text>
               </View>
             </Pressable>
@@ -637,12 +637,12 @@ export default function ExpertOnboardingScreen() {
                 onEdit={() => setStep(2)}
               />
               <SummaryRow
-                label="Rate"
+                label="Session price"
                 value={
                   decideLater
                     ? 'Deciding later'
                     : rateDollars
-                      ? `$${rateDollars}/hr`
+                      ? `$${rateDollars} per session`
                       : '—'
                 }
                 onEdit={() => setStep(3)}

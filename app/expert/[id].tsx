@@ -186,15 +186,15 @@ export default function ExpertProfileScreen() {
           <View style={styles.bookBar}>
             <View style={{ flex: 1 }}>
               <Text style={styles.bookRate}>
-                {expert.hourlyRate !== null
-                  ? `${formatCurrency(expert.hourlyRate)}/hr`
-                  : 'Rate coming soon'}
+                {expert.sessionPrice !== null
+                  ? `${formatCurrency(expert.sessionPrice)} per session`
+                  : 'Price coming soon'}
               </Text>
               <Text style={styles.bookHint}>
                 {isSelf
                   ? 'This is your public profile'
-                  : expert.hourlyRate === null
-                    ? 'Booking opens once a rate is set'
+                  : expert.sessionPrice === null
+                    ? 'Booking opens once a price is set'
                     : expert.paused
                       ? 'Not taking bookings right now'
                       : hasAvailability
@@ -230,7 +230,7 @@ export default function ExpertProfileScreen() {
             <Button
               title="Book session"
               onPress={() => router.push({ pathname: '/book/[id]', params: { id: expert.id } })}
-              disabled={isSelf || !hasAvailability || expert.hourlyRate === null}
+              disabled={isSelf || !hasAvailability || expert.sessionPrice === null}
             />
           </View>
         )

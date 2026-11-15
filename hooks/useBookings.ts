@@ -106,8 +106,8 @@ export const useCreateBooking = () => {
       if (!userId) throw new Error('Not signed in');
       const expert = await fetchExpert(input.expertId);
       if (!expert) throw new Error('Expert not found');
-      if (expert.hourlyRate === null) {
-        throw new Error('This expert has not set a rate yet');
+      if (expert.sessionPrice === null) {
+        throw new Error('This expert has not set a price yet');
       }
 
       // Booking row goes in with status='requested' (server default) and
@@ -118,7 +118,7 @@ export const useCreateBooking = () => {
         expertId: input.expertId,
         slot: input.slot,
         medium: input.medium,
-        priceCents: expert.hourlyRate,
+        priceCents: expert.sessionPrice,
         callRoomUrl: null,
         customerNote: input.note ?? null,
       });

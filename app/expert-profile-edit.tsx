@@ -24,7 +24,7 @@ import { useUploadImage } from '@/hooks/useProfile';
 type Form = {
   industryId: string;
   headline: string;
-  hourlyRateDollars: string;
+  sessionPriceDollars: string;
   yearsExperience: string;
   coverImageUrl: string;
   howICanHelp: string;
@@ -39,7 +39,7 @@ const MAX_TOPICS = 6;
 const emptyForm: Form = {
   industryId: '',
   headline: '',
-  hourlyRateDollars: '',
+  sessionPriceDollars: '',
   yearsExperience: '',
   coverImageUrl: '',
   howICanHelp: '',
@@ -75,8 +75,8 @@ export default function ExpertProfileEditScreen() {
       setForm({
         industryId: existing.industryId,
         headline: existing.headline,
-        hourlyRateDollars:
-          existing.hourlyRate !== null ? (existing.hourlyRate / 100).toString() : '',
+        sessionPriceDollars:
+          existing.sessionPrice !== null ? (existing.sessionPrice / 100).toString() : '',
         yearsExperience: existing.yearsExperience.toString(),
         coverImageUrl: existing.coverImageUrl ?? '',
         howICanHelp: existing.howICanHelp ?? '',
@@ -137,11 +137,11 @@ export default function ExpertProfileEditScreen() {
       return;
     }
     // Empty is allowed ("deciding later" from the application), the profile
-    // shows "Rate coming soon" and can't be booked until a rate is set.
-    const rateEmpty = form.hourlyRateDollars.trim() === '';
-    const rate = Number(form.hourlyRateDollars);
+    // shows "Price coming soon" and can't be booked until a price is set.
+    const rateEmpty = form.sessionPriceDollars.trim() === '';
+    const rate = Number(form.sessionPriceDollars);
     if (!rateEmpty && (!Number.isFinite(rate) || rate <= 0)) {
-      Toast.show({ type: 'error', text1: 'Hourly rate must be a positive number' });
+      Toast.show({ type: 'error', text1: 'Session price must be a positive number' });
       return;
     }
     const years = Number(form.yearsExperience);
@@ -153,7 +153,7 @@ export default function ExpertProfileEditScreen() {
       {
         industryId: form.industryId,
         headline: form.headline.trim(),
-        hourlyRateCents: rateEmpty ? null : Math.round(rate * 100),
+        sessionPriceCents: rateEmpty ? null : Math.round(rate * 100),
         yearsExperience: Math.floor(years),
         coverImageUrl: form.coverImageUrl || null,
         howICanHelp: form.howICanHelp.trim() || null,
@@ -318,15 +318,16 @@ export default function ExpertProfileEditScreen() {
           </View>
         ) : null}
 
-        <Text style={styles.label}>Hourly rate (USD)</Text>
+        <Text style={styles.label}>Price per 30-minute session (USD)</Text>
         <Text style={styles.helper}>
-          Blank shows &quot;Rate coming soon&quot;. Customers can&apos;t book you until you set one.
+          This is exactly what a customer pays for one session. Blank shows &quot;Price coming
+          soon&quot;, and customers can&apos;t book you until you set one.
         </Text>
         <TextInput
-          placeholder="150"
+          placeholder="75"
           placeholderTextColor={colors.textMuted}
-          value={form.hourlyRateDollars}
-          onChangeText={(hourlyRateDollars) => setForm({ ...form, hourlyRateDollars })}
+          value={form.sessionPriceDollars}
+          onChangeText={(sessionPriceDollars) => setForm({ ...form, sessionPriceDollars })}
           keyboardType="decimal-pad"
           style={styles.input}
         />

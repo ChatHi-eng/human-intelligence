@@ -16,7 +16,7 @@ export type ExpertSort = 'soonest' | 'rating' | 'price';
  * booking screen, so the card shows the day, never an exact time.
  */
 export const nextOpening = (expert: Expert, now: Date = new Date()): string | null => {
-  if (expert.hourlyRate === null || expert.paused) return null;
+  if (expert.sessionPrice === null || expert.paused) return null;
   const slots = generateSlots(expert.availability, expert.availabilityDates, [], {
     timeZone: expert.timezone,
     minNoticeMinutes: MIN_BOOKING_NOTICE_MINUTES,
@@ -39,7 +39,7 @@ export const sortExperts = (experts: Expert[], sort: ExpertSort, now: Date = new
     if (bookable(a) !== bookable(b)) return bookable(a) - bookable(b);
     if (sort === 'rating') return byRating(a, b);
     if (sort === 'price') {
-      return (a.hourlyRate ?? Infinity) - (b.hourlyRate ?? Infinity) || byRating(a, b);
+      return (a.sessionPrice ?? Infinity) - (b.sessionPrice ?? Infinity) || byRating(a, b);
     }
     const aOpen = opening.get(a.id);
     const bOpen = opening.get(b.id);

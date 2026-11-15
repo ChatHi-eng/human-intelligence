@@ -31,7 +31,7 @@ type Filters = {
   industryId?: string;
   query: string;
   minRating?: number;
-  maxHourlyRateCents?: number;
+  maxSessionPriceCents?: number;
   sort: ExpertSort;
 };
 
@@ -52,9 +52,9 @@ const RATING_OPTIONS: FilterOption[] = [
 
 const PRICE_OPTIONS: FilterOption[] = [
   { label: 'Any price', value: undefined },
-  { label: 'Under $75/hr', value: 7500 },
-  { label: 'Under $150/hr', value: 15000 },
-  { label: 'Under $250/hr', value: 25000 },
+  { label: 'Under $50', value: 5000 },
+  { label: 'Under $100', value: 10000 },
+  { label: 'Under $150', value: 15000 },
 ];
 
 export default function DiscoverScreen() {
@@ -67,7 +67,7 @@ export default function DiscoverScreen() {
   const { data: fetched, isLoading } = useExperts({
     industryId: filters.industryId,
     minRating: filters.minRating,
-    maxHourlyRateCents: filters.maxHourlyRateCents,
+    maxSessionPriceCents: filters.maxSessionPriceCents,
   });
   const experts = useMemo(
     () =>
@@ -107,11 +107,11 @@ export default function DiscoverScreen() {
     !filters.industryId &&
     !filters.query &&
     filters.minRating === undefined &&
-    filters.maxHourlyRateCents === undefined;
+    filters.maxSessionPriceCents === undefined;
   const dbIsEmpty = !isLoading && experts && experts.length === 0 && noFiltersActive;
   const activeFilterCount =
     (filters.minRating !== undefined ? 1 : 0) +
-    (filters.maxHourlyRateCents !== undefined ? 1 : 0) +
+    (filters.maxSessionPriceCents !== undefined ? 1 : 0) +
     (filters.sort !== 'soonest' ? 1 : 0);
 
   return (
@@ -199,7 +199,7 @@ export default function DiscoverScreen() {
           setFilters({
             ...filters,
             minRating: undefined,
-            maxHourlyRateCents: undefined,
+            maxSessionPriceCents: undefined,
             sort: 'soonest',
           })
         }
@@ -278,14 +278,14 @@ const FilterSheet = ({
         </>
       ) : null}
 
-      <Text style={styles.sheetLabel}>Hourly rate</Text>
+      <Text style={styles.sheetLabel}>Price per session</Text>
       <View style={styles.sheetOptions}>
         {PRICE_OPTIONS.map((o) => {
-          const active = filters.maxHourlyRateCents === o.value;
+          const active = filters.maxSessionPriceCents === o.value;
           return (
             <Pressable
               key={o.label}
-              onPress={() => onChange({ maxHourlyRateCents: o.value })}
+              onPress={() => onChange({ maxSessionPriceCents: o.value })}
               style={[chipStyles.chip, active && chipStyles.chipActive]}
             >
               <Text style={[chipStyles.text, active && chipStyles.textActive]}>{o.label}</Text>
