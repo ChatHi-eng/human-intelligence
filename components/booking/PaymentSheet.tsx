@@ -6,11 +6,19 @@ import { formatCurrency } from '@/lib/format';
 export type PaymentSheetProps = {
   amountCents: number;
   expertName: string;
+  /** true when the expert approves each request: the card is held, not charged. */
+  holdOnly?: boolean;
   onPay: () => void;
   loading?: boolean;
 };
 
-export const PaymentSheet = ({ amountCents, expertName, onPay, loading }: PaymentSheetProps) => (
+export const PaymentSheet = ({
+  amountCents,
+  expertName,
+  holdOnly,
+  onPay,
+  loading,
+}: PaymentSheetProps) => (
   <View style={styles.container}>
     <View style={styles.summary}>
       <View style={styles.row}>
@@ -25,13 +33,18 @@ export const PaymentSheet = ({ amountCents, expertName, onPay, loading }: Paymen
     <View style={styles.fineprint}>
       <Text style={styles.policy}>Free cancellation until 24 hours before your session.</Text>
       <Text style={styles.notice}>
-        You&apos;ll be sent to Stripe Checkout to enter card details. The booking is held for the
-        expert to accept once payment goes through. Test mode card: 4242 4242 4242 4242, any
-        future expiry, any CVC.
+        {holdOnly
+          ? `${expertName} approves each request. Your card is held, not charged, until they accept. If they decline or do not answer within 24 hours, the hold is released and you pay nothing.`
+          : 'You pay on the next screen, and your session is confirmed as soon as the payment goes through.'}
       </Text>
+      {__DEV__ ? (
+        <Text style={styles.notice}>
+          Test mode card: 4242 4242 4242 4242, any future expiry, any CVC.
+        </Text>
+      ) : null}
     </View>
     <Button
-      title={loading ? 'Opening Stripe Checkout…' : 'Continue to payment'}
+      title={loading ? 'Opening payment…' : holdOnly ? 'Request session' : 'Pay and book'}
       onPress={onPay}
       loading={loading}
       fullWidth

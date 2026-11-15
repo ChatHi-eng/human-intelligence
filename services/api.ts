@@ -49,6 +49,7 @@ type ExpertProfileRow = {
   timezone?: string | null;
   paused?: boolean | null;
   buffer_minutes?: number | null;
+  auto_accept?: boolean | null;
   headline: string;
   hourly_rate_cents: number | null;
   years_experience: number;
@@ -100,6 +101,7 @@ type BookingRow = {
   status: BookingStatus;
   payment_status: PaymentStatus;
   price_cents: number;
+  booking_mode?: 'instant' | 'approval' | null;
   call_room_url: string | null;
   customer_note?: string | null;
   // Present when the query joins the customer's profile.
@@ -187,6 +189,7 @@ const mapExpert = (row: ExpertWithRelations): Expert | null => {
     availability: (row.availability_windows ?? []).map(mapAvailability),
     availabilityDates: (row.availability_dates ?? []).map(mapAvailabilityDate),
     timezone: row.timezone ?? null,
+    autoAccept: row.auto_accept ?? true,
     paused: row.paused ?? false,
     bufferMinutes: row.buffer_minutes ?? 0,
     verified: row.verified,
@@ -206,6 +209,7 @@ const mapBooking = (row: BookingRow): Booking => ({
   status: row.status,
   paymentStatus: row.payment_status,
   priceCents: row.price_cents,
+  bookingMode: row.booking_mode ?? 'approval',
   callRoomUrl: row.call_room_url,
   customerNote: row.customer_note ?? null,
   customerName: row.customer?.display_name ?? null,
@@ -231,7 +235,7 @@ const mapReview = (row: ReviewRow): Review => ({
 // Shared select string for Expert + relations.
 const EXPERT_SELECT = `
   profile_id, status, linkedin_url, industry_id, industry_custom, current_title, current_company,
-  topics, timezone, paused, buffer_minutes, headline, hourly_rate_cents, years_experience,
+  topics, timezone, paused, buffer_minutes, auto_accept, headline, hourly_rate_cents, years_experience,
   verified, cover_image_url, rating_average, rating_count, how_i_can_help,
   stripe_connect_account_id, stripe_connect_payouts_enabled, created_at, updated_at,
   profiles!inner(id, display_name, avatar_url, bio, created_at, updated_at),
@@ -450,9 +454,10 @@ export const upsertMyExpertProfile = async (
 // sessions. Separate from the profile upsert so neither can clobber the other.
 export const updateMyExpertSettings = async (
   userId: string,
-  settings: { paused?: boolean; bufferMinutes?: number },
+  settings: { paused?: boolean; bufferMinutes?: number; autoAccept?: boolean },
 ): Promise<void> => {
   const patch: Record<string, unknown> = {};
+  if (settings.autoAccept !== undefined) patch.auto_accept = settings.autoAccept;
   if (settings.paused !== undefined) patch.paused = settings.paused;
   if (settings.bufferMinutes !== undefined) patch.buffer_minutes = settings.bufferMinutes;
   const { error } = await sb().from('expert_profiles').update(patch).eq('profile_id', userId);
@@ -603,29 +608,37 @@ export const updateBookingStatus = async (id: string, status: BookingStatus): Pr
   if (error) throw error;
 };
 
-export const acceptBooking = async (id: string): Promise<void> => {
-  const { error } = await sb().from('bookings').update({ status: 'confirmed' }).eq('id', id);
-  if (error) throw error;
+// The expert's answer goes through the respond-to-booking Edge Function so
+// the money always follows the decision: accepting charges the held card,
+// declining releases the hold (or refunds a session already paid for).
+// The database refuses a hand-made "confirmed" (migration 0022).
+const respondToBooking = async (
+  id: string,
+  action: 'accept' | 'decline',
+  declineReason?: DeclineReason,
+): Promise<void> => {
+  const { error } = await sb().functions.invoke('respond-to-booking', {
+    body: { bookingId: id, action, declineReason },
+  });
+  if (!error) return;
+  // The function's own message is in the response body, not error.message.
+  const context = (error as { context?: unknown }).context;
+  let detail: string | null = null;
+  if (context instanceof Response) {
+    const body = (await context.json().catch(() => null)) as { error?: string } | null;
+    detail = body?.error ?? null;
+  }
+  throw new Error(detail ?? error.message);
 };
+
+export const acceptBooking = (id: string): Promise<void> => respondToBooking(id, 'accept');
 
 export type DeclineReason = 'time' | 'not_a_fit' | 'other';
 
-export const declineBooking = async (
-  id: string,
-  reason?: string,
-  declineReason?: DeclineReason,
-): Promise<void> => {
-  const { error } = await sb()
-    .from('bookings')
-    .update({
-      status: 'cancelled',
-      cancellation_reason: reason ?? null,
-      // Optional: why the expert said no. Shapes the customer's email.
-      decline_reason: declineReason ?? null,
-    })
-    .eq('id', id);
-  if (error) throw error;
-};
+// Also used when an expert cancels a confirmed session: the customer is
+// always made whole. declineReason is optional and shapes the customer's email.
+export const declineBooking = (id: string, declineReason?: DeclineReason): Promise<void> =>
+  respondToBooking(id, 'decline', declineReason);
 
 // File a no-show report: first report wins (the `is null` filter makes a
 // second report a no-op), RLS limits writes to the booking's own parties.

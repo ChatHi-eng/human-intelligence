@@ -78,6 +78,24 @@ serve(async (req) => {
     return json({ error: 'Forbidden' }, 403);
   }
 
+  const stripe = new Stripe(stripeKey, {
+    apiVersion: '2024-06-20',
+    httpClient: Stripe.createFetchHttpClient(),
+  });
+  // payment_status is a server-owned column (migration 0014): write it with
+  // the service role. The caller's right to act was already checked above.
+  const admin = createClient(supabaseUrl, serviceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  // A card that is only on hold was never charged, so there is nothing to
+  // refund and the 24-hour rule does not apply: let the hold go.
+  if (booking.payment_status === 'authorized' && booking.stripe_payment_intent_id) {
+    await stripe.paymentIntents.cancel(booking.stripe_payment_intent_id);
+    await admin.from('bookings').update({ payment_status: 'released' }).eq('id', booking.id);
+    return json({ released: true, status: 'released' });
+  }
+
   // Policy: the expert cancelling always refunds. The customer only gets a
   // refund while the session is still more than 24 hours away.
   const isExpertCaller = booking.expert_profile_id === user.id;
@@ -98,11 +116,6 @@ serve(async (req) => {
     return json({ error: 'Already refunded' }, 409);
   }
 
-  const stripe = new Stripe(stripeKey, {
-    apiVersion: '2024-06-20',
-    httpClient: Stripe.createFetchHttpClient(),
-  });
-
   const refund = await stripe.refunds.create({
     payment_intent: booking.stripe_payment_intent_id,
     reason: 'requested_by_customer',
@@ -112,11 +125,6 @@ serve(async (req) => {
     },
   });
 
-  // payment_status is a server-owned column (migration 0014): write it with
-  // the service role. The caller's right to refund was already checked above.
-  const admin = createClient(supabaseUrl, serviceKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
   await admin
     .from('bookings')
     .update({ payment_status: 'refunded' })

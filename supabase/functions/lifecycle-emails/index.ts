@@ -93,6 +93,9 @@ type BookingRow = {
   // Why the expert declined, if they said (migration 0020): 'time',
   // 'not_a_fit' or 'other'.
   decline_reason?: string | null;
+  // 'instant' (paid and confirmed at once) or 'approval' (card held until the
+  // expert accepts). Migration 0022.
+  booking_mode?: string | null;
   // Added by the separate no-show-policy migration. Optional on purpose: this
   // function must work whether or not that migration has run yet.
   no_show_reported_by?: string | null;
@@ -352,13 +355,19 @@ serve(async (req) => {
   const cut = money(expertCutCents(booking.price_cents));
   const pct = Math.round(feePct() * 100);
 
-  // ---- INSERT: a new request → one email to each side ----------------------
-  if (payload.type === 'INSERT') {
-    // Only the real app path (server default 'requested') gets request emails;
-    // rows seeded straight to another status are not a request to answer.
-    if (booking.status !== 'requested') {
-      return json({ ok: true, skipped: true });
-    }
+  // A new row is not news yet: the customer has not paid. Everything below is
+  // derived from an UPDATE by comparing old_record to record.
+  if (payload.type !== 'UPDATE' || !old) {
+    return json({ ok: true, skipped: true });
+  }
+  const instant = booking.booking_mode === 'instant';
+
+  // ---- Card hold succeeded on an approve-first request → tell both sides ----
+  const becameRequest =
+    old.payment_status !== 'authorized' &&
+    booking.payment_status === 'authorized' &&
+    booking.status === 'requested';
+  if (becameRequest) {
 
     const [expertEmail, customerEmail] = await Promise.all([
       emailOf(booking.expert_profile_id),
@@ -374,7 +383,7 @@ serve(async (req) => {
           [
             p(`Hi ${expertName},`),
             p(
-              `${customerName} just asked to book a session with you. It's waiting in <strong>Studio &rarr; Requests</strong>. Accept it if the time works, decline if it doesn't. Either way, the sooner you answer, the better it feels on their end.`,
+              `${customerName} just asked to book a session with you. It's waiting in <strong>Studio &rarr; Requests</strong>. Accept it if the time works, decline if it doesn't. You have 24 hours to answer; after that the request closes on its own.`,
             ),
             details([
               ['When', when],
@@ -390,7 +399,9 @@ serve(async (req) => {
                   ),
                 ]
               : []),
-            p(`If you decline, ${customerName} is refunded in full, with no fee to either of you.`),
+            p(
+              `${customerName}'s card is on hold and is only charged when you accept. If you decline, they pay nothing.`,
+            ),
             signoff('Thanks for being here,'),
           ].join('\n'),
         ),
@@ -418,7 +429,7 @@ serve(async (req) => {
             ]),
             note(TIMES_NOTE),
             p(
-              `About your payment: you pay when you book, and that's what holds your spot. If ${expertName} declines or can't make it, your card is refunded in full. You can cancel for a full refund too, up to 24 hours before the start. Inside 24 hours, cancellations aren't refunded.`,
+              `About your payment: your card has a hold for ${price}, and nothing has been charged. You are charged only if ${expertName} accepts. If they decline, or do not answer within 24 hours, the hold is released and you pay nothing.`,
             ),
             signoff('Talk soon,'),
           ].join('\n'),
@@ -429,11 +440,6 @@ serve(async (req) => {
     }
 
     return json({ ok: true });
-  }
-
-  // ---- UPDATE: derive transitions by comparing old_record to record --------
-  if (payload.type !== 'UPDATE' || !old) {
-    return json({ ok: true, skipped: true });
   }
 
   const becameConfirmed = old.status === 'requested' && booking.status === 'confirmed';
@@ -463,11 +469,15 @@ serve(async (req) => {
       await sendEmail(resendKey, {
         from,
         to: customerEmail,
-        subject: `You're booked: ${expertName} confirmed`,
+        subject: instant ? `You're booked with ${expertName}` : `You're booked: ${expertName} confirmed`,
         html: emailHtml(
           [
             p(`Hi ${customerName},`),
-            p(`${expertName} said yes. You're booked:`),
+            p(
+              instant
+                ? `You're booked with ${expertName}, and your card has been charged ${price}.`
+                : `${expertName} said yes. You're booked, and your card has now been charged ${price}.`,
+            ),
             details([
               ['Expert', expertName],
               ['When', when],
@@ -492,12 +502,16 @@ serve(async (req) => {
       await sendEmail(resendKey, {
         from,
         to: expertEmail,
-        subject: `Locked in: session with ${customerName}`,
+        subject: instant
+          ? `New session booked: ${customerName}`
+          : `Locked in: session with ${customerName}`,
         html: emailHtml(
           [
             p(`Hi ${expertName},`),
             p(
-              `You accepted. Your session with ${customerName} is locked in. It'll be waiting in your <strong>Today</strong> list in Studio when the day comes.`,
+              instant
+                ? `${customerName} booked a session with you and has paid. It'll be in your <strong>Today</strong> list in Studio when the day comes. If you can't make it, cancel from the booking and they are refunded in full.`
+                : `You accepted. Your session with ${customerName} is locked in. It'll be waiting in your <strong>Today</strong> list in Studio when the day comes.`,
             ),
             details([
               ['When', when],
@@ -505,6 +519,13 @@ serve(async (req) => {
               ['You earn', `${cut} (after Palam's ${pct}% fee)`],
             ]),
             note(TIMES_NOTE),
+            ...(instant && booking.customer_note
+              ? [
+                  p(
+                    `<strong>What they want to talk about:</strong><br>${escapeHtml(booking.customer_note)}`,
+                  ),
+                ]
+              : []),
             signoff('Thanks for being here,'),
           ].join('\n'),
         ),
@@ -521,9 +542,11 @@ serve(async (req) => {
       // If the same update already flipped the payment to refunded, say so
       // plainly; otherwise promise the refund that the app kicks off.
       const refundLine =
-        booking.payment_status === 'refunded'
-          ? 'Your card was refunded in full. Depending on your bank, it can take 5 to 10 business days to show on your statement.'
-          : 'Your card will be refunded in full. If it was already charged, the refund is on its way.';
+        booking.payment_status === 'released'
+          ? 'Your card was not charged. The hold on it has been released and will drop off your statement within a few days.'
+          : booking.payment_status === 'refunded'
+            ? 'Your card was refunded in full. Depending on your bank, it can take 5 to 10 business days to show on your statement.'
+            : 'Your card will be refunded in full. If it was already charged, the refund is on its way.';
       await sendEmail(resendKey, {
         from,
         to: customerEmail,
@@ -557,25 +580,64 @@ serve(async (req) => {
     }
   }
 
-  if (becameCancelled && !declinedByExpert) {
+  // The expert did not answer an approve-first request in time (set by the
+  // expire-requests function). The customer was never charged.
+  const expired = booking.cancellation_reason === 'expired: no response from expert';
+  // An abandoned checkout was never announced to anyone, so freeing its time
+  // slot is silent.
+  const abandoned = booking.cancellation_reason === 'checkout session expired';
+
+  if (becameCancelled && expired) {
+    const customerEmail = await emailOf(booking.customer_id);
+    if (customerEmail) {
+      await sendEmail(resendKey, {
+        from,
+        to: customerEmail,
+        subject: `Your request to ${expertName} has closed`,
+        html: emailHtml(
+          [
+            p(`Hi ${customerName},`),
+            p(
+              `${expertName} did not answer your session request in time, so it has closed. Your card was not charged, and the hold on it has been released.`,
+            ),
+            details([
+              ['When', when],
+              ['Format', format],
+            ]),
+            p(
+              `<a href="${APP_URL}" style="color:${BRAND_GREEN};font-weight:700;">Find another expert on Palam</a>`,
+            ),
+            signoff('Sorry about that,'),
+          ].join('\n'),
+        ),
+      });
+    } else {
+      console.error('expiry email skipped, no address for customer', booking.customer_id);
+    }
+  }
+
+  if (becameCancelled && !declinedByExpert && !abandoned) {
     const expertEmail = await emailOf(booking.expert_profile_id);
     if (expertEmail) {
       const refundNote =
         booking.payment_status === 'refunded'
           ? 'Their payment was refunded in full.'
-          : cancelledInside24h
-            ? "Per Palam's cancellation policy, cancellations within 24 hours of the session aren't refunded, so your payout is unchanged."
-            : 'Their payment is being refunded.';
-      const why =
-        booking.cancellation_reason === 'cancelled by customer'
+          : booking.payment_status === 'released'
+            ? 'They had not been charged.'
+            : cancelledInside24h
+              ? "Per Palam's cancellation policy, cancellations within 24 hours of the session aren't refunded, so your payout is unchanged."
+              : 'Their payment is being refunded.';
+      const why = expired
+        ? `The request from ${customerName} below closed because it was not answered within 24 hours. They were not charged.`
+        : booking.cancellation_reason === 'cancelled by customer'
           ? `${customerName} cancelled the session below. ${refundNote} That time is open again, and there is nothing you need to do.`
-          : booking.cancellation_reason === 'checkout session expired'
-            ? `The request below was withdrawn. ${customerName}'s payment didn't go through, so the session never locked in. Nothing to do on your side.`
-            : 'The session below was cancelled. Nothing to do on your side.';
+          : 'The session below was cancelled. Nothing to do on your side.';
       await sendEmail(resendKey, {
         from,
         to: expertEmail,
-        subject: `Cancelled: session with ${customerName}`,
+        subject: expired
+          ? `Request closed: ${customerName}`
+          : `Cancelled: session with ${customerName}`,
         html: emailHtml(
           [
             p(`Hi ${expertName},`),

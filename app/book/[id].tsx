@@ -8,13 +8,14 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { Screen } from '@/components/ui/Screen';
-import { BOOKING_WINDOW_DAYS, MIN_BOOKING_NOTICE_MINUTES } from '@/constants/business';
+import { BOOKING_WINDOW_DAYS } from '@/constants/business';
 import { CUSTOMER_BOOKING_ENABLED, PHONE_SESSIONS_ENABLED } from '@/constants/featureFlags';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useCreateBooking, useExpertBusyTimes } from '@/hooks/useBookings';
 import { useExpert } from '@/hooks/useExperts';
 import { formatTime } from '@/lib/date';
+import { noticeMinutesFor } from '@/lib/discover';
 import { deviceTimeZone, generateSlots, groupSlotsByDate } from '@/lib/slots';
 import type { CallMedium, TimeSlot } from '@/types/booking';
 
@@ -44,7 +45,7 @@ export default function BookScreen() {
       generateSlots(expert.availability, expert.availabilityDates, busy ?? [], {
         timeZone: expert.timezone,
         bufferMinutes: expert.bufferMinutes,
-        minNoticeMinutes: MIN_BOOKING_NOTICE_MINUTES,
+        minNoticeMinutes: noticeMinutesFor(expert),
         daysAhead: BOOKING_WINDOW_DAYS,
       }),
     );
@@ -248,6 +249,7 @@ export default function BookScreen() {
               <PaymentSheet
                 amountCents={expert.sessionPrice}
                 expertName={expert.displayName}
+                holdOnly={!expert.autoAccept}
                 onPay={onConfirm}
                 loading={isPending}
               />

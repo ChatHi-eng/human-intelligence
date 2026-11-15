@@ -58,6 +58,8 @@ const paymentLabel = (status: PaymentStatus): string => {
       return 'Refunded';
     case 'failed':
       return 'Payment failed';
+    case 'released':
+      return 'Not charged';
   }
 };
 
@@ -273,10 +275,15 @@ export default function BookingDetailScreen() {
 
         {booking.status === 'requested' && isCustomer && !needsPayment && (
           <Card style={{ marginTop: spacing.lg }}>
-            <Text style={styles.sectionTitle}>Payment received</Text>
+            <Text style={styles.sectionTitle}>
+              {booking.paymentStatus === 'authorized' ? 'Request sent' : 'Payment received'}
+            </Text>
             <Text style={styles.cardBody}>
-              {(expert?.displayName ?? 'The expert') +
-                " has been notified. You'll get a confirmation as soon as they accept, and a full refund if they can't make it."}
+              {booking.paymentStatus === 'authorized'
+                ? (expert?.displayName ?? 'The expert') +
+                  ' has 24 hours to answer. Your card is on hold and is only charged if they accept.'
+                : (expert?.displayName ?? 'The expert') +
+                  " has been notified. You'll get a confirmation as soon as they accept, and a full refund if they can't make it."}
             </Text>
           </Card>
         )}
@@ -367,6 +374,7 @@ export default function BookingDetailScreen() {
                     // Inside 24h the customer forfeits the payment, don't
                     // attempt a refund (the server would refuse it anyway).
                     refund: !forfeitsPayment,
+                    byExpert: isExpert,
                   },
                   {
                     onSuccess: () => {

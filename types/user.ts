@@ -68,6 +68,9 @@ export type Expert = Profile & {
   availabilityDates: AvailabilityDate[];
   // IANA zone the availability hours are written in. null = not set yet.
   timezone: string | null;
+  // true = customers are confirmed as soon as they pay. false = the expert
+  // approves each request and the card is only held until they do.
+  autoAccept: boolean;
   // Hidden from Discover and not bookable while true; hours are kept.
   paused: boolean;
   // Minutes kept free on either side of each booked session.

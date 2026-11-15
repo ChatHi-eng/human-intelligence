@@ -9,14 +9,11 @@ import { Card } from '@/components/ui/Card';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { Screen } from '@/components/ui/Screen';
 import { SectionHeader } from '@/components/ui/SectionHeader';
-import {
-  BOOKING_WINDOW_DAYS,
-  BUFFER_OPTIONS_MINUTES,
-  MIN_BOOKING_NOTICE_MINUTES,
-} from '@/constants/business';
+import { BOOKING_WINDOW_DAYS, BUFFER_OPTIONS_MINUTES } from '@/constants/business';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useMyExpertProfile, useUpdateExpertSettings } from '@/hooks/useExperts';
 import { formatDateTime } from '@/lib/date';
+import { noticeMinutesFor } from '@/lib/discover';
 import { generateSlots } from '@/lib/slots';
 
 // One place for an expert's schedule: weekly hours, extra dates and days off,
@@ -38,7 +35,7 @@ export default function AvailabilityScreen() {
         ? generateSlots(expert.availability, expert.availabilityDates, [], {
             timeZone: expert.timezone,
             bufferMinutes: expert.bufferMinutes,
-            minNoticeMinutes: MIN_BOOKING_NOTICE_MINUTES,
+            minNoticeMinutes: noticeMinutesFor(expert),
             daysAhead: BOOKING_WINDOW_DAYS,
           })
         : [],
@@ -68,7 +65,7 @@ export default function AvailabilityScreen() {
               : `No open times in the next ${BOOKING_WINDOW_DAYS} days. Add weekly hours or a date below so customers can book you.`}
           </Text>
           <Text style={styles.cardNote}>
-            Times closer than {MIN_BOOKING_NOTICE_MINUTES / 60} hours away are not offered, so a
+            Times closer than {noticeMinutesFor(expert) / 60} hours away are not offered, so a
             session never lands on you without warning.
           </Text>
         </Card>
@@ -98,6 +95,25 @@ export default function AvailabilityScreen() {
                     onError: onSettingsError,
                   },
                 )
+              }
+            />
+          </View>
+
+          <View style={styles.settingRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardTitle}>Approve requests first</Text>
+              <Text style={styles.cardNote}>
+                Off: customers pay and are booked straight away. On: you see each request
+                first and have 24 hours to answer. Their card is only charged if you accept,
+                and your times are offered at least a day ahead.
+              </Text>
+            </View>
+            <Switch
+              value={!expert.autoAccept}
+              disabled={savingSettings}
+              accessibilityLabel="Approve requests first"
+              onValueChange={(approveFirst) =>
+                updateSettings({ autoAccept: !approveFirst }, { onError: onSettingsError })
               }
             />
           </View>

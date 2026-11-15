@@ -20,9 +20,10 @@ import {
 } from '@/hooks/useBookings';
 import { useEarningsBuckets } from '@/hooks/useEarnings';
 import { useMyExpertProfile } from '@/hooks/useExperts';
-import { BOOKING_WINDOW_DAYS, MIN_BOOKING_NOTICE_MINUTES } from '@/constants/business';
+import { BOOKING_WINDOW_DAYS } from '@/constants/business';
 import { formatDateTime, isoDateKey, minutesBetween } from '@/lib/date';
 import { formatCurrency } from '@/lib/format';
+import { noticeMinutesFor } from '@/lib/discover';
 import { copyExpertShareLink } from '@/lib/share';
 import { generateSlots } from '@/lib/slots';
 import { capture } from '@/services/analytics';
@@ -82,7 +83,7 @@ export default function StudioScreen() {
   const hasOpenTimes =
     generateSlots(expertProfile.availability, expertProfile.availabilityDates, [], {
       timeZone: expertProfile.timezone,
-      minNoticeMinutes: MIN_BOOKING_NOTICE_MINUTES,
+      minNoticeMinutes: noticeMinutesFor(expertProfile),
       daysAhead: BOOKING_WINDOW_DAYS,
     }).length > 0;
   const setupSteps = [
@@ -197,8 +198,15 @@ export default function StudioScreen() {
           />
         </View>
 
-        <SectionHeader title="Requests" caption="Customers waiting for you to confirm." />
-        {pending.length === 0 ? (
+        {/* Instant-booking experts have no requests to answer, so the section
+            only appears for approve-first experts or when something is waiting. */}
+        {!expertProfile.autoAccept || pending.length > 0 ? (
+          <SectionHeader
+            title="Requests"
+            caption="Answer within 24 hours. The customer is only charged if you accept."
+          />
+        ) : null}
+        {expertProfile.autoAccept && pending.length === 0 ? null : pending.length === 0 ? (
           <EmptyState
             title="No pending requests"
             description="When a customer books, you'll see it here to accept or decline."

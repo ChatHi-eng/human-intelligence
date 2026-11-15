@@ -59,7 +59,8 @@ const stubSupabase = async (page: Page) => {
     timezone: string | null;
     paused: boolean;
     buffer_minutes: number;
-  } = { windows: [], timezone: null, paused: false, buffer_minutes: 0 };
+    auto_accept: boolean;
+  } = { windows: [], timezone: null, paused: false, buffer_minutes: 0, auto_accept: true };
 
   const expertRow = () => ({
     profile_id: EXPERT_ID,
@@ -73,6 +74,7 @@ const stubSupabase = async (page: Page) => {
     timezone: state.timezone,
     paused: state.paused,
     buffer_minutes: state.buffer_minutes,
+    auto_accept: state.auto_accept,
     headline: 'Read your contract with someone who writes them',
     hourly_rate_cents: 20000,
     years_experience: 14,
@@ -169,6 +171,15 @@ test('expert sets weekly hours in a few taps and shows up as bookable', async ({
   // A gap between sessions is one tap and is saved straight away.
   await page.getByText('15 min', { exact: true }).click();
   await expect.poll(() => state.buffer_minutes).toBe(15);
+
+  // Booking is instant unless the expert asks to approve requests first.
+  // Approving first pushes their times out to a day's notice.
+  await expect(page.getByText(/Times closer than 2 hours away/)).toBeVisible();
+  await page.getByLabel('Approve requests first').click();
+  await expect.poll(() => state.auto_accept).toBe(false);
+  await expect(page.getByText(/Times closer than 24 hours away/)).toBeVisible();
+  await page.getByLabel('Approve requests first').click();
+  await expect.poll(() => state.auto_accept).toBe(true);
 
   // Discover now shows the expert with their field, role and next opening.
   await page.goto('/');

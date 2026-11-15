@@ -74,10 +74,35 @@ serve(async (req) => {
       const session = event.data.object as Stripe.Checkout.Session;
       const paymentIntentId =
         typeof session.payment_intent === 'string' ? session.payment_intent : null;
+      const paid = session.payment_status === 'paid';
+      const { data: rows } = await admin
+        .from('bookings')
+        .select('id, status, booking_mode')
+        .eq('stripe_checkout_session_id', session.id)
+        .limit(1);
+      const booking = rows?.[0];
       await updateBookingBySession(session.id, {
         stripe_payment_intent_id: paymentIntentId,
-        payment_status: session.payment_status === 'paid' ? 'captured' : 'authorized',
+        payment_status: paid ? 'captured' : 'authorized',
+        // Instant booking: the session is confirmed the moment the money
+        // lands. No expert action is needed.
+        ...(paid && booking?.status === 'requested' && booking.booking_mode === 'instant'
+          ? { status: 'confirmed' }
+          : {}),
+        // Approve-first: the card is only held. The expert's response clock
+        // starts now (expire-requests reads requested_at).
+        ...(!paid ? { requested_at: new Date().toISOString() } : {}),
       });
+      break;
+    }
+    case 'payment_intent.canceled': {
+      // A hold was let go (decline, expiry, or the customer withdrew).
+      const pi = event.data.object as Stripe.PaymentIntent;
+      await admin
+        .from('bookings')
+        .update({ payment_status: 'released' })
+        .eq('stripe_payment_intent_id', pi.id)
+        .eq('payment_status', 'authorized');
       break;
     }
     case 'checkout.session.expired': {

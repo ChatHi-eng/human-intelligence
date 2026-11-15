@@ -292,6 +292,17 @@ Every email is derived by comparing the row's old and new values, so webhook ret
 
 **What delivers today vs. after domain verification:** until `palamapp.com` is verified in Resend, the test sender (`onboarding@resend.dev`) can only deliver to the Resend account owner's own address — so the two **owner alerts deliver now**, and every customer/expert-facing email fails quietly (logged, returns 200, never retried). To go fully live: Resend → **Domains** → add `palamapp.com` and set the DNS records it shows → once verified, add the secret `PALAM_SENDER` = `Palam <hello@palamapp.com>` (any address on the verified domain). Every email in the table starts delivering immediately — no redeploy needed. The same applies to `notify-application`'s approval email (its `from` still needs the one-line switch described above).
 
+## Booking modes and payment
+
+The price an expert sets is the price of one 30-minute session, and it is exactly what the customer is charged (the `hourly_rate_cents` column keeps its old name; see migration 0021).
+
+- **Instant (default).** The customer picks an open time and pays. The Stripe webhook marks the payment captured and the booking confirmed in one step.
+- **Approve requests first.** An expert can switch this on under Studio, Availability. Checkout then only places a hold on the card (`capture_method: manual`). The `respond-to-booking` function charges the hold when the expert accepts and releases it when they decline. Their times are offered at least 24 hours ahead.
+- **No answer.** The `expire-requests` function closes an unanswered request 24 hours after it was made, or 12 hours before the session if that comes first, and releases the hold. Halfway through it sends the expert one nudge. It also frees time slots whose checkout was abandoned.
+- **Who changes what.** The database refuses a hand-made `confirmed` status (migration 0022). Accepting, declining and an expert's cancellation all go through `respond-to-booking`, so the money always follows the decision. A customer's cancellation still uses `refund-booking`, which applies the 24-hour rule to charged sessions and simply releases a hold.
+
+Deploying functions: sign in once with `npx supabase login`, then `npx supabase functions deploy <name> --no-verify-jwt --project-ref dthpwxpxjhbsgzcjnept` deploys straight from this folder.
+
 ## Reminders
 
 Both people on a confirmed session are reminded twice: once a day before (sent between 28 and 24 hours ahead) and once about an hour before.

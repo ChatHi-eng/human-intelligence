@@ -186,10 +186,9 @@ export const useAcceptBooking = () => {
 export const useDeclineBooking = () => {
   const qc = useQueryClient();
   return useMutation({
-    // Default the reason: the lifecycle-emails webhook routes the cancellation
-    // email to the customer only when it reads 'declined by expert'.
-    mutationFn: (input: { id: string; reason?: string; declineReason?: DeclineReason }) =>
-      declineBooking(input.id, input.reason ?? 'declined by expert', input.declineReason),
+    // The server releases the card hold or refunds, then cancels.
+    mutationFn: (input: { id: string; declineReason?: DeclineReason }) =>
+      declineBooking(input.id, input.declineReason),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['bookings'] });
     },
@@ -199,7 +198,18 @@ export const useDeclineBooking = () => {
 export const useCancelBooking = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { id: string; reason?: string; refund?: boolean }) => {
+    mutationFn: async (input: {
+      id: string;
+      reason?: string;
+      refund?: boolean;
+      byExpert?: boolean;
+    }) => {
+      // An expert backing out is a decline: the server returns the customer's
+      // money (or releases the hold) and cancels in one step.
+      if (input.byExpert) {
+        await declineBooking(input.id);
+        return;
+      }
       await cancelBooking(input.id, input.reason);
       // Refund any captured/authorized payment by default when the booking is
       // cancelled. If the caller knows the booking was never paid (e.g. expert

@@ -71,16 +71,22 @@ serve(async (req) => {
   const { data: booking, error: bookingError } = await userClient
     .from('bookings')
     .select(
-      'id, customer_id, expert_profile_id, price_cents, status, payment_status, stripe_checkout_session_id',
+      'id, customer_id, expert_profile_id, price_cents, status, payment_status, booking_mode, stripe_checkout_session_id',
     )
     .eq('id', body.bookingId)
     .maybeSingle();
   if (bookingError) return json({ error: bookingError.message }, 500);
   if (!booking) return json({ error: 'Booking not found' }, 404);
   if (booking.customer_id !== user.id) return json({ error: 'Forbidden' }, 403);
-  if (booking.payment_status === 'captured') {
+  if (booking.payment_status === 'captured' || booking.payment_status === 'authorized') {
     return json({ error: 'Already paid' }, 409);
   }
+  if (booking.status === 'cancelled') {
+    return json({ error: 'This booking was cancelled' }, 409);
+  }
+  // Approve-first experts: hold the card now, charge only when they accept.
+  // Everyone else: charge now and the session is confirmed straight away.
+  const holdOnly = booking.booking_mode === 'approval';
 
   // Look up the expert's Connect account so we can route the payout. If
   // payouts aren't enabled yet, fall back to a platform-only charge — the
@@ -127,6 +133,10 @@ serve(async (req) => {
     mode: 'payment',
     payment_method_types: ['card'],
     customer_email: user.email ?? undefined,
+    // The time slot is reserved while this page is open. Stripe's shortest
+    // allowed lifetime is 30 minutes; an abandoned checkout then expires and
+    // the webhook frees the slot.
+    expires_at: Math.floor(Date.now() / 1000) + 31 * 60,
     line_items: [
       {
         quantity: 1,
@@ -134,7 +144,9 @@ serve(async (req) => {
           currency: 'usd',
           unit_amount: amountCents,
           product_data: {
-            name: 'Palam session',
+            name: holdOnly
+              ? 'Palam session (card held, charged only if the expert accepts)'
+              : 'Palam session',
             description: `Booking ${booking.id}`,
           },
         },
@@ -149,6 +161,10 @@ serve(async (req) => {
       // Guarantees a live-mode email receipt regardless of the dashboard's
       // "Successful payments" toggle (test mode never auto-sends receipts).
       receipt_email: user.email ?? undefined,
+      // 'manual' authorises the card without taking the money. The hold is
+      // valid for 7 days; respond-to-booking captures it on accept and
+      // cancels it on decline, and expire-requests cancels it on no answer.
+      capture_method: holdOnly ? 'manual' : 'automatic',
       ...(canSplit
         ? {
             application_fee_amount: applicationFeeCents,

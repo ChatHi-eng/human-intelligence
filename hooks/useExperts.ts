@@ -72,7 +72,11 @@ export const useUpdateExpertSettings = () => {
   const userId = useAuthStore((s) => s.user?.id);
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (settings: { paused?: boolean; bufferMinutes?: number }) => {
+    mutationFn: async (settings: {
+      paused?: boolean;
+      bufferMinutes?: number;
+      autoAccept?: boolean;
+    }) => {
       if (!userId) throw new Error('Not signed in');
       await updateMyExpertSettings(userId, settings);
     },

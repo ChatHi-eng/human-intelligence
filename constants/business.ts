@@ -18,6 +18,11 @@ export const MIN_REVIEWS_FOR_RATING = 5;
 // Choices for the gap an expert keeps free around each booked session.
 export const BUFFER_OPTIONS_MINUTES = [0, 15, 30] as const;
 
+// Experts who approve each request need time to answer, so their times are
+// only offered a full day or more ahead. Requests they do not answer close
+// after 24 hours, or 12 hours before the session (expire-requests function).
+export const APPROVAL_BOOKING_NOTICE_MINUTES = 24 * 60;
+
 // How far ahead customers can book.
 export const BOOKING_WINDOW_DAYS = 14;
 

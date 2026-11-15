@@ -1,5 +1,6 @@
 // Ordering and "when can I book them" for the Discover list.
 import {
+  APPROVAL_BOOKING_NOTICE_MINUTES,
   BOOKING_WINDOW_DAYS,
   MIN_BOOKING_NOTICE_MINUTES,
   MIN_REVIEWS_FOR_RATING,
@@ -8,6 +9,10 @@ import { generateSlots } from '@/lib/slots';
 import type { Expert } from '@/types/user';
 
 export type ExpertSort = 'soonest' | 'rating' | 'price';
+
+/** How far ahead this expert's times start being offered. */
+export const noticeMinutesFor = (expert: Pick<Expert, 'autoAccept'>): number =>
+  expert.autoAccept ? MIN_BOOKING_NOTICE_MINUTES : APPROVAL_BOOKING_NOTICE_MINUTES;
 
 /**
  * Start of the expert's next open time, or null when they have none or have
@@ -19,7 +24,7 @@ export const nextOpening = (expert: Expert, now: Date = new Date()): string | nu
   if (expert.sessionPrice === null || expert.paused) return null;
   const slots = generateSlots(expert.availability, expert.availabilityDates, [], {
     timeZone: expert.timezone,
-    minNoticeMinutes: MIN_BOOKING_NOTICE_MINUTES,
+    minNoticeMinutes: noticeMinutesFor(expert),
     daysAhead: BOOKING_WINDOW_DAYS,
     now,
   });

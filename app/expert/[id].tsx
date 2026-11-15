@@ -27,11 +27,8 @@ import { formatDay } from '@/lib/date';
 import { formatCurrency } from '@/lib/format';
 import { capture } from '@/services/analytics';
 import { generateSlots } from '@/lib/slots';
-import {
-  BOOKING_WINDOW_DAYS,
-  MIN_BOOKING_NOTICE_MINUTES,
-  MIN_REVIEWS_FOR_RATING,
-} from '@/constants/business';
+import { BOOKING_WINDOW_DAYS, MIN_REVIEWS_FOR_RATING } from '@/constants/business';
+import { noticeMinutesFor } from '@/lib/discover';
 
 export default function ExpertProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -66,7 +63,7 @@ export default function ExpertProfileScreen() {
   const hasAvailability =
     generateSlots(expert.availability, expert.availabilityDates, [], {
       timeZone: expert.timezone,
-      minNoticeMinutes: MIN_BOOKING_NOTICE_MINUTES,
+      minNoticeMinutes: noticeMinutesFor(expert),
       daysAhead: BOOKING_WINDOW_DAYS,
     }).length > 0;
   const isSelf = user?.id === expert.id;

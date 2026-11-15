@@ -1,6 +1,18 @@
 export type CallMedium = 'video' | 'phone';
 
-export type PaymentStatus = 'pending' | 'authorized' | 'captured' | 'refunded' | 'failed';
+// 'authorized' = card held, not charged. 'released' = a hold let go without
+// ever charging (declined, expired, or withdrawn before the expert accepted).
+export type PaymentStatus =
+  | 'pending'
+  | 'authorized'
+  | 'captured'
+  | 'refunded'
+  | 'failed'
+  | 'released';
+
+// 'instant': paid and confirmed at once. 'approval': the expert reviews the
+// request first and the card is only held until they accept.
+export type BookingMode = 'instant' | 'approval';
 
 export type BookingStatus =
   | 'requested'
@@ -23,6 +35,7 @@ export type Booking = {
   status: BookingStatus;
   paymentStatus: PaymentStatus;
   priceCents: number;
+  bookingMode: BookingMode;
   callRoomUrl: string | null;
   // What the customer wants to talk about, written when they booked.
   customerNote: string | null;
