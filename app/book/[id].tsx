@@ -43,6 +43,7 @@ export default function BookScreen() {
     return groupSlotsByDate(
       generateSlots(expert.availability, expert.availabilityDates, busy ?? [], {
         timeZone: expert.timezone,
+        bufferMinutes: expert.bufferMinutes,
         minNoticeMinutes: MIN_BOOKING_NOTICE_MINUTES,
         daysAhead: BOOKING_WINDOW_DAYS,
       }),
@@ -82,6 +83,17 @@ export default function BookScreen() {
           title="This is your own profile"
           description="You can't book a session with yourself. Share your profile so customers can."
           emoji="🪞"
+        />
+      </Screen>
+    );
+  }
+  if (expert.paused) {
+    return (
+      <Screen>
+        <EmptyState
+          title="Not taking bookings right now"
+          description={`${expert.displayName} has paused new sessions. Check back soon.`}
+          emoji="⏸️"
         />
       </Screen>
     );

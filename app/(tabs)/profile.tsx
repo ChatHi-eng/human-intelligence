@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { RatingStars } from '@/components/ui/RatingStars';
+import { MIN_REVIEWS_FOR_RATING } from '@/constants/business';
 import { Screen } from '@/components/ui/Screen';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { industryDisplay } from '@/constants/industries';
@@ -84,7 +85,7 @@ export default function YouScreen() {
                     tone={expertProfile.stripeConnectPayoutsEnabled ? 'success' : 'warning'}
                   />
                 </View>
-                {expertProfile.ratingCount > 0 ? (
+                {expertProfile.ratingCount >= MIN_REVIEWS_FOR_RATING ? (
                   <RatingStars
                     value={expertProfile.ratingAverage}
                     count={expertProfile.ratingCount}

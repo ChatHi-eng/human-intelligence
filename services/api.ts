@@ -47,6 +47,8 @@ type ExpertProfileRow = {
   current_company?: string | null;
   topics?: string[] | null;
   timezone?: string | null;
+  paused?: boolean | null;
+  buffer_minutes?: number | null;
   headline: string;
   hourly_rate_cents: number | null;
   years_experience: number;
@@ -185,6 +187,8 @@ const mapExpert = (row: ExpertWithRelations): Expert | null => {
     availability: (row.availability_windows ?? []).map(mapAvailability),
     availabilityDates: (row.availability_dates ?? []).map(mapAvailabilityDate),
     timezone: row.timezone ?? null,
+    paused: row.paused ?? false,
+    bufferMinutes: row.buffer_minutes ?? 0,
     verified: row.verified,
     coverImageUrl: row.cover_image_url ?? '',
     stripeConnectAccountId: row.stripe_connect_account_id,
@@ -227,7 +231,7 @@ const mapReview = (row: ReviewRow): Review => ({
 // Shared select string for Expert + relations.
 const EXPERT_SELECT = `
   profile_id, status, linkedin_url, industry_id, industry_custom, current_title, current_company,
-  topics, timezone, headline, hourly_rate_cents, years_experience,
+  topics, timezone, paused, buffer_minutes, headline, hourly_rate_cents, years_experience,
   verified, cover_image_url, rating_average, rating_count, how_i_can_help,
   stripe_connect_account_id, stripe_connect_payouts_enabled, created_at, updated_at,
   profiles!inner(id, display_name, avatar_url, bio, created_at, updated_at),
@@ -342,6 +346,8 @@ export const fetchExperts = async (filters: ExpertsFilters = {}): Promise<Expert
     .select(EXPERT_SELECT)
     // Supply-first launch: only owner-approved experts appear on Discover.
     .eq('status', 'approved')
+    // Paused experts keep their profile but leave the list.
+    .eq('paused', false)
     .order('rating_average', { ascending: false });
   if (filters.industryId) q = q.eq('industry_id', filters.industryId);
   if (typeof filters.minRating === 'number') q = q.gte('rating_average', filters.minRating);
@@ -437,6 +443,19 @@ export const upsertMyExpertProfile = async (
   if (input.currentCompany !== undefined) row.current_company = input.currentCompany;
   if (input.topics !== undefined) row.topics = input.topics;
   const { error } = await sb().from('expert_profiles').upsert(row);
+  if (error) throw error;
+};
+
+// Schedule switches an expert flips on their own: pause and the gap between
+// sessions. Separate from the profile upsert so neither can clobber the other.
+export const updateMyExpertSettings = async (
+  userId: string,
+  settings: { paused?: boolean; bufferMinutes?: number },
+): Promise<void> => {
+  const patch: Record<string, unknown> = {};
+  if (settings.paused !== undefined) patch.paused = settings.paused;
+  if (settings.bufferMinutes !== undefined) patch.buffer_minutes = settings.bufferMinutes;
+  const { error } = await sb().from('expert_profiles').update(patch).eq('profile_id', userId);
   if (error) throw error;
 };
 
@@ -589,10 +608,21 @@ export const acceptBooking = async (id: string): Promise<void> => {
   if (error) throw error;
 };
 
-export const declineBooking = async (id: string, reason?: string): Promise<void> => {
+export type DeclineReason = 'time' | 'not_a_fit' | 'other';
+
+export const declineBooking = async (
+  id: string,
+  reason?: string,
+  declineReason?: DeclineReason,
+): Promise<void> => {
   const { error } = await sb()
     .from('bookings')
-    .update({ status: 'cancelled', cancellation_reason: reason ?? null })
+    .update({
+      status: 'cancelled',
+      cancellation_reason: reason ?? null,
+      // Optional: why the expert said no. Shapes the customer's email.
+      decline_reason: declineReason ?? null,
+    })
     .eq('id', id);
   if (error) throw error;
 };

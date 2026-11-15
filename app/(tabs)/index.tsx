@@ -15,6 +15,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Screen } from '@/components/ui/Screen';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 
+import { MIN_REVIEWS_FOR_RATING } from '@/constants/business';
 import { CUSTOMER_BOOKING_ENABLED, PHONE_SESSIONS_ENABLED } from '@/constants/featureFlags';
 import { industries } from '@/constants/industries';
 import { colors, radius, spacing, typography } from '@/constants/theme';
@@ -82,6 +83,9 @@ export default function DiscoverScreen() {
   const chipIndustries = industries.filter((i) =>
     (allExperts ?? []).some((e) => e.industryId === i.id),
   );
+  // Sorting or filtering by rating is pointless until someone has enough
+  // reviews for a star average to show.
+  const ratingsExist = (allExperts ?? []).some((e) => e.ratingCount >= MIN_REVIEWS_FOR_RATING);
 
   // Supply-first launch: anyone signed in without an expert application gets a
   // front-and-center path into it (the You tab entry stays, but is buried).
@@ -188,6 +192,7 @@ export default function DiscoverScreen() {
       <FilterSheet
         visible={filtersOpen}
         filters={filters}
+        ratingsExist={ratingsExist}
         onClose={() => setFiltersOpen(false)}
         onChange={(next) => setFilters({ ...filters, ...next })}
         onReset={() =>
@@ -220,12 +225,14 @@ const FilterChip = ({
 const FilterSheet = ({
   visible,
   filters,
+  ratingsExist,
   onClose,
   onChange,
   onReset,
 }: {
   visible: boolean;
   filters: Filters;
+  ratingsExist: boolean;
   onClose: () => void;
   onChange: (next: Partial<Filters>) => void;
   onReset: () => void;
@@ -237,7 +244,7 @@ const FilterSheet = ({
 
       <Text style={styles.sheetLabel}>Sort by</Text>
       <View style={styles.sheetOptions}>
-        {SORT_OPTIONS.map((o) => {
+        {SORT_OPTIONS.filter((o) => ratingsExist || o.value !== 'rating').map((o) => {
           const active = filters.sort === o.value;
           return (
             <Pressable
@@ -251,21 +258,25 @@ const FilterSheet = ({
         })}
       </View>
 
-      <Text style={styles.sheetLabel}>Minimum rating</Text>
-      <View style={styles.sheetOptions}>
-        {RATING_OPTIONS.map((o) => {
-          const active = filters.minRating === o.value;
-          return (
-            <Pressable
-              key={o.label}
-              onPress={() => onChange({ minRating: o.value })}
-              style={[chipStyles.chip, active && chipStyles.chipActive]}
-            >
-              <Text style={[chipStyles.text, active && chipStyles.textActive]}>{o.label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      {ratingsExist ? (
+        <>
+          <Text style={styles.sheetLabel}>Minimum rating</Text>
+          <View style={styles.sheetOptions}>
+            {RATING_OPTIONS.map((o) => {
+              const active = filters.minRating === o.value;
+              return (
+                <Pressable
+                  key={o.label}
+                  onPress={() => onChange({ minRating: o.value })}
+                  style={[chipStyles.chip, active && chipStyles.chipActive]}
+                >
+                  <Text style={[chipStyles.text, active && chipStyles.textActive]}>{o.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </>
+      ) : null}
 
       <Text style={styles.sheetLabel}>Hourly rate</Text>
       <View style={styles.sheetOptions}>

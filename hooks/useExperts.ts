@@ -8,6 +8,7 @@ import {
   fetchExpert,
   fetchExperts,
   setAvailability,
+  updateMyExpertSettings,
   upsertMyExpertProfile,
   type BackgroundEntryInput,
   type ExpertProfileInput,
@@ -60,6 +61,23 @@ export const useUpsertMyExpertProfile = () => {
       await upsertMyExpertProfile(userId, input);
     },
     onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['my-expert-profile'] });
+      void qc.invalidateQueries({ queryKey: ['experts'] });
+      if (userId) void qc.invalidateQueries({ queryKey: ['expert', userId] });
+    },
+  });
+};
+
+export const useUpdateExpertSettings = () => {
+  const userId = useAuthStore((s) => s.user?.id);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (settings: { paused?: boolean; bufferMinutes?: number }) => {
+      if (!userId) throw new Error('Not signed in');
+      await updateMyExpertSettings(userId, settings);
+    },
+    onSuccess: (_data, settings) => {
+      capture('expert_settings_changed', settings);
       void qc.invalidateQueries({ queryKey: ['my-expert-profile'] });
       void qc.invalidateQueries({ queryKey: ['experts'] });
       if (userId) void qc.invalidateQueries({ queryKey: ['expert', userId] });

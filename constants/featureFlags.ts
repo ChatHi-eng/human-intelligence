@@ -11,6 +11,12 @@ export const MESSAGING_ENABLED = false;
 // still render. Flip to true once a real dialer/Twilio flow ships.
 export const PHONE_SESSIONS_ENABLED = false;
 
+// Text message reminders — decided 2026-11-15 to hold until after launch.
+// The sending code and the private phone storage exist; this hides the option
+// in the app so nobody opts in to texts that cannot be sent yet. Flip to true
+// once the Twilio secrets are set and the number is registered with carriers.
+export const SMS_REMINDERS_ENABLED = false;
+
 // Customer booking — decided 2026-10-20 to launch supply-first: experts join
 // and get vetted before customers can pay. Hides the Book session bar on
 // expert profiles, blocks the /book/[id] route ("Booking opens soon"), and

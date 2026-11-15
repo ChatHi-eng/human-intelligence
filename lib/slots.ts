@@ -17,6 +17,8 @@ export type SlotGenOptions = {
   daysAhead?: number;
   /** Earliest bookable start, in minutes from now (default 0). */
   minNoticeMinutes?: number;
+  /** Minutes kept free before and after every taken time (default 0). */
+  bufferMinutes?: number;
   /** IANA zone the windows are written in. Omitted = the viewer's zone. */
   timeZone?: string | null;
   /** Now, defaults to new Date(). */
@@ -134,6 +136,15 @@ export const generateSlots = (
   const daysAhead = options.daysAhead ?? 14;
   const now = options.now ?? new Date();
   const earliest = now.getTime() + (options.minNoticeMinutes ?? 0) * 60_000;
+  // Widen each taken time by the expert's gap so neighbours stay free.
+  const gapMs = (options.bufferMinutes ?? 0) * 60_000;
+  const taken: BusyRange[] =
+    gapMs === 0
+      ? busy
+      : busy.map((b) => ({
+          startIso: new Date(new Date(b.startIso).getTime() - gapMs).toISOString(),
+          endIso: new Date(new Date(b.endIso).getTime() + gapMs).toISOString(),
+        }));
   // Use the expert's zone only when this runtime can actually convert it.
   const timeZone =
     options.timeZone && partsInZone(now, options.timeZone) ? options.timeZone : null;
@@ -153,7 +164,7 @@ export const generateSlots = (
         if (!start) continue;
         const end = new Date(start.getTime() + slotMinutes * 60_000);
         if (start.getTime() <= earliest) continue;
-        if (busy.some((b) => overlaps(start, end, b))) continue;
+        if (taken.some((b) => overlaps(start, end, b))) continue;
         slots.push({
           startIso: start.toISOString(),
           endIso: end.toISOString(),

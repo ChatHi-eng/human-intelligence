@@ -68,6 +68,10 @@ export type Expert = Profile & {
   availabilityDates: AvailabilityDate[];
   // IANA zone the availability hours are written in. null = not set yet.
   timezone: string | null;
+  // Hidden from Discover and not bookable while true; hours are kept.
+  paused: boolean;
+  // Minutes kept free on either side of each booked session.
+  bufferMinutes: number;
   verified: boolean;
   coverImageUrl: string;
   // Stripe Connect — set after expert starts onboarding. payoutsEnabled flips

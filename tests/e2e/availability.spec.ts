@@ -54,7 +54,12 @@ type WindowRow = { weekday: number; start_minute: number; end_minute: number };
 
 const stubSupabase = async (page: Page) => {
   // What the "database" currently holds; saving replaces it.
-  const state: { windows: WindowRow[]; timezone: string | null } = { windows: [], timezone: null };
+  const state: {
+    windows: WindowRow[];
+    timezone: string | null;
+    paused: boolean;
+    buffer_minutes: number;
+  } = { windows: [], timezone: null, paused: false, buffer_minutes: 0 };
 
   const expertRow = () => ({
     profile_id: EXPERT_ID,
@@ -66,6 +71,8 @@ const stubSupabase = async (page: Page) => {
     current_company: 'Example LLP',
     topics: ['Severance', 'Non-competes'],
     timezone: state.timezone,
+    paused: state.paused,
+    buffer_minutes: state.buffer_minutes,
     headline: 'Read your contract with someone who writes them',
     hourly_rate_cents: 20000,
     years_experience: 14,
@@ -106,11 +113,14 @@ const stubSupabase = async (page: Page) => {
   await page.route('**/rest/v1/expert_profiles*', (route) => {
     const request = route.request();
     if (request.method() === 'PATCH') {
-      state.timezone = (request.postDataJSON() as { timezone?: string }).timezone ?? null;
+      Object.assign(state, request.postDataJSON() as Partial<typeof state>);
       return route.fulfill({ status: 204, body: '' });
     }
     const wantsObject = (request.headers().accept ?? '').includes('vnd.pgrst.object');
-    return json(route, wantsObject ? expertRow() : [expertRow()]);
+    if (wantsObject) return json(route, expertRow());
+    // The Discover query asks for paused=eq.false, like the real database.
+    const hidden = state.paused && request.url().includes('paused=eq.false');
+    return json(route, hidden ? [] : [expertRow()]);
   });
   return state;
 };
@@ -156,6 +166,10 @@ test('expert sets weekly hours in a few taps and shows up as bookable', async ({
   await expect(page.getByText(/open times in the next 14 days\. The next one is/)).toBeVisible();
   await shot('availability-saved');
 
+  // A gap between sessions is one tap and is saved straight away.
+  await page.getByText('15 min', { exact: true }).click();
+  await expect.poll(() => state.buffer_minutes).toBe(15);
+
   // Discover now shows the expert with their field, role and next opening.
   await page.goto('/');
   await expect(page.getByText('Dana Example')).toBeVisible({ timeout: 30_000 });
@@ -169,4 +183,15 @@ test('expert sets weekly hours in a few taps and shows up as bookable', async ({
   await expect(page.getByText('No experts match')).toBeVisible();
   await expect(search).toBeFocused();
   await shot('discover-card');
+
+  // Pausing hides the expert from Discover and says so on their own screens.
+  await page.goto('/studio/availability');
+  await page.getByLabel('Pause my profile').click();
+  await expect(page.getByText('Profile paused')).toBeVisible();
+  await expect(page.getByText(/Your profile is paused. You are hidden from Discover/)).toBeVisible();
+  expect(state.paused).toBe(true);
+  await shot('availability-paused');
+  await page.goto('/');
+  await expect(page.getByText('Talk to a human')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('Dana Example')).toHaveCount(0);
 });

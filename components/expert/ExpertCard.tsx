@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/ui/Avatar';
+import { MIN_REVIEWS_FOR_RATING } from '@/constants/business';
 import { industryDisplay } from '@/constants/industries';
 import { colors, spacing, typography } from '@/constants/theme';
 import { formatDay } from '@/lib/date';
@@ -45,13 +46,13 @@ export const ExpertCard = ({ expert, onPress }: ExpertCardProps) => {
           {expert.headline}
         </Text>
         <Text style={styles.footer} numberOfLines={1}>
-          {expert.ratingCount > 0 ? (
+          {expert.ratingCount >= MIN_REVIEWS_FOR_RATING ? (
             <>
               <Text style={styles.star}>★ </Text>
               {formatRating(expert.ratingAverage)} ({expert.ratingCount})
             </>
           ) : (
-            <Text style={styles.newLabel}>New</Text>
+            <Text style={styles.newLabel}>New on Palam</Text>
           )}
           <Text style={styles.dot}> · </Text>
           {expert.hourlyRate !== null ? (

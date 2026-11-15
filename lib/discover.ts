@@ -1,5 +1,9 @@
 // Ordering and "when can I book them" for the Discover list.
-import { BOOKING_WINDOW_DAYS, MIN_BOOKING_NOTICE_MINUTES } from '@/constants/business';
+import {
+  BOOKING_WINDOW_DAYS,
+  MIN_BOOKING_NOTICE_MINUTES,
+  MIN_REVIEWS_FOR_RATING,
+} from '@/constants/business';
 import { generateSlots } from '@/lib/slots';
 import type { Expert } from '@/types/user';
 
@@ -12,7 +16,7 @@ export type ExpertSort = 'soonest' | 'rating' | 'price';
  * booking screen, so the card shows the day, never an exact time.
  */
 export const nextOpening = (expert: Expert, now: Date = new Date()): string | null => {
-  if (expert.hourlyRate === null) return null;
+  if (expert.hourlyRate === null || expert.paused) return null;
   const slots = generateSlots(expert.availability, expert.availabilityDates, [], {
     timeZone: expert.timezone,
     minNoticeMinutes: MIN_BOOKING_NOTICE_MINUTES,
@@ -25,8 +29,10 @@ export const nextOpening = (expert: Expert, now: Date = new Date()): string | nu
 export const sortExperts = (experts: Expert[], sort: ExpertSort, now: Date = new Date()): Expert[] => {
   const opening = new Map(experts.map((e) => [e.id, nextOpening(e, now)]));
   const bookable = (e: Expert) => (opening.get(e.id) ? 0 : 1);
+  // An average built on a handful of reviews does not outrank anyone.
+  const rated = (e: Expert) => (e.ratingCount >= MIN_REVIEWS_FOR_RATING ? e.ratingAverage : 0);
   const byRating = (a: Expert, b: Expert) =>
-    b.ratingAverage - a.ratingAverage || b.ratingCount - a.ratingCount;
+    rated(b) - rated(a) || b.ratingCount - a.ratingCount;
 
   return [...experts].sort((a, b) => {
     // People who can actually be booked always come before those who cannot.

@@ -11,6 +11,7 @@ import {
   fetchPendingRequestsForExpert,
   reportNoShow,
   updateBookingStatus,
+  type DeclineReason,
 } from '@/services/api';
 import { capture } from '@/services/analytics';
 import { addBookingToDeviceCalendar } from '@/services/calendar';
@@ -187,8 +188,8 @@ export const useDeclineBooking = () => {
   return useMutation({
     // Default the reason: the lifecycle-emails webhook routes the cancellation
     // email to the customer only when it reads 'declined by expert'.
-    mutationFn: (input: { id: string; reason?: string }) =>
-      declineBooking(input.id, input.reason ?? 'declined by expert'),
+    mutationFn: (input: { id: string; reason?: string; declineReason?: DeclineReason }) =>
+      declineBooking(input.id, input.reason ?? 'declined by expert', input.declineReason),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['bookings'] });
     },

@@ -67,6 +67,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 // ---------------------------------------------------------------------------
 const DEFAULT_SENDER = 'Palam <onboarding@resend.dev>';
 const SUPPORT_EMAIL = 'info@palamapp.com';
+// Where links in emails point (the web app; it opens the mobile app's pages).
+const APP_URL = 'https://app.palamapp.com';
 const BRAND_GREEN = '#0F6E56';
 
 type ProfileRow = {
@@ -88,6 +90,9 @@ type BookingRow = {
   // What the customer wants to talk about (migration 0018). Optional so the
   // function works on rows written before the column existed.
   customer_note?: string | null;
+  // Why the expert declined, if they said (migration 0020): 'time',
+  // 'not_a_fit' or 'other'.
+  decline_reason?: string | null;
   // Added by the separate no-show-policy migration. Optional on purpose: this
   // function must work whether or not that migration has run yet.
   no_show_reported_by?: string | null;
@@ -527,7 +532,11 @@ serve(async (req) => {
           [
             p(`Hi ${customerName},`),
             p(
-              `${expertName} declined your session request. It happens. Schedules are messy and good people are busy.`,
+              booking.decline_reason === 'time'
+                ? `${expertName} could not do the time you picked.`
+                : booking.decline_reason === 'not_a_fit'
+                  ? `${expertName} read your request and felt it was outside what they can help with.`
+                  : `${expertName} declined your session request. It happens. Schedules are messy and good people are busy.`,
             ),
             details([
               ['When', when],
@@ -535,7 +544,9 @@ serve(async (req) => {
             ]),
             p(refundLine),
             p(
-              "There are more people on Palam who know this ground. When you're ready, have another look around.",
+              booking.decline_reason === 'time'
+                ? `<a href="${APP_URL}/expert/${booking.expert_profile_id}" style="color:${BRAND_GREEN};font-weight:700;">See ${expertName}'s other open times</a>`
+                : "There are more people on Palam who know this ground. When you're ready, have another look around.",
             ),
             signoff('Talk soon,'),
           ].join('\n'),

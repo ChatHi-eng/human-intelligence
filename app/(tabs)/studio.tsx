@@ -1,5 +1,6 @@
 import { Redirect, useRouter } from 'expo-router';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { BookingCard } from '@/components/booking/BookingCard';
 import { Avatar } from '@/components/ui/Avatar';
@@ -25,6 +26,7 @@ import { formatCurrency } from '@/lib/format';
 import { copyExpertShareLink } from '@/lib/share';
 import { generateSlots } from '@/lib/slots';
 import { capture } from '@/services/analytics';
+import type { DeclineReason } from '@/services/api';
 import type { Booking } from '@/types/booking';
 
 export default function StudioScreen() {
@@ -138,6 +140,21 @@ export default function StudioScreen() {
           onPress={() => void copyExpertShareLink(expertProfile.id)}
           style={styles.shareButton}
         />
+
+        {expertProfile.paused ? (
+          <Card style={styles.setupCard}>
+            <Text style={styles.cardTitle}>Your profile is paused</Text>
+            <Text style={styles.cardCaption}>
+              You are hidden from Discover and cannot be booked. Sessions already booked still
+              stand.
+            </Text>
+            <Button
+              title="Go to Availability to switch back on"
+              variant="secondary"
+              onPress={() => router.push('/studio/availability')}
+            />
+          </Card>
+        ) : null}
 
         {openSteps.length > 0 ? (
           <Card style={styles.setupCard}>
@@ -262,6 +279,24 @@ export default function StudioScreen() {
 const RequestCard = ({ booking, onOpen }: { booking: Booking; onOpen: () => void }) => {
   const { mutate: accept, isPending: accepting } = useAcceptBooking();
   const { mutate: decline, isPending: declining } = useDeclineBooking();
+  const [choosingReason, setChoosingReason] = useState(false);
+
+  const onDecline = (declineReason?: DeclineReason) =>
+    decline(
+      { id: booking.id, declineReason },
+      {
+        onSuccess: () => {
+          capture('booking_cancelled', { by_customer: false, decline_reason: declineReason ?? null });
+          Toast.show({ type: 'success', text1: 'Declined', text2: 'The customer is not charged.' });
+        },
+        onError: (err) =>
+          Toast.show({
+            type: 'error',
+            text1: 'Could not decline',
+            text2: err instanceof Error ? err.message : 'Unknown error',
+          }),
+      },
+    );
 
   return (
     <Card>
@@ -315,31 +350,37 @@ const RequestCard = ({ booking, onOpen }: { booking: Booking; onOpen: () => void
         <Button
           title="Decline"
           variant="ghost"
-          onPress={() =>
-            decline(
-              { id: booking.id },
-              {
-                onSuccess: () => {
-                  capture('booking_cancelled', { by_customer: false });
-                  Toast.show({ type: 'success', text1: 'Declined' });
-                },
-                onError: (err) =>
-                  Toast.show({
-                    type: 'error',
-                    text1: 'Could not decline',
-                    text2: err instanceof Error ? err.message : 'Unknown error',
-                  }),
-              },
-            )
-          }
+          onPress={() => setChoosingReason(true)}
           loading={declining}
           style={{ flex: 1 }}
         />
       </View>
+      {choosingReason ? (
+        <View style={styles.reasonBox}>
+          <Text style={styles.requestNoteLabel}>Tell them why? (optional)</Text>
+          <View style={styles.reasonRow}>
+            {DECLINE_REASONS.map((r) => (
+              <Pressable key={r.label} onPress={() => onDecline(r.value)} style={styles.reasonChip}>
+                <Text style={styles.reasonText}>{r.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Button title="Keep the request" variant="ghost" onPress={() => setChoosingReason(false)} />
+        </View>
+      ) : null}
       <Button title="Open" variant="ghost" onPress={onOpen} style={{ marginTop: spacing.xs }} />
     </Card>
   );
 };
+
+// "The time doesn't work" makes the customer's email point at the expert's
+// other open times; the rest only soften the wording.
+const DECLINE_REASONS: { label: string; value?: DeclineReason }[] = [
+  { label: "The time doesn't work", value: 'time' },
+  { label: 'Not the right fit for me', value: 'not_a_fit' },
+  { label: 'Something else', value: 'other' },
+  { label: 'Decline without a reason' },
+];
 
 const StatCard = ({
   label,
@@ -406,6 +447,15 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   setupTitle: { ...typography.bodyStrong, color: colors.textPrimary },
+  reasonBox: { marginTop: spacing.md, gap: spacing.sm },
+  reasonRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  reasonChip: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: 999,
+    backgroundColor: colors.surfaceAlt,
+  },
+  reasonText: { ...typography.bodyStrong, color: colors.textPrimary },
   earningsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

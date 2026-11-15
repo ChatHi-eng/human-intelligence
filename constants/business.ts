@@ -11,6 +11,13 @@ export const PLATFORM_FEE_PCT = 0.15;
 // request-and-accept, so the expert needs time to see the request.
 export const MIN_BOOKING_NOTICE_MINUTES = 120;
 
+// A star average is only shown once an expert has this many reviews; an
+// average built on one or two ratings tells a customer very little.
+export const MIN_REVIEWS_FOR_RATING = 5;
+
+// Choices for the gap an expert keeps free around each booked session.
+export const BUFFER_OPTIONS_MINUTES = [0, 15, 30] as const;
+
 // How far ahead customers can book.
 export const BOOKING_WINDOW_DAYS = 14;
 

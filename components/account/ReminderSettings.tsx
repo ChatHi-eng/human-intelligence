@@ -3,6 +3,7 @@ import { StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { SMS_REMINDERS_ENABLED } from '@/constants/featureFlags';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useNotificationPrefs, useSaveNotificationPrefs } from '@/hooks/useNotificationPrefs';
 import { pushSupported, registerForPush } from '@/services/push';
@@ -85,14 +86,16 @@ export const ReminderSettings = ({ userId }: { userId: string }) => {
         <Switch value={email} onValueChange={setEmail} accessibilityLabel="Email reminders" />
       </View>
 
-      <View style={styles.row}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.rowTitle}>Text message</Text>
-          <Text style={styles.caption}>Sent to the number below.</Text>
+      {SMS_REMINDERS_ENABLED ? (
+        <View style={styles.row}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rowTitle}>Text message</Text>
+            <Text style={styles.caption}>Sent to the number below.</Text>
+          </View>
+          <Switch value={sms} onValueChange={setSms} accessibilityLabel="Text message reminders" />
         </View>
-        <Switch value={sms} onValueChange={setSms} accessibilityLabel="Text message reminders" />
-      </View>
-      {sms ? (
+      ) : null}
+      {SMS_REMINDERS_ENABLED && sms ? (
         <>
           <TextInput
             placeholder="+14155550123"

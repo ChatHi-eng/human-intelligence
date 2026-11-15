@@ -27,7 +27,11 @@ import { formatDay } from '@/lib/date';
 import { formatCurrency } from '@/lib/format';
 import { capture } from '@/services/analytics';
 import { generateSlots } from '@/lib/slots';
-import { BOOKING_WINDOW_DAYS, MIN_BOOKING_NOTICE_MINUTES } from '@/constants/business';
+import {
+  BOOKING_WINDOW_DAYS,
+  MIN_BOOKING_NOTICE_MINUTES,
+  MIN_REVIEWS_FOR_RATING,
+} from '@/constants/business';
 
 export default function ExpertProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -98,7 +102,7 @@ export default function ExpertProfileScreen() {
             <Badge label={`${expert.yearsExperience}y experience`} tone="accent" />
           </View>
 
-          {expert.ratingCount > 0 ? (
+          {expert.ratingCount >= MIN_REVIEWS_FOR_RATING ? (
             <RatingStars value={expert.ratingAverage} count={expert.ratingCount} size={18} />
           ) : (
             <Text style={styles.newHere}>New on Palam</Text>
@@ -191,7 +195,9 @@ export default function ExpertProfileScreen() {
                   ? 'This is your public profile'
                   : expert.hourlyRate === null
                     ? 'Booking opens once a rate is set'
-                    : hasAvailability
+                    : expert.paused
+                      ? 'Not taking bookings right now'
+                      : hasAvailability
                       ? PHONE_SESSIONS_ENABLED
                         ? '30-minute sessions · video or phone'
                         : '30-minute video sessions'

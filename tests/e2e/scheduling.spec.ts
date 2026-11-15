@@ -61,6 +61,18 @@ test('taken times and times inside the notice period are not offered', () => {
   expect(slots.map((s) => s.startIso)).toEqual(['2026-11-02T15:30:00.000Z']);
 });
 
+test('the gap between sessions keeps neighbouring times free', () => {
+  const busy = [{ startIso: '2026-11-02T15:00:00.000Z', endIso: '2026-11-02T15:30:00.000Z' }];
+  const slots = generateSlots(MON_9_TO_11, [], busy, {
+    timeZone: 'America/New_York',
+    now: NOW,
+    daysAhead: 1,
+    bufferMinutes: 15,
+  });
+  // 14:30 ends at 15:00 and 15:30 starts right after: both are inside the gap.
+  expect(slots.map((s) => s.startIso)).toEqual(['2026-11-02T14:00:00.000Z']);
+});
+
 test('overlapping weekly blocks are merged when saved', () => {
   expect(
     normalizeWindows([

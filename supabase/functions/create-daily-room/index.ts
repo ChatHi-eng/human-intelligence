@@ -26,6 +26,9 @@ const json = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 
+// How long a call may run past its scheduled end before it is closed.
+const CALL_GRACE_SECONDS = 5 * 60;
+
 type RequestBody = { bookingId: string };
 type DailyRoom = { name: string; url: string; config?: { exp?: number } };
 
@@ -89,13 +92,13 @@ serve(async (req) => {
     return json({ url: booking.call_room_url, name: booking.daily_room_name });
   }
 
-  // Room expires an hour after the booking end so participants can finish even
-  // if the call runs long.
-  const expiresAt =
-    Math.max(
-      now + 60 * 30, // at least 30 minutes from now (in case booking is in the past)
-      Math.floor(Date.parse(booking.end_at) / 1000) + 60 * 60,
-    );
+  // The call closes for everyone five minutes after the scheduled finish
+  // (owner decision, Nov 2026): long enough to wrap up, short enough to
+  // protect the expert's next session.
+  const expiresAt = Math.floor(Date.parse(booking.end_at) / 1000) + CALL_GRACE_SECONDS;
+  if (expiresAt <= now) {
+    return json({ error: 'This session has ended' }, 410);
+  }
 
   const dailyRes = await fetch('https://api.daily.co/v1/rooms', {
     method: 'POST',
@@ -108,6 +111,9 @@ serve(async (req) => {
       privacy: 'public',
       properties: {
         exp: expiresAt,
+        // Without this Daily only stops NEW people joining at exp; with it,
+        // everyone in the room is disconnected at that moment.
+        eject_at_room_exp: true,
         enable_screenshare: true,
         enable_chat: true,
         start_video_off: false,
