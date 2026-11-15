@@ -10,6 +10,8 @@ export type ExpertListProps = {
   isLoading: boolean;
   onPressExpert: (expert: Expert) => void;
   ListHeaderComponent?: React.ReactElement;
+  /** Shown when nothing matches. Defaults to a plain "no match" message. */
+  ListEmptyComponent?: React.ReactElement;
 };
 
 // Dense people-list — compact rows with hairline separators so many experts
@@ -19,6 +21,7 @@ export const ExpertList = ({
   isLoading,
   onPressExpert,
   ListHeaderComponent,
+  ListEmptyComponent,
 }: ExpertListProps) => {
   if (isLoading && !experts) return <LoadingView label="Finding experts…" />;
   // One list for both cases, so the search box in the header keeps focus
@@ -28,11 +31,13 @@ export const ExpertList = ({
       data={experts ?? []}
       keyboardShouldPersistTaps="handled"
       ListEmptyComponent={
+        ListEmptyComponent ?? (
         <EmptyState
           title="No experts match"
           description="Try fewer words, another field, or a wider price range."
           emoji="🔍"
         />
+        )
       }
       keyExtractor={(e) => e.id}
       renderItem={({ item }) => (

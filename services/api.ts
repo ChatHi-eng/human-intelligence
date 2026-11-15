@@ -640,6 +640,22 @@ export const updateBookingStatus = async (id: string, status: BookingStatus): Pr
   if (error) throw error;
 };
 
+// An Edge Function's own error message is in the response body, not in
+// error.message (which is a generic "non-2xx status code").
+const functionErrorMessage = async (error: { message: string; context?: unknown }) => {
+  if (error.context instanceof Response) {
+    const body = (await error.context.json().catch(() => null)) as { error?: string } | null;
+    if (body?.error) return body.error;
+  }
+  return error.message;
+};
+
+// "Nobody matches": the customer says what they need and the owner replies.
+export const requestExpert = async (input: { need: string; searched?: string }): Promise<void> => {
+  const { error } = await sb().functions.invoke('request-expert', { body: input });
+  if (error) throw new Error(await functionErrorMessage(error));
+};
+
 // The expert's answer goes through the respond-to-booking Edge Function so
 // the money always follows the decision: accepting charges the held card,
 // declining releases the hold (or refunds a session already paid for).
@@ -652,15 +668,7 @@ const respondToBooking = async (
   const { error } = await sb().functions.invoke('respond-to-booking', {
     body: { bookingId: id, action, declineReason },
   });
-  if (!error) return;
-  // The function's own message is in the response body, not error.message.
-  const context = (error as { context?: unknown }).context;
-  let detail: string | null = null;
-  if (context instanceof Response) {
-    const body = (await context.json().catch(() => null)) as { error?: string } | null;
-    detail = body?.error ?? null;
-  }
-  throw new Error(detail ?? error.message);
+  if (error) throw new Error(await functionErrorMessage(error));
 };
 
 export const acceptBooking = (id: string): Promise<void> => respondToBooking(id, 'accept');

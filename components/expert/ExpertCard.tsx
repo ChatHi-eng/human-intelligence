@@ -3,8 +3,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { MIN_REVIEWS_FOR_RATING } from '@/constants/business';
 import { industryDisplay } from '@/constants/industries';
 import { colors, spacing, typography } from '@/constants/theme';
-import { formatDay } from '@/lib/date';
-import { nextOpening } from '@/lib/discover';
+import { nextOpening, openingLabel } from '@/lib/discover';
 import { formatCurrency, formatRating } from '@/lib/format';
 import type { Expert } from '@/types/user';
 
@@ -63,7 +62,7 @@ export const ExpertCard = ({ expert, onPress }: ExpertCardProps) => {
           )}
           <Text style={styles.dot}> · </Text>
           {opening ? (
-            <Text style={styles.opening}>Next: {formatDay(opening)}</Text>
+            <Text style={styles.opening}>{openingLabel(opening)}</Text>
           ) : (
             <Text style={styles.newLabel}>No open times</Text>
           )}

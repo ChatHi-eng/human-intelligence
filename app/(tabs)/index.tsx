@@ -9,18 +9,26 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { ExpertRow } from '@/components/discover/ExpertRow';
+import { GuidedMatch } from '@/components/discover/GuidedMatch';
+import { RequestExpert } from '@/components/discover/RequestExpert';
 import { ExpertList } from '@/components/expert/ExpertList';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Screen } from '@/components/ui/Screen';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 
-import { MIN_REVIEWS_FOR_RATING } from '@/constants/business';
+import {
+  AVAILABLE_ROW_MIN_EXPERTS,
+  FIELD_ROWS_MIN_EXPERTS,
+  GUIDED_MATCH_MIN_EXPERTS,
+  MIN_REVIEWS_FOR_RATING,
+} from '@/constants/business';
 import { CUSTOMER_BOOKING_ENABLED, PHONE_SESSIONS_ENABLED } from '@/constants/featureFlags';
 import { industries } from '@/constants/industries';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useExperts, useMyExpertProfile } from '@/hooks/useExperts';
-import { sortExperts, type ExpertSort } from '@/lib/discover';
+import { availableWithin, sortExperts, type ExpertSort } from '@/lib/discover';
 import { filterExpertsByQuery } from '@/services/api';
 
 const DISCOVER_CAPTION = PHONE_SESSIONS_ENABLED
@@ -36,6 +44,7 @@ type Filters = {
 };
 
 const SORT_OPTIONS: { label: string; value: ExpertSort }[] = [
+  { label: 'Recommended', value: 'recommended' },
   { label: 'Soonest available', value: 'soonest' },
   { label: 'Top rated', value: 'rating' },
   { label: 'Price, low to high', value: 'price' },
@@ -59,7 +68,7 @@ const PRICE_OPTIONS: FilterOption[] = [
 
 export default function DiscoverScreen() {
   const router = useRouter();
-  const [filters, setFilters] = useState<Filters>({ query: '', sort: 'soonest' });
+  const [filters, setFilters] = useState<Filters>({ query: '', sort: 'recommended' });
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   // The text search runs on the list already in memory. Putting the query in
@@ -96,7 +105,7 @@ export default function DiscoverScreen() {
     <Pressable onPress={() => router.push('/expert-onboarding')} style={styles.applyCard}>
       <Text style={styles.applyTitle}>Become an expert</Text>
       <Text style={styles.applyBody}>
-        Set your own rate and get paid for 30-minute video sessions. Applying takes about
+        Set your own price and get paid for 30-minute video sessions. Applying takes about
         four minutes.
       </Text>
       <Text style={styles.applyCta}>Start your application →</Text>
@@ -109,10 +118,23 @@ export default function DiscoverScreen() {
     filters.minRating === undefined &&
     filters.maxSessionPriceCents === undefined;
   const dbIsEmpty = !isLoading && experts && experts.length === 0 && noFiltersActive;
+  // The home sections only make sense while browsing. Once someone searches
+  // or filters, they want the list.
+  const everyone = useMemo(() => allExperts ?? [], [allExperts]);
+  const browsing = noFiltersActive;
+  const openThisWeek = useMemo(() => availableWithin(everyone, 7), [everyone]);
+  const fieldsWithExperts = chipIndustries;
+  const showGuided = browsing && everyone.length >= GUIDED_MATCH_MIN_EXPERTS;
+  const showOpenRow =
+    browsing && everyone.length >= AVAILABLE_ROW_MIN_EXPERTS && openThisWeek.length > 0;
+  const showFieldRows =
+    browsing && everyone.length >= FIELD_ROWS_MIN_EXPERTS && fieldsWithExperts.length >= 2;
+  const openExpert = (e: { id: string }) => router.push(`/expert/${e.id}`);
+
   const activeFilterCount =
     (filters.minRating !== undefined ? 1 : 0) +
     (filters.maxSessionPriceCents !== undefined ? 1 : 0) +
-    (filters.sort !== 'soonest' ? 1 : 0);
+    (filters.sort !== 'recommended' ? 1 : 0);
 
   return (
     <Screen>
@@ -133,7 +155,8 @@ export default function DiscoverScreen() {
         <ExpertList
           experts={experts}
           isLoading={isLoading}
-          onPressExpert={(e) => router.push(`/expert/${e.id}`)}
+          onPressExpert={openExpert}
+          ListEmptyComponent={<RequestExpert searched={filters.query || undefined} />}
           ListHeaderComponent={
             <View style={styles.header}>
               <SectionHeader
@@ -184,6 +207,30 @@ export default function DiscoverScreen() {
                   />
                 ))}
               </ScrollView>
+              {showGuided ? <GuidedMatch experts={everyone} onPressExpert={openExpert} /> : null}
+              {showOpenRow ? (
+                <ExpertRow
+                  title="Available this week"
+                  experts={openThisWeek}
+                  onPressExpert={openExpert}
+                />
+              ) : null}
+              {showFieldRows
+                ? fieldsWithExperts.map((field) => (
+                    <ExpertRow
+                      key={field.id}
+                      title={`${field.emoji}  ${field.label}`}
+                      experts={sortExperts(
+                        everyone.filter((e) => e.industryId === field.id),
+                        'recommended',
+                      )}
+                      onPressExpert={openExpert}
+                    />
+                  ))
+                : null}
+              {showGuided || showOpenRow || showFieldRows ? (
+                <Text style={styles.allTitle}>All experts</Text>
+              ) : null}
             </View>
           }
         />
@@ -200,7 +247,7 @@ export default function DiscoverScreen() {
             ...filters,
             minRating: undefined,
             maxSessionPriceCents: undefined,
-            sort: 'soonest',
+            sort: 'recommended',
           })
         }
       />
@@ -310,6 +357,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.xs,
   },
+  allTitle: { ...typography.heading, color: colors.textPrimary, marginTop: spacing.sm },
   applyTitle: { ...typography.heading, color: colors.textPrimary },
   applyBody: { ...typography.body, color: colors.textSecondary },
   applyCta: { ...typography.bodyStrong, color: colors.accent, marginTop: spacing.xs },

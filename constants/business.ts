@@ -23,6 +23,13 @@ export const BUFFER_OPTIONS_MINUTES = [0, 15, 30] as const;
 // after 24 hours, or 12 hours before the session (expire-requests function).
 export const APPROVAL_BOOKING_NOTICE_MINUTES = 24 * 60;
 
+// The home screen grows with the catalogue. With one or two experts a
+// guided step and themed rows would only repeat the same faces, so each
+// piece appears once there are enough people to make it useful.
+export const GUIDED_MATCH_MIN_EXPERTS = 3;
+export const AVAILABLE_ROW_MIN_EXPERTS = 4;
+export const FIELD_ROWS_MIN_EXPERTS = 6;
+
 // Lengths of the two things a customer can book.
 export const SESSION_MINUTES = 30;
 export const INTRO_MINUTES = 15;

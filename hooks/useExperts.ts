@@ -7,6 +7,7 @@ import {
   deleteMyExpertProfile,
   fetchExpert,
   fetchExperts,
+  requestExpert,
   setAvailability,
   updateMyExpertSettings,
   upsertMyExpertProfile,
@@ -67,6 +68,12 @@ export const useUpsertMyExpertProfile = () => {
     },
   });
 };
+
+export const useRequestExpert = () =>
+  useMutation({
+    mutationFn: (input: { need: string; searched?: string }) => requestExpert(input),
+    onSuccess: () => capture('expert_request_sent'),
+  });
 
 export const useUpdateExpertSettings = () => {
   const userId = useAuthStore((s) => s.user?.id);

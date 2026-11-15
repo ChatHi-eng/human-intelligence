@@ -225,7 +225,7 @@ test('expert sets weekly hours in a few taps and shows up as bookable', async ({
   await search.fill('law severance');
   await expect(page.getByText('Dana Example')).toBeVisible();
   await search.fill('law plumbing');
-  await expect(page.getByText('No experts match')).toBeVisible();
+  await expect(page.getByText('No one matches yet. Tell us what you need')).toBeVisible();
   await expect(search).toBeFocused();
   await shot('discover-card');
 
