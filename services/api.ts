@@ -5,6 +5,7 @@ import { getSupabase } from './supabase';
 import { industryDisplay } from '@/constants/industries';
 import type {
   AvailabilityDate,
+  AvailabilityKind,
   AvailabilityWindow,
   BackgroundType,
   Credential,
@@ -12,7 +13,14 @@ import type {
   ExpertStatus,
   Profile,
 } from '@/types/user';
-import type { Booking, BookingStatus, CallMedium, PaymentStatus, TimeSlot } from '@/types/booking';
+import type {
+  Booking,
+  BookingKind,
+  BookingStatus,
+  CallMedium,
+  PaymentStatus,
+  TimeSlot,
+} from '@/types/booking';
 import type { Review } from '@/types/review';
 import type { Conversation, Message } from '@/types/message';
 
@@ -50,6 +58,8 @@ type ExpertProfileRow = {
   paused?: boolean | null;
   buffer_minutes?: number | null;
   auto_accept?: boolean | null;
+  intro_enabled?: boolean | null;
+  intro_weekly_limit?: number | null;
   headline: string;
   hourly_rate_cents: number | null;
   years_experience: number;
@@ -80,6 +90,7 @@ type AvailabilityRow = {
   weekday: number;
   start_minute: number;
   end_minute: number;
+  kind?: 'session' | 'intro' | null;
 };
 
 type AvailabilityDateRow = {
@@ -102,6 +113,7 @@ type BookingRow = {
   payment_status: PaymentStatus;
   price_cents: number;
   booking_mode?: 'instant' | 'approval' | null;
+  kind?: 'session' | 'intro' | null;
   call_room_url: string | null;
   customer_note?: string | null;
   // Present when the query joins the customer's profile.
@@ -154,6 +166,7 @@ const mapAvailability = (row: AvailabilityRow): AvailabilityWindow => ({
   weekday: row.weekday as AvailabilityWindow['weekday'],
   startMinute: row.start_minute,
   endMinute: row.end_minute,
+  kind: row.kind ?? 'session',
 });
 
 const mapAvailabilityDate = (row: AvailabilityDateRow): AvailabilityDate => ({
@@ -190,6 +203,8 @@ const mapExpert = (row: ExpertWithRelations): Expert | null => {
     availabilityDates: (row.availability_dates ?? []).map(mapAvailabilityDate),
     timezone: row.timezone ?? null,
     autoAccept: row.auto_accept ?? true,
+    introEnabled: row.intro_enabled ?? false,
+    introWeeklyLimit: row.intro_weekly_limit ?? 3,
     paused: row.paused ?? false,
     bufferMinutes: row.buffer_minutes ?? 0,
     verified: row.verified,
@@ -209,6 +224,7 @@ const mapBooking = (row: BookingRow): Booking => ({
   status: row.status,
   paymentStatus: row.payment_status,
   priceCents: row.price_cents,
+  kind: row.kind ?? 'session',
   bookingMode: row.booking_mode ?? 'approval',
   callRoomUrl: row.call_room_url,
   customerNote: row.customer_note ?? null,
@@ -235,12 +251,12 @@ const mapReview = (row: ReviewRow): Review => ({
 // Shared select string for Expert + relations.
 const EXPERT_SELECT = `
   profile_id, status, linkedin_url, industry_id, industry_custom, current_title, current_company,
-  topics, timezone, paused, buffer_minutes, auto_accept, headline, hourly_rate_cents, years_experience,
+  topics, timezone, paused, buffer_minutes, auto_accept, intro_enabled, intro_weekly_limit, headline, hourly_rate_cents, years_experience,
   verified, cover_image_url, rating_average, rating_count, how_i_can_help,
   stripe_connect_account_id, stripe_connect_payouts_enabled, created_at, updated_at,
   profiles!inner(id, display_name, avatar_url, bio, created_at, updated_at),
   credentials(id, expert_profile_id, title, issuer, year, end_year, type),
-  availability_windows(id, expert_profile_id, weekday, start_minute, end_minute),
+  availability_windows(id, expert_profile_id, weekday, start_minute, end_minute, kind),
   availability_dates(id, expert_profile_id, date, start_minute, end_minute, blocked)
 `;
 
@@ -454,9 +470,17 @@ export const upsertMyExpertProfile = async (
 // sessions. Separate from the profile upsert so neither can clobber the other.
 export const updateMyExpertSettings = async (
   userId: string,
-  settings: { paused?: boolean; bufferMinutes?: number; autoAccept?: boolean },
+  settings: {
+    paused?: boolean;
+    bufferMinutes?: number;
+    autoAccept?: boolean;
+    introEnabled?: boolean;
+    introWeeklyLimit?: number;
+  },
 ): Promise<void> => {
   const patch: Record<string, unknown> = {};
+  if (settings.introEnabled !== undefined) patch.intro_enabled = settings.introEnabled;
+  if (settings.introWeeklyLimit !== undefined) patch.intro_weekly_limit = settings.introWeeklyLimit;
   if (settings.autoAccept !== undefined) patch.auto_accept = settings.autoAccept;
   if (settings.paused !== undefined) patch.paused = settings.paused;
   if (settings.bufferMinutes !== undefined) patch.buffer_minutes = settings.bufferMinutes;
@@ -504,6 +528,9 @@ export const setAvailability = async (
   expertId: string,
   windows: AvailabilityWindow[],
   timeZone?: string | null,
+  // Paid-session hours and free-intro hours are saved separately, so saving
+  // one set never wipes the other.
+  kind: AvailabilityKind = 'session',
 ): Promise<void> => {
   const client = sb();
   if (timeZone) {
@@ -516,7 +543,8 @@ export const setAvailability = async (
   const { error: delError } = await client
     .from('availability_windows')
     .delete()
-    .eq('expert_profile_id', expertId);
+    .eq('expert_profile_id', expertId)
+    .eq('kind', kind);
   if (delError) throw delError;
   if (windows.length === 0) return;
   const { error } = await client.from('availability_windows').insert(
@@ -525,6 +553,7 @@ export const setAvailability = async (
       weekday: w.weekday,
       start_minute: w.startMinute,
       end_minute: w.endMinute,
+      kind,
     })),
   );
   if (error) throw error;
@@ -581,6 +610,7 @@ export type CreateBookingInput = {
   priceCents: number;
   callRoomUrl?: string | null;
   customerNote?: string | null;
+  kind?: BookingKind;
 };
 
 export const createBooking = async (input: CreateBookingInput): Promise<Booking> => {
@@ -596,6 +626,8 @@ export const createBooking = async (input: CreateBookingInput): Promise<Booking>
       price_cents: input.priceCents,
       call_room_url: input.callRoomUrl ?? null,
       customer_note: input.customerNote?.trim() || null,
+      // The database decides the length, price and status from this.
+      kind: input.kind ?? 'session',
     })
     .select('*')
     .single();

@@ -10,6 +10,14 @@ import type { Expert } from '@/types/user';
 
 export type ExpertSort = 'soonest' | 'rating' | 'price';
 
+/** Weekly hours for paid sessions (free-intro hours are kept apart). */
+export const sessionWindows = (expert: Pick<Expert, 'availability'>) =>
+  expert.availability.filter((w) => w.kind === 'session');
+
+/** Weekly hours the expert set aside for free intro calls. */
+export const introWindows = (expert: Pick<Expert, 'availability'>) =>
+  expert.availability.filter((w) => w.kind === 'intro');
+
 /** How far ahead this expert's times start being offered. */
 export const noticeMinutesFor = (expert: Pick<Expert, 'autoAccept'>): number =>
   expert.autoAccept ? MIN_BOOKING_NOTICE_MINUTES : APPROVAL_BOOKING_NOTICE_MINUTES;
@@ -22,7 +30,7 @@ export const noticeMinutesFor = (expert: Pick<Expert, 'autoAccept'>): number =>
  */
 export const nextOpening = (expert: Expert, now: Date = new Date()): string | null => {
   if (expert.sessionPrice === null || expert.paused) return null;
-  const slots = generateSlots(expert.availability, expert.availabilityDates, [], {
+  const slots = generateSlots(sessionWindows(expert), expert.availabilityDates, [], {
     timeZone: expert.timezone,
     minNoticeMinutes: noticeMinutesFor(expert),
     daysAhead: BOOKING_WINDOW_DAYS,

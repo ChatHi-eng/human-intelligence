@@ -23,7 +23,7 @@ import { useMyExpertProfile } from '@/hooks/useExperts';
 import { BOOKING_WINDOW_DAYS } from '@/constants/business';
 import { formatDateTime, isoDateKey, minutesBetween } from '@/lib/date';
 import { formatCurrency } from '@/lib/format';
-import { noticeMinutesFor } from '@/lib/discover';
+import { noticeMinutesFor, sessionWindows } from '@/lib/discover';
 import { copyExpertShareLink } from '@/lib/share';
 import { generateSlots } from '@/lib/slots';
 import { capture } from '@/services/analytics';
@@ -81,7 +81,7 @@ export default function StudioScreen() {
 
   // What still stands between this expert and a first booking.
   const hasOpenTimes =
-    generateSlots(expertProfile.availability, expertProfile.availabilityDates, [], {
+    generateSlots(sessionWindows(expertProfile), expertProfile.availabilityDates, [], {
       timeZone: expertProfile.timezone,
       minNoticeMinutes: noticeMinutesFor(expertProfile),
       daysAhead: BOOKING_WINDOW_DAYS,
@@ -319,7 +319,8 @@ const RequestCard = ({ booking, onOpen }: { booking: Booking; onOpen: () => void
           <Text style={styles.requestMeta}>{formatDateTime(booking.slot.startIso)}</Text>
           <Text style={styles.requestMeta}>
             {minutesBetween(booking.slot.startIso, booking.slot.endIso)} min ·{' '}
-            {booking.medium === 'video' ? 'Video' : 'Phone'} · {formatCurrency(booking.priceCents)}
+            {booking.medium === 'video' ? 'Video' : 'Phone'} ·{' '}
+            {booking.kind === 'intro' ? 'Free intro' : formatCurrency(booking.priceCents)}
           </Text>
         </View>
         <Badge label="Requested" tone="warning" />

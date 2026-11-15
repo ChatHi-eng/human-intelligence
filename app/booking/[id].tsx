@@ -60,6 +60,8 @@ const paymentLabel = (status: PaymentStatus): string => {
       return 'Payment failed';
     case 'released':
       return 'Not charged';
+    case 'not_required':
+      return 'Free';
   }
 };
 
@@ -213,7 +215,9 @@ export default function BookingDetailScreen() {
                 booking.paymentStatus === 'refunded' && { color: colors.textMuted },
               ]}
             >
-              {formatCurrency(booking.priceCents)} · {paymentLabel(booking.paymentStatus)}
+              {booking.kind === 'intro'
+                ? 'Free intro call'
+                : `${formatCurrency(booking.priceCents)} · ${paymentLabel(booking.paymentStatus)}`}
             </Text>
           </View>
           {booking.customerNote ? (
@@ -276,10 +280,14 @@ export default function BookingDetailScreen() {
         {booking.status === 'requested' && isCustomer && !needsPayment && (
           <Card style={{ marginTop: spacing.lg }}>
             <Text style={styles.sectionTitle}>
-              {booking.paymentStatus === 'authorized' ? 'Request sent' : 'Payment received'}
+              {booking.paymentStatus === 'authorized' || booking.kind === 'intro'
+                ? 'Request sent'
+                : 'Payment received'}
             </Text>
             <Text style={styles.cardBody}>
-              {booking.paymentStatus === 'authorized'
+              {booking.kind === 'intro'
+                ? (expert?.displayName ?? 'The expert') + ' has 24 hours to answer.'
+                : booking.paymentStatus === 'authorized'
                 ? (expert?.displayName ?? 'The expert') +
                   ' has 24 hours to answer. Your card is on hold and is only charged if they accept.'
                 : (expert?.displayName ?? 'The expert') +

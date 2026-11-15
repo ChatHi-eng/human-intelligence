@@ -22,7 +22,7 @@ import {
 } from '@/services/stripe';
 import { deviceTimeZone } from '@/lib/slots';
 import { useAuthStore } from '@/store/authStore';
-import type { AvailabilityWindow } from '@/types/user';
+import type { AvailabilityKind, AvailabilityWindow } from '@/types/user';
 
 export type { ExpertsFilters };
 
@@ -76,6 +76,8 @@ export const useUpdateExpertSettings = () => {
       paused?: boolean;
       bufferMinutes?: number;
       autoAccept?: boolean;
+      introEnabled?: boolean;
+      introWeeklyLimit?: number;
     }) => {
       if (!userId) throw new Error('Not signed in');
       await updateMyExpertSettings(userId, settings);
@@ -197,14 +199,14 @@ export const useSetAvailability = () => {
   const userId = useAuthStore((s) => s.user?.id);
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (windows: AvailabilityWindow[]) => {
+    mutationFn: async (input: { windows: AvailabilityWindow[]; kind: AvailabilityKind }) => {
       if (!userId) throw new Error('Not signed in');
       // The hours are typed in the expert's own clock, so record which zone
       // that is every time they save.
-      await setAvailability(userId, windows, deviceTimeZone());
+      await setAvailability(userId, input.windows, deviceTimeZone(), input.kind);
     },
-    onSuccess: (_data, windows) => {
-      capture('availability_saved', { window_count: windows.length });
+    onSuccess: (_data, input) => {
+      capture('availability_saved', { window_count: input.windows.length, kind: input.kind });
       void qc.invalidateQueries({ queryKey: ['my-expert-profile'] });
       void qc.invalidateQueries({ queryKey: ['experts'] });
       if (userId) void qc.invalidateQueries({ queryKey: ['expert', userId] });

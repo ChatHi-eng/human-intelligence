@@ -71,7 +71,7 @@ serve(async (req) => {
   const { data: booking, error: bookingError } = await userClient
     .from('bookings')
     .select(
-      'id, customer_id, expert_profile_id, price_cents, status, payment_status, booking_mode, stripe_checkout_session_id',
+      'id, customer_id, expert_profile_id, price_cents, status, payment_status, booking_mode, kind, stripe_checkout_session_id',
     )
     .eq('id', body.bookingId)
     .maybeSingle();
@@ -83,6 +83,9 @@ serve(async (req) => {
   }
   if (booking.status === 'cancelled') {
     return json({ error: 'This booking was cancelled' }, 409);
+  }
+  if (booking.kind === 'intro') {
+    return json({ error: 'A free intro call needs no payment' }, 409);
   }
   // Approve-first experts: hold the card now, charge only when they accept.
   // Everyone else: charge now and the session is confirmed straight away.

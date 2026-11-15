@@ -9,11 +9,15 @@ import { Card } from '@/components/ui/Card';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { Screen } from '@/components/ui/Screen';
 import { SectionHeader } from '@/components/ui/SectionHeader';
-import { BOOKING_WINDOW_DAYS, BUFFER_OPTIONS_MINUTES } from '@/constants/business';
+import {
+  BOOKING_WINDOW_DAYS,
+  BUFFER_OPTIONS_MINUTES,
+  INTRO_WEEKLY_LIMIT_OPTIONS,
+} from '@/constants/business';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useMyExpertProfile, useUpdateExpertSettings } from '@/hooks/useExperts';
 import { formatDateTime } from '@/lib/date';
-import { noticeMinutesFor } from '@/lib/discover';
+import { introWindows, noticeMinutesFor, sessionWindows } from '@/lib/discover';
 import { generateSlots } from '@/lib/slots';
 
 // One place for an expert's schedule: weekly hours, extra dates and days off,
@@ -32,7 +36,7 @@ export default function AvailabilityScreen() {
   const openSlots = useMemo(
     () =>
       expert
-        ? generateSlots(expert.availability, expert.availabilityDates, [], {
+        ? generateSlots(sessionWindows(expert), expert.availabilityDates, [], {
             timeZone: expert.timezone,
             bufferMinutes: expert.bufferMinutes,
             minNoticeMinutes: noticeMinutesFor(expert),
@@ -146,10 +150,67 @@ export default function AvailabilityScreen() {
         </Card>
 
         <SectionHeader title="Weekly hours" />
-        <AvailabilityEditor initial={expert.availability} savedTimeZone={expert.timezone} />
+        <AvailabilityEditor initial={sessionWindows(expert)} savedTimeZone={expert.timezone} />
 
         <SectionHeader title="Specific dates" caption="Extra hours, or a day off." />
-        <AvailabilityCalendarEditor dates={expert.availabilityDates} weekly={expert.availability} />
+        <AvailabilityCalendarEditor
+          dates={expert.availabilityDates}
+          weekly={sessionWindows(expert)}
+        />
+
+        <SectionHeader
+          title="Free intro calls"
+          caption="An optional free 15-minute call, so new customers can meet you first."
+        />
+        <Card style={{ gap: spacing.md }}>
+          <View style={styles.settingRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardTitle}>Offer a free 15-minute intro</Text>
+              <Text style={styles.cardNote}>
+                Each customer can book one with you. They are shown on your profile and in
+                Discover. Days off apply to them too.
+              </Text>
+            </View>
+            <Switch
+              value={expert.introEnabled}
+              disabled={savingSettings}
+              accessibilityLabel="Offer a free 15-minute intro"
+              onValueChange={(introEnabled) =>
+                updateSettings({ introEnabled }, { onError: onSettingsError })
+              }
+            />
+          </View>
+          {expert.introEnabled ? (
+            <View>
+              <Text style={styles.cardTitle}>Most intro calls in a week</Text>
+              <View style={styles.gapRow}>
+                {INTRO_WEEKLY_LIMIT_OPTIONS.map((limit) => {
+                  const active = expert.introWeeklyLimit === limit;
+                  return (
+                    <Pressable
+                      key={limit}
+                      accessibilityLabel={`${limit} intro calls a week`}
+                      disabled={savingSettings}
+                      onPress={() =>
+                        updateSettings({ introWeeklyLimit: limit }, { onError: onSettingsError })
+                      }
+                      style={[styles.gapChip, active && styles.gapChipActive]}
+                    >
+                      <Text style={[styles.gapText, active && styles.gapTextActive]}>{limit}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
+        </Card>
+        {expert.introEnabled ? (
+          <AvailabilityEditor
+            kind="intro"
+            initial={introWindows(expert)}
+            savedTimeZone={expert.timezone}
+          />
+        ) : null}
 
         <Button title="Done" variant="ghost" onPress={() => router.back()} fullWidth />
       </ScrollView>

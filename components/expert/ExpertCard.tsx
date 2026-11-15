@@ -45,6 +45,7 @@ export const ExpertCard = ({ expert, onPress }: ExpertCardProps) => {
         <Text style={styles.headline} numberOfLines={2}>
           {expert.headline}
         </Text>
+        {expert.introEnabled ? <Text style={styles.intro}>Free 15-minute intro</Text> : null}
         <Text style={styles.footer} numberOfLines={1}>
           {expert.ratingCount >= MIN_REVIEWS_FOR_RATING ? (
             <>
@@ -87,6 +88,7 @@ const styles = StyleSheet.create({
   context: { ...typography.caption, color: colors.textMuted },
   headline: { ...typography.caption, color: colors.textSecondary },
   opening: { ...typography.caption, color: colors.accent },
+  intro: { ...typography.caption, color: colors.success, fontWeight: '700' },
   footer: { ...typography.caption, color: colors.textPrimary, marginTop: 2 },
   star: { color: colors.accent },
   newLabel: { ...typography.caption, color: colors.textMuted },

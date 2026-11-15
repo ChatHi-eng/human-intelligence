@@ -8,16 +8,17 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { Screen } from '@/components/ui/Screen';
-import { BOOKING_WINDOW_DAYS } from '@/constants/business';
+import { BOOKING_WINDOW_DAYS, INTRO_MINUTES, SESSION_MINUTES } from '@/constants/business';
 import { CUSTOMER_BOOKING_ENABLED, PHONE_SESSIONS_ENABLED } from '@/constants/featureFlags';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
-import { useCreateBooking, useExpertBusyTimes } from '@/hooks/useBookings';
+import { useCreateBooking, useExpertBusyTimes, useMyBookings } from '@/hooks/useBookings';
 import { useExpert } from '@/hooks/useExperts';
 import { formatTime } from '@/lib/date';
-import { noticeMinutesFor } from '@/lib/discover';
+import { introWindows, noticeMinutesFor, sessionWindows } from '@/lib/discover';
+import { formatCurrency } from '@/lib/format';
 import { deviceTimeZone, generateSlots, groupSlotsByDate } from '@/lib/slots';
-import type { CallMedium, TimeSlot } from '@/types/booking';
+import type { BookingKind, CallMedium, TimeSlot } from '@/types/booking';
 
 const dayChipLabel = (dateKey: string): { weekday: string; day: string } => {
   const d = new Date(`${dateKey}T12:00:00`);
@@ -38,18 +39,41 @@ export default function BookScreen() {
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [medium, setMedium] = useState<CallMedium>('video');
   const { mutate: book, isPending } = useCreateBooking();
+  const { data: myBookings } = useMyBookings();
+  const [chosenKind, setChosenKind] = useState<BookingKind>('session');
+
+  // One free intro per customer per expert (the database enforces it too).
+  const hadIntro = (myBookings ?? []).some(
+    (b) =>
+      b.kind === 'intro' &&
+      b.expertId === id &&
+      b.customerId === user?.id &&
+      b.status !== 'cancelled',
+  );
+  const canIntro = Boolean(expert?.introEnabled) && !hadIntro;
+  const canPay = expert?.sessionPrice !== null && expert?.sessionPrice !== undefined;
+  // With no price set, the free intro is the only thing on offer.
+  const kind: BookingKind = canIntro && (!canPay || chosenKind === 'intro') ? 'intro' : 'session';
+  const isIntro = kind === 'intro';
 
   const slotsByDate = useMemo(() => {
     if (!expert) return {};
     return groupSlotsByDate(
-      generateSlots(expert.availability, expert.availabilityDates, busy ?? [], {
-        timeZone: expert.timezone,
-        bufferMinutes: expert.bufferMinutes,
-        minNoticeMinutes: noticeMinutesFor(expert),
-        daysAhead: BOOKING_WINDOW_DAYS,
-      }),
+      generateSlots(
+        isIntro ? introWindows(expert) : sessionWindows(expert),
+        // Extra dated hours are for paid sessions; days off close both.
+        isIntro ? expert.availabilityDates.filter((d) => d.blocked) : expert.availabilityDates,
+        busy ?? [],
+        {
+          slotMinutes: isIntro ? INTRO_MINUTES : SESSION_MINUTES,
+          timeZone: expert.timezone,
+          bufferMinutes: expert.bufferMinutes,
+          minNoticeMinutes: noticeMinutesFor(expert),
+          daysAhead: BOOKING_WINDOW_DAYS,
+        },
+      ),
     );
-  }, [expert, busy]);
+  }, [expert, busy, isIntro]);
 
   const dateKeys = useMemo(() => Object.keys(slotsByDate).sort(), [slotsByDate]);
   const activeDate = selectedDate ?? dateKeys[0] ?? null;
@@ -99,9 +123,10 @@ export default function BookScreen() {
       </Screen>
     );
   }
-  // Experts who chose "I'll decide later" on the application have no rate yet,
+  // Experts who chose "I'll decide later" on the application have no price yet.
+  // They can still be booked for a free intro if they offer one.
   // there's nothing to charge, so booking stays closed (deep links included).
-  if (expert.sessionPrice === null) {
+  if (expert.sessionPrice === null && !canIntro) {
     return (
       <Screen>
         <EmptyState
@@ -119,7 +144,7 @@ export default function BookScreen() {
       return;
     }
     book(
-      { expertId: expert.id, slot: selectedSlot, medium, note },
+      { expertId: expert.id, slot: selectedSlot, medium, note, kind },
       {
         onSuccess: (result) => {
           if (result.checkoutResult === 'cancel') {
@@ -144,9 +169,36 @@ export default function BookScreen() {
           <Avatar uri={expert.avatarUrl} name={expert.displayName} size={48} />
           <View style={{ flex: 1 }}>
             <Text style={styles.expertName}>{expert.displayName}</Text>
-            <Text style={styles.expertMeta}>30-minute session</Text>
+            <Text style={styles.expertMeta}>
+              {isIntro ? 'Free 15-minute intro call' : '30-minute session'}
+            </Text>
           </View>
         </View>
+
+        {canIntro && canPay ? (
+          <View style={styles.mediumRow}>
+            <Button
+              title={`Session · ${formatCurrency(expert.sessionPrice ?? 0)}`}
+              variant={isIntro ? 'secondary' : 'primary'}
+              onPress={() => {
+                setChosenKind('session');
+                setSelectedDate(null);
+                setSelectedSlot(null);
+              }}
+              style={{ flex: 1 }}
+            />
+            <Button
+              title="Free 15-min intro"
+              variant={isIntro ? 'primary' : 'secondary'}
+              onPress={() => {
+                setChosenKind('intro');
+                setSelectedDate(null);
+                setSelectedSlot(null);
+              }}
+              style={{ flex: 1 }}
+            />
+          </View>
+        ) : null}
 
         {dateKeys.length === 0 ? (
           <EmptyState
@@ -232,8 +284,7 @@ export default function BookScreen() {
 
             <Text style={styles.label}>What do you want to talk about?</Text>
             <Text style={styles.zoneNote}>
-              {expert.displayName} reads this before accepting, so the 30 minutes start on your
-              actual question.
+              {expert.displayName} reads this first, so the call starts on your actual question.
             </Text>
             <TextInput
               placeholder="e.g. I have an offer from a startup and need help reading the equity terms."
@@ -246,13 +297,29 @@ export default function BookScreen() {
             />
 
             <View style={{ marginTop: spacing.lg }}>
-              <PaymentSheet
-                amountCents={expert.sessionPrice}
-                expertName={expert.displayName}
-                holdOnly={!expert.autoAccept}
-                onPay={onConfirm}
-                loading={isPending}
-              />
+              {isIntro ? (
+                <View style={{ gap: spacing.md }}>
+                  <Text style={styles.zoneNote}>
+                    {expert.autoAccept
+                      ? 'This intro call is free and is booked as soon as you confirm. You get one with each expert.'
+                      : `This intro call is free. ${expert.displayName} approves each request and has 24 hours to answer. You get one with each expert.`}
+                  </Text>
+                  <Button
+                    title={expert.autoAccept ? 'Book free intro' : 'Request free intro'}
+                    onPress={onConfirm}
+                    loading={isPending}
+                    fullWidth
+                  />
+                </View>
+              ) : (
+                <PaymentSheet
+                  amountCents={expert.sessionPrice ?? 0}
+                  expertName={expert.displayName}
+                  holdOnly={!expert.autoAccept}
+                  onPay={onConfirm}
+                  loading={isPending}
+                />
+              )}
             </View>
           </>
         )}

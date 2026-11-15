@@ -110,7 +110,10 @@ serve(async (req) => {
       }
       continue;
     }
-    if (row.payment_status !== 'authorized') continue;
+    // Card on hold, or a free intro request with nothing to pay: both wait
+    // for the expert and both close if nobody answers.
+    const free = row.payment_status === 'not_required';
+    if (row.payment_status !== 'authorized' && !free) continue;
 
     const deadline = deadlineMs(row);
 
@@ -130,7 +133,7 @@ serve(async (req) => {
         .update({
           status: 'cancelled',
           cancellation_reason: EXPIRED_REASON,
-          payment_status: 'released',
+          payment_status: free ? 'not_required' : 'released',
         })
         .eq('id', row.id)
         .eq('status', 'requested');
@@ -164,7 +167,7 @@ serve(async (req) => {
       `<div style="max-width:520px;margin:0 auto;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1f2937;font-size:15px;line-height:1.6;">`,
       `<p style="margin:0 0 28px;font-size:24px;font-weight:800;letter-spacing:-0.5px;color:${BRAND_GREEN};">palam</p>`,
       `<p style="margin:0 0 16px;">Hi ${escapeHtml(nameOf(row.expert_profile_id, 'there'))},</p>`,
-      `<p style="margin:0 0 16px;">${escapeHtml(nameOf(row.customer_id, 'A customer'))} is still waiting for your answer to a session request. It closes in about ${hoursLeft} ${hoursLeft === 1 ? 'hour' : 'hours'}, and they are not charged unless you accept.</p>`,
+      `<p style="margin:0 0 16px;">${escapeHtml(nameOf(row.customer_id, 'A customer'))} is still waiting for your answer to a session request. It closes in about ${hoursLeft} ${hoursLeft === 1 ? 'hour' : 'hours'}${free ? '.' : ', and they are not charged unless you accept.'}</p>`,
       '<p style="margin:0 0 16px;">Open Palam and go to <strong>Studio</strong>, then <strong>Requests</strong>, to accept or decline.</p>',
       '<p style="margin:0;">Thanks,<br>Palam</p>',
       '</div></div>',

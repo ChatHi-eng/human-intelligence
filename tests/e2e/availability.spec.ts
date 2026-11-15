@@ -50,7 +50,7 @@ const profileRow = {
   updated_at: NOW_ISO,
 };
 
-type WindowRow = { weekday: number; start_minute: number; end_minute: number };
+type WindowRow = { weekday: number; start_minute: number; end_minute: number; kind?: string };
 
 const stubSupabase = async (page: Page) => {
   // What the "database" currently holds; saving replaces it.
@@ -60,7 +60,17 @@ const stubSupabase = async (page: Page) => {
     paused: boolean;
     buffer_minutes: number;
     auto_accept: boolean;
-  } = { windows: [], timezone: null, paused: false, buffer_minutes: 0, auto_accept: true };
+    intro_enabled: boolean;
+    intro_weekly_limit: number;
+  } = {
+    windows: [],
+    timezone: null,
+    paused: false,
+    buffer_minutes: 0,
+    auto_accept: true,
+    intro_enabled: false,
+    intro_weekly_limit: 3,
+  };
 
   const expertRow = () => ({
     profile_id: EXPERT_ID,
@@ -75,6 +85,8 @@ const stubSupabase = async (page: Page) => {
     paused: state.paused,
     buffer_minutes: state.buffer_minutes,
     auto_accept: state.auto_accept,
+    intro_enabled: state.intro_enabled,
+    intro_weekly_limit: state.intro_weekly_limit,
     headline: 'Read your contract with someone who writes them',
     hourly_rate_cents: 20000,
     years_experience: 14,
@@ -108,8 +120,14 @@ const stubSupabase = async (page: Page) => {
   await page.route('**/rest/v1/profiles*', (route) => json(route, [profileRow]));
   await page.route('**/rest/v1/availability_windows*', (route) => {
     const request = route.request();
-    if (request.method() === 'POST') state.windows = request.postDataJSON() as WindowRow[];
-    if (request.method() === 'DELETE') state.windows = [];
+    // Like the real table: each save replaces only the hours of its own kind.
+    const kind = new URL(request.url()).searchParams.get('kind')?.replace('eq.', '');
+    if (request.method() === 'POST') {
+      state.windows = [...state.windows, ...(request.postDataJSON() as WindowRow[])];
+    }
+    if (request.method() === 'DELETE') {
+      state.windows = state.windows.filter((w) => (w.kind ?? 'session') !== kind);
+    }
     return route.fulfill({ status: 204, body: '' });
   });
   await page.route('**/rest/v1/expert_profiles*', (route) => {
@@ -181,11 +199,27 @@ test('expert sets weekly hours in a few taps and shows up as bookable', async ({
   await page.getByLabel('Approve requests first').click();
   await expect.poll(() => state.auto_accept).toBe(true);
 
+  // Free intro calls: off by default, with their own hours and weekly limit.
+  await expect(page.getByText('Most intro calls in a week')).toHaveCount(0);
+  await page.getByLabel('Offer a free 15-minute intro').click();
+  await expect.poll(() => state.intro_enabled).toBe(true);
+  await page.getByLabel('5 intro calls a week').click();
+  await expect.poll(() => state.intro_weekly_limit).toBe(5);
+  await page.getByText('Weekdays, 12pm to 1pm').click();
+  await expect(page.getByText(/5 hours a week, room for 20 intro calls/)).toBeVisible();
+  await page.getByText('Save intro hours', { exact: true }).click();
+  await expect(page.getByText('Intro hours saved')).toBeVisible();
+  // Saving intro hours leaves the five paid-session windows alone.
+  expect(state.windows.filter((w) => w.kind === 'intro')).toHaveLength(5);
+  expect(state.windows.filter((w) => w.kind === 'session')).toHaveLength(5);
+  await shot('availability-intro');
+
   // Discover now shows the expert with their field, role and next opening.
   await page.goto('/');
   await expect(page.getByText('Dana Example')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText(/Employment Lawyer at Example LLP · 14 yrs/)).toBeVisible();
   await expect(page.getByText(/Next: /)).toBeVisible();
+  await expect(page.getByText('Free 15-minute intro')).toBeVisible();
   // Search matches the field name and needs every word to match.
   const search = page.getByPlaceholder('Search by expertise, name…');
   await search.fill('law severance');

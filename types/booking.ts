@@ -8,7 +8,12 @@ export type PaymentStatus =
   | 'captured'
   | 'refunded'
   | 'failed'
-  | 'released';
+  | 'released'
+  // A free intro call: there is nothing to pay.
+  | 'not_required';
+
+// 'session': paid, 30 minutes. 'intro': free, 15 minutes.
+export type BookingKind = 'session' | 'intro';
 
 // 'instant': paid and confirmed at once. 'approval': the expert reviews the
 // request first and the card is only held until they accept.
@@ -35,6 +40,7 @@ export type Booking = {
   status: BookingStatus;
   paymentStatus: PaymentStatus;
   priceCents: number;
+  kind: BookingKind;
   bookingMode: BookingMode;
   callRoomUrl: string | null;
   // What the customer wants to talk about, written when they booked.

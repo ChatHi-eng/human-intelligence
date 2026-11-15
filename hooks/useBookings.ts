@@ -24,7 +24,7 @@ import {
 } from '@/services/stripe';
 import { createRoomForBooking } from '@/services/video';
 import { useAuthStore } from '@/store/authStore';
-import type { BookingStatus, CallMedium, TimeSlot } from '@/types/booking';
+import type { BookingKind, BookingStatus, CallMedium, TimeSlot } from '@/types/booking';
 
 export const useMyBookings = () => {
   const userId = useAuthStore((s) => s.user?.id);
@@ -91,6 +91,7 @@ export type CreateBookingMutationInput = {
   slot: TimeSlot;
   medium: CallMedium;
   note?: string;
+  kind?: BookingKind;
 };
 
 export type CreateBookingResult = {
@@ -106,6 +107,21 @@ export const useCreateBooking = () => {
       if (!userId) throw new Error('Not signed in');
       const expert = await fetchExpert(input.expertId);
       if (!expert) throw new Error('Expert not found');
+      // A free intro call: no price, no payment. The database confirms it
+      // (or queues it for an approve-first expert) as it is created.
+      if (input.kind === 'intro') {
+        const intro = await createBooking({
+          customerId: userId,
+          expertId: input.expertId,
+          slot: input.slot,
+          medium: input.medium,
+          priceCents: 0,
+          customerNote: input.note ?? null,
+          kind: 'intro',
+        });
+        return { bookingId: intro.id, checkoutResult: 'success' };
+      }
+
       if (expert.sessionPrice === null) {
         throw new Error('This expert has not set a price yet');
       }

@@ -5,10 +5,14 @@ import { Button } from '@/components/ui/Button';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useSetAvailability } from '@/hooks/useExperts';
 import { deviceTimeZone, normalizeWindows } from '@/lib/slots';
-import type { AvailabilityWindow } from '@/types/user';
+import { INTRO_MINUTES, SESSION_MINUTES } from '@/constants/business';
+import type { AvailabilityKind, AvailabilityWindow } from '@/types/user';
 
 export type AvailabilityEditorProps = {
+  /** The windows of this kind only. */
   initial: AvailabilityWindow[];
+  /** Paid-session hours (default) or free-intro hours. */
+  kind?: AvailabilityKind;
   /** The zone the saved hours were written in, if any. */
   savedTimeZone?: string | null;
 };
@@ -40,7 +44,12 @@ const serialize = (ws: AvailabilityWindow[]) =>
     .map((w) => `${w.weekday}:${w.startMinute}-${w.endMinute}`)
     .join('|');
 
-export const AvailabilityEditor = ({ initial, savedTimeZone }: AvailabilityEditorProps) => {
+export const AvailabilityEditor = ({
+  initial,
+  savedTimeZone,
+  kind = 'session',
+}: AvailabilityEditorProps) => {
+  const intro = kind === 'intro';
   const [windows, setWindows] = useState<AvailabilityWindow[]>(initial);
   const { mutate: save, isPending: saving } = useSetAvailability();
   const zone = deviceTimeZone();
@@ -63,12 +72,14 @@ export const AvailabilityEditor = ({ initial, savedTimeZone }: AvailabilityEdito
     setWindows((ws) => {
       const day = ws.filter((w) => w.weekday === weekday);
       const lastEnd = day.reduce((max, w) => Math.max(max, w.endMinute), 0);
-      // First block of a day is 9 to 5; a second block starts an hour after
-      // the last one ends, when there is room for it.
-      const start = day.length === 0 ? 9 * 60 : Math.min(lastEnd + 60, 22 * 60);
-      const end = day.length === 0 ? 17 * 60 : Math.min(start + 120, 24 * 60);
+      // First block of a day is 9 to 5 (noon to 1 for free intros); a second
+      // block starts an hour after the last one ends, when there is room.
+      const firstStart = intro ? 12 * 60 : 9 * 60;
+      const firstEnd = intro ? 13 * 60 : 17 * 60;
+      const start = day.length === 0 ? firstStart : Math.min(lastEnd + 60, 22 * 60);
+      const end = day.length === 0 ? firstEnd : Math.min(start + (intro ? 60 : 120), 24 * 60);
       if (end <= start) return ws;
-      return [...ws, { weekday, startMinute: start, endMinute: end }];
+      return [...ws, { weekday, startMinute: start, endMinute: end, kind }];
     });
 
   const removeWindow = (target: AvailabilityWindow) =>
@@ -98,15 +109,22 @@ export const AvailabilityEditor = ({ initial, savedTimeZone }: AvailabilityEdito
   const setWorkdayPreset = () =>
     setWindows((ws) => [
       ...ws.filter((w) => !WORKDAYS.includes(w.weekday)),
-      ...WORKDAYS.map((weekday) => ({ weekday, startMinute: 9 * 60, endMinute: 17 * 60 })),
+      ...WORKDAYS.map((weekday) => ({
+        weekday,
+        startMinute: intro ? 12 * 60 : 9 * 60,
+        endMinute: intro ? 13 * 60 : 17 * 60,
+        kind,
+      })),
     ]);
 
   const onSave = () => {
     const cleaned = normalizeWindows(windows);
-    save(cleaned, {
+    save(
+      { windows: cleaned, kind },
+      {
       onSuccess: () => {
         setWindows(cleaned);
-        Toast.show({ type: 'success', text1: 'Weekly hours saved' });
+        Toast.show({ type: 'success', text1: intro ? 'Intro hours saved' : 'Weekly hours saved' });
       },
       onError: (err) =>
         Toast.show({
@@ -114,7 +132,8 @@ export const AvailabilityEditor = ({ initial, savedTimeZone }: AvailabilityEdito
           text1: 'Could not save',
           text2: err instanceof Error ? err.message : 'Unknown error',
         }),
-    });
+      },
+    );
   };
 
   return (
@@ -132,7 +151,9 @@ export const AvailabilityEditor = ({ initial, savedTimeZone }: AvailabilityEdito
 
       <View style={styles.quickRow}>
         <Pressable onPress={setWorkdayPreset} style={styles.quickChip}>
-          <Text style={styles.quickText}>Weekdays, 9am to 5pm</Text>
+          <Text style={styles.quickText}>
+            {intro ? 'Weekdays, 12pm to 1pm' : 'Weekdays, 9am to 5pm'}
+          </Text>
         </Pressable>
         {windows.length > 0 ? (
           <Pressable onPress={() => setWindows([])} style={styles.quickChip}>
@@ -191,12 +212,20 @@ export const AvailabilityEditor = ({ initial, savedTimeZone }: AvailabilityEdito
 
       <Text style={styles.summary}>
         {totalMinutes === 0
-          ? 'No weekly hours yet. Customers will only see dates you add below.'
-          : `${(totalMinutes / 60).toFixed(totalMinutes % 60 === 0 ? 0 : 1)} hours a week, room for ${Math.floor(totalMinutes / 30)} sessions.`}
+          ? intro
+            ? 'No intro hours yet. Customers cannot book a free intro until you add some.'
+            : 'No weekly hours yet. Customers will only see dates you add below.'
+          : `${(totalMinutes / 60).toFixed(totalMinutes % 60 === 0 ? 0 : 1)} hours a week, room for ${Math.floor(totalMinutes / (intro ? INTRO_MINUTES : SESSION_MINUTES))} ${intro ? 'intro calls' : 'sessions'}.`}
       </Text>
       {dirty ? <Text style={styles.notice}>You have unsaved changes.</Text> : null}
       <Button
-        title={dirty || zoneChanged || zoneMissing ? 'Save weekly hours' : 'Saved'}
+        title={
+          dirty || zoneChanged || zoneMissing
+            ? intro
+              ? 'Save intro hours'
+              : 'Save weekly hours'
+            : 'Saved'
+        }
         onPress={onSave}
         loading={saving}
         disabled={!dirty && !zoneChanged && !zoneMissing}

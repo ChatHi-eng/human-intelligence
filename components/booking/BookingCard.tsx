@@ -52,7 +52,9 @@ export const BookingCard = ({ booking, expert, viewerIsExpert, onPress }: Bookin
           {minutesBetween(booking.slot.startIso, booking.slot.endIso)} min ·{' '}
           {booking.medium === 'video' ? 'Video' : 'Phone'}
         </Text>
-        <Text style={styles.price}>{formatCurrency(booking.priceCents)}</Text>
+        <Text style={styles.price}>
+          {booking.kind === 'intro' ? 'Free intro' : formatCurrency(booking.priceCents)}
+        </Text>
       </View>
     </Pressable>
   );

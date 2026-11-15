@@ -24,10 +24,15 @@ export type Credential = {
   type: BackgroundType;
 };
 
+// 'session' hours are for paid 30-minute sessions; 'intro' hours are for
+// free 15-minute intro calls.
+export type AvailabilityKind = 'session' | 'intro';
+
 export type AvailabilityWindow = {
   weekday: 0 | 1 | 2 | 3 | 4 | 5 | 6;
   startMinute: number;
   endMinute: number;
+  kind: AvailabilityKind;
 };
 
 export type AvailabilityDate = {
@@ -71,6 +76,10 @@ export type Expert = Profile & {
   // true = customers are confirmed as soon as they pay. false = the expert
   // approves each request and the card is only held until they do.
   autoAccept: boolean;
+  // Offers a free 15-minute intro call in their intro hours, up to
+  // introWeeklyLimit a week, one per customer.
+  introEnabled: boolean;
+  introWeeklyLimit: number;
   // Hidden from Discover and not bookable while true; hours are kept.
   paused: boolean;
   // Minutes kept free on either side of each booked session.

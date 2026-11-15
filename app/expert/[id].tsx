@@ -28,7 +28,7 @@ import { formatCurrency } from '@/lib/format';
 import { capture } from '@/services/analytics';
 import { generateSlots } from '@/lib/slots';
 import { BOOKING_WINDOW_DAYS, MIN_REVIEWS_FOR_RATING } from '@/constants/business';
-import { noticeMinutesFor } from '@/lib/discover';
+import { noticeMinutesFor, sessionWindows } from '@/lib/discover';
 
 export default function ExpertProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -61,7 +61,7 @@ export default function ExpertProfileScreen() {
   // Mirror what the booking screen will actually offer: stale one-off dates
   // (or windows that only produce past times) must not light up the Book bar.
   const hasAvailability =
-    generateSlots(expert.availability, expert.availabilityDates, [], {
+    generateSlots(sessionWindows(expert), expert.availabilityDates, [], {
       timeZone: expert.timezone,
       minNoticeMinutes: noticeMinutesFor(expert),
       daysAhead: BOOKING_WINDOW_DAYS,
@@ -97,6 +97,9 @@ export default function ExpertProfileScreen() {
             {industry && <Badge label={`${industry.emoji}  ${industry.label}`} />}
             {expert.verified && <Badge label="Verified" tone="success" />}
             <Badge label={`${expert.yearsExperience}y experience`} tone="accent" />
+            {expert.introEnabled && !expert.paused ? (
+              <Badge label="Free 15-minute intro" tone="success" />
+            ) : null}
           </View>
 
           {expert.ratingCount >= MIN_REVIEWS_FOR_RATING ? (

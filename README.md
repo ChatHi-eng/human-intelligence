@@ -301,6 +301,8 @@ The price an expert sets is the price of one 30-minute session, and it is exactl
 - **No answer.** The `expire-requests` function closes an unanswered request 24 hours after it was made, or 12 hours before the session if that comes first, and releases the hold. Halfway through it sends the expert one nudge. It also frees time slots whose checkout was abandoned.
 - **Who changes what.** The database refuses a hand-made `confirmed` status (migration 0022). Accepting, declining and an expert's cancellation all go through `respond-to-booking`, so the money always follows the decision. A customer's cancellation still uses `refund-booking`, which applies the 24-hour rule to charged sessions and simply releases a hold.
 
+- **Free intro calls.** An expert can offer a free 15-minute intro in hours they set aside (Studio, Availability). The database, not the app, decides what an intro is: always 15 minutes, always free, one per customer per expert, and no more than the expert's weekly limit (migration 0023). A paid session is likewise always 30 minutes at the expert's price, whatever the app sends. Intros skip Stripe entirely.
+
 Deploying functions: sign in once with `npx supabase login`, then `npx supabase functions deploy <name> --no-verify-jwt --project-ref dthpwxpxjhbsgzcjnept` deploys straight from this folder.
 
 ## Reminders

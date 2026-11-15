@@ -43,6 +43,7 @@ type BookingRow = {
   end_at: string;
   medium: string;
   customer_note: string | null;
+  kind: string | null;
 };
 
 type Prefs = {
@@ -134,7 +135,7 @@ serve(async (req) => {
   const now = Date.now();
   const { data: upcoming, error: bookingsError } = await admin
     .from('bookings')
-    .select('id, customer_id, expert_profile_id, start_at, end_at, medium, customer_note')
+    .select('id, customer_id, expert_profile_id, start_at, end_at, medium, customer_note, kind')
     .eq('status', 'confirmed')
     .gt('start_at', new Date(now).toISOString())
     .lte('start_at', new Date(now + 28 * 60 * 60_000).toISOString());
@@ -199,6 +200,7 @@ serve(async (req) => {
 
   for (const booking of (upcoming ?? []) as BookingRow[]) {
     const minutesToStart = (Date.parse(booking.start_at) - now) / 60_000;
+    const minutes = Math.round((Date.parse(booking.end_at) - Date.parse(booking.start_at)) / 60_000);
     const kind = kindFor(minutesToStart);
     if (!kind) continue;
 
@@ -268,7 +270,7 @@ serve(async (req) => {
         : `Reminder: your session with ${r.other}`;
       const lead = soon
         ? `Your session with ${escapeHtml(r.other)} starts in about an hour.`
-        : `Your 30-minute session with ${escapeHtml(r.other)} is coming up.`;
+        : `Your ${minutes}-minute ${booking.kind === 'intro' ? 'intro call' : 'session'} with ${escapeHtml(r.other)} is coming up.`;
 
       if (prefs?.email_reminders !== false) {
         const { data: userData } = await admin.auth.admin.getUserById(r.id);

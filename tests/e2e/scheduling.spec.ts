@@ -6,7 +6,9 @@ import { generateSlots, normalizeWindows } from '../../lib/slots';
 // Monday 2 Nov 2026, 12:00 UTC. New York is on standard time (UTC-5), so it
 // is 07:00 there; London is on UTC.
 const NOW = new Date('2026-11-02T12:00:00Z');
-const MON_9_TO_11 = [{ weekday: 1 as const, startMinute: 9 * 60, endMinute: 11 * 60 }];
+const MON_9_TO_11 = [
+  { weekday: 1 as const, startMinute: 9 * 60, endMinute: 11 * 60, kind: 'session' as const },
+];
 
 test('hours are read in the expert time zone, not the viewer one', () => {
   const slots = generateSlots(MON_9_TO_11, [], [], {
@@ -73,15 +75,32 @@ test('the gap between sessions keeps neighbouring times free', () => {
   expect(slots.map((s) => s.startIso)).toEqual(['2026-11-02T14:00:00.000Z']);
 });
 
+test('free intro hours produce 15-minute slots', () => {
+  const introHours = [
+    { weekday: 1 as const, startMinute: 12 * 60, endMinute: 13 * 60, kind: 'intro' as const },
+  ];
+  const slots = generateSlots(introHours, [], [], {
+    timeZone: 'America/New_York',
+    now: NOW,
+    daysAhead: 1,
+    slotMinutes: 15,
+  });
+  expect(slots).toHaveLength(4);
+  expect(slots[0]).toMatchObject({
+    startIso: '2026-11-02T17:00:00.000Z',
+    endIso: '2026-11-02T17:15:00.000Z',
+  });
+});
+
 test('overlapping weekly blocks are merged when saved', () => {
   expect(
     normalizeWindows([
-      { weekday: 2, startMinute: 600, endMinute: 720 },
-      { weekday: 1, startMinute: 540, endMinute: 660 },
-      { weekday: 1, startMinute: 600, endMinute: 780 },
+      { weekday: 2, startMinute: 600, endMinute: 720, kind: 'session' },
+      { weekday: 1, startMinute: 540, endMinute: 660, kind: 'session' },
+      { weekday: 1, startMinute: 600, endMinute: 780, kind: 'session' },
     ]),
   ).toEqual([
-    { weekday: 1, startMinute: 540, endMinute: 780 },
-    { weekday: 2, startMinute: 600, endMinute: 720 },
+    { weekday: 1, startMinute: 540, endMinute: 780, kind: 'session' },
+    { weekday: 2, startMinute: 600, endMinute: 720, kind: 'session' },
   ]);
 });

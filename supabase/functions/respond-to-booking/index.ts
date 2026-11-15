@@ -107,12 +107,19 @@ serve(async (req) => {
         const detail = err instanceof Error ? err.message : 'unknown error';
         return json({ error: `The card hold could not be charged: ${detail}` }, 402);
       }
-    } else if (booking.payment_status !== 'captured') {
+    } else if (
+      booking.payment_status !== 'captured' &&
+      // A free intro call has no payment to wait for.
+      booking.payment_status !== 'not_required'
+    ) {
       return json({ error: 'The customer has not completed payment yet' }, 409);
     }
     const { error } = await admin
       .from('bookings')
-      .update({ status: 'confirmed', payment_status: 'captured' })
+      .update({
+        status: 'confirmed',
+        payment_status: booking.payment_status === 'not_required' ? 'not_required' : 'captured',
+      })
       .eq('id', booking.id)
       .eq('status', 'requested');
     if (error) return json({ error: error.message }, 500);

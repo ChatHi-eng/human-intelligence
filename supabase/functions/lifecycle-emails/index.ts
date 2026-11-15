@@ -96,6 +96,8 @@ type BookingRow = {
   // 'instant' (paid and confirmed at once) or 'approval' (card held until the
   // expert accepts). Migration 0022.
   booking_mode?: string | null;
+  // 'session' (paid, 30 minutes) or 'intro' (free, 15 minutes). Migration 0023.
+  kind?: string | null;
   // Added by the separate no-show-policy migration. Optional on purpose: this
   // function must work whether or not that migration has run yet.
   no_show_reported_by?: string | null;
@@ -355,18 +357,24 @@ serve(async (req) => {
   const cut = money(expertCutCents(booking.price_cents));
   const pct = Math.round(feePct() * 100);
 
-  // A new row is not news yet: the customer has not paid. Everything below is
-  // derived from an UPDATE by comparing old_record to record.
-  if (payload.type !== 'UPDATE' || !old) {
+  const instant = booking.booking_mode === 'instant';
+  const freeIntro = booking.kind === 'intro';
+  // A paid booking is not news when its row appears: the customer has not
+  // paid yet, so its emails come from the UPDATEs that follow. A free intro
+  // has no payment step, so its row appearing IS the event.
+  const introInsert = payload.type === 'INSERT' && freeIntro;
+  if (!introInsert && (payload.type !== 'UPDATE' || !old)) {
     return json({ ok: true, skipped: true });
   }
-  const instant = booking.booking_mode === 'instant';
+  const what = freeIntro ? 'free 15-minute intro call' : 'session';
 
-  // ---- Card hold succeeded on an approve-first request → tell both sides ----
-  const becameRequest =
-    old.payment_status !== 'authorized' &&
-    booking.payment_status === 'authorized' &&
-    booking.status === 'requested';
+  // ---- A request an approve-first expert has to answer → tell both sides ----
+  const becameRequest = introInsert
+    ? booking.status === 'requested'
+    : old !== null &&
+      old.payment_status !== 'authorized' &&
+      booking.payment_status === 'authorized' &&
+      booking.status === 'requested';
   if (becameRequest) {
 
     const [expertEmail, customerEmail] = await Promise.all([
@@ -383,14 +391,21 @@ serve(async (req) => {
           [
             p(`Hi ${expertName},`),
             p(
-              `${customerName} just asked to book a session with you. It's waiting in <strong>Studio &rarr; Requests</strong>. Accept it if the time works, decline if it doesn't. You have 24 hours to answer; after that the request closes on its own.`,
+              `${customerName} just asked to book a ${what} with you. It's waiting in <strong>Studio &rarr; Requests</strong>. Accept it if the time works, decline if it doesn't. You have 24 hours to answer; after that the request closes on its own.`,
             ),
-            details([
-              ['When', when],
-              ['Format', format],
-              ['Price', price],
-              ['You earn', `${cut} (after Palam's ${pct}% fee)`],
-            ]),
+            details(
+              freeIntro
+                ? [
+                    ['When', when],
+                    ['Format', format],
+                  ]
+                : [
+                    ['When', when],
+                    ['Format', format],
+                    ['Price', price],
+                    ['You earn', `${cut} (after Palam's ${pct}% fee)`],
+                  ],
+            ),
             note(TIMES_NOTE),
             ...(booking.customer_note
               ? [
@@ -399,9 +414,13 @@ serve(async (req) => {
                   ),
                 ]
               : []),
-            p(
-              `${customerName}'s card is on hold and is only charged when you accept. If you decline, they pay nothing.`,
-            ),
+            ...(freeIntro
+              ? []
+              : [
+                  p(
+                    `${customerName}'s card is on hold and is only charged when you accept. If you decline, they pay nothing.`,
+                  ),
+                ]),
             signoff('Thanks for being here,'),
           ].join('\n'),
         ),
@@ -425,11 +444,13 @@ serve(async (req) => {
               ['Expert', expertName],
               ['When', when],
               ['Format', format],
-              ['Price', price],
+              ['Price', freeIntro ? 'Free' : price],
             ]),
             note(TIMES_NOTE),
             p(
-              `About your payment: your card has a hold for ${price}, and nothing has been charged. You are charged only if ${expertName} accepts. If they decline, or do not answer within 24 hours, the hold is released and you pay nothing.`,
+              freeIntro
+                ? `${expertName} has 24 hours to answer. This intro call is free, so there is nothing to pay.`
+                : `About your payment: your card has a hold for ${price}, and nothing has been charged. You are charged only if ${expertName} accepts. If they decline, or do not answer within 24 hours, the hold is released and you pay nothing.`,
             ),
             signoff('Talk soon,'),
           ].join('\n'),
@@ -442,11 +463,19 @@ serve(async (req) => {
     return json({ ok: true });
   }
 
-  const becameConfirmed = old.status === 'requested' && booking.status === 'confirmed';
-  const becameCancelled = old.status !== 'cancelled' && booking.status === 'cancelled';
-  const becameRefunded = old.payment_status !== 'refunded' && booking.payment_status === 'refunded';
+  // An instant free intro is born confirmed; everything else gets there by
+  // an UPDATE from 'requested'.
+  const becameConfirmed = introInsert
+    ? booking.status === 'confirmed'
+    : old !== null && old.status === 'requested' && booking.status === 'confirmed';
+  const becameCancelled =
+    old !== null && old.status !== 'cancelled' && booking.status === 'cancelled';
+  const becameRefunded =
+    old !== null && old.payment_status !== 'refunded' && booking.payment_status === 'refunded';
   const noShowReported =
-    (old.no_show_reported_by ?? null) === null && Boolean(booking.no_show_reported_by);
+    old !== null &&
+    (old.no_show_reported_by ?? null) === null &&
+    Boolean(booking.no_show_reported_by);
   const declinedByExpert = booking.cancellation_reason === 'declined by expert';
   // Palam's cancellation policy: free until 24h before the start; inside 24h
   // a customer cancellation isn't refunded (expert cancellations always are).
@@ -474,9 +503,13 @@ serve(async (req) => {
           [
             p(`Hi ${customerName},`),
             p(
-              instant
-                ? `You're booked with ${expertName}, and your card has been charged ${price}.`
-                : `${expertName} said yes. You're booked, and your card has now been charged ${price}.`,
+              freeIntro
+                ? instant
+                  ? `Your free 15-minute intro call with ${expertName} is booked.`
+                  : `${expertName} said yes. Your free 15-minute intro call is booked.`
+                : instant
+                  ? `You're booked with ${expertName}, and your card has been charged ${price}.`
+                  : `${expertName} said yes. You're booked, and your card has now been charged ${price}.`,
             ),
             details([
               ['Expert', expertName],
@@ -488,7 +521,9 @@ serve(async (req) => {
               'To join, open Palam a few minutes before the start, open this booking, and tap <strong>Join</strong>. The call runs inside the app, so there is nothing to install.',
             ),
             p(
-              'One tip: thirty minutes goes faster than you think. Come with your question sharp and the backstory trimmed, and you&rsquo;ll get twice as much out of it.',
+              freeIntro
+                ? 'One tip: fifteen minutes is short. Use it to say what you need and see whether this is the right person, then book a full session if it is.'
+                : 'One tip: thirty minutes goes faster than you think. Come with your question sharp and the backstory trimmed, and you&rsquo;ll get twice as much out of it.',
             ),
             signoff('Talk soon,'),
           ].join('\n'),
@@ -509,15 +544,24 @@ serve(async (req) => {
           [
             p(`Hi ${expertName},`),
             p(
-              instant
+              freeIntro && instant
+                ? `${customerName} booked a free 15-minute intro call with you. It'll be in your <strong>Today</strong> list in Studio when the day comes. If you can't make it, cancel from the booking.`
+                : instant
                 ? `${customerName} booked a session with you and has paid. It'll be in your <strong>Today</strong> list in Studio when the day comes. If you can't make it, cancel from the booking and they are refunded in full.`
                 : `You accepted. Your session with ${customerName} is locked in. It'll be waiting in your <strong>Today</strong> list in Studio when the day comes.`,
             ),
-            details([
-              ['When', when],
-              ['Format', format],
-              ['You earn', `${cut} (after Palam's ${pct}% fee)`],
-            ]),
+            details(
+              freeIntro
+                ? [
+                    ['When', when],
+                    ['Format', format],
+                  ]
+                : [
+                    ['When', when],
+                    ['Format', format],
+                    ['You earn', `${cut} (after Palam's ${pct}% fee)`],
+                  ],
+            ),
             note(TIMES_NOTE),
             ...(instant && booking.customer_note
               ? [
@@ -541,8 +585,9 @@ serve(async (req) => {
     if (customerEmail) {
       // If the same update already flipped the payment to refunded, say so
       // plainly; otherwise promise the refund that the app kicks off.
-      const refundLine =
-        booking.payment_status === 'released'
+      const refundLine = freeIntro
+        ? 'The intro call was free, so there is nothing to refund.'
+        : booking.payment_status === 'released'
           ? 'Your card was not charged. The hold on it has been released and will drop off your statement within a few days.'
           : booking.payment_status === 'refunded'
             ? 'Your card was refunded in full. Depending on your bank, it can take 5 to 10 business days to show on your statement.'
@@ -598,7 +643,9 @@ serve(async (req) => {
           [
             p(`Hi ${customerName},`),
             p(
-              `${expertName} did not answer your session request in time, so it has closed. Your card was not charged, and the hold on it has been released.`,
+              freeIntro
+                ? `${expertName} did not answer your intro call request in time, so it has closed.`
+                : `${expertName} did not answer your session request in time, so it has closed. Your card was not charged, and the hold on it has been released.`,
             ),
             details([
               ['When', when],
@@ -619,8 +666,9 @@ serve(async (req) => {
   if (becameCancelled && !declinedByExpert && !abandoned) {
     const expertEmail = await emailOf(booking.expert_profile_id);
     if (expertEmail) {
-      const refundNote =
-        booking.payment_status === 'refunded'
+      const refundNote = freeIntro
+        ? ''
+        : booking.payment_status === 'refunded'
           ? 'Their payment was refunded in full.'
           : booking.payment_status === 'released'
             ? 'They had not been charged.'
@@ -628,7 +676,7 @@ serve(async (req) => {
               ? "Per Palam's cancellation policy, cancellations within 24 hours of the session aren't refunded, so your payout is unchanged."
               : 'Their payment is being refunded.';
       const why = expired
-        ? `The request from ${customerName} below closed because it was not answered within 24 hours. They were not charged.`
+        ? `The request from ${customerName} below closed because it was not answered within 24 hours.${freeIntro ? '' : ' They were not charged.'}`
         : booking.cancellation_reason === 'cancelled by customer'
           ? `${customerName} cancelled the session below. ${refundNote} That time is open again, and there is nothing you need to do.`
           : 'The session below was cancelled. Nothing to do on your side.';

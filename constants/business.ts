@@ -23,6 +23,13 @@ export const BUFFER_OPTIONS_MINUTES = [0, 15, 30] as const;
 // after 24 hours, or 12 hours before the session (expire-requests function).
 export const APPROVAL_BOOKING_NOTICE_MINUTES = 24 * 60;
 
+// Lengths of the two things a customer can book.
+export const SESSION_MINUTES = 30;
+export const INTRO_MINUTES = 15;
+
+// Choices for how many free intro calls an expert takes in a week.
+export const INTRO_WEEKLY_LIMIT_OPTIONS = [3, 5, 10] as const;
+
 // How far ahead customers can book.
 export const BOOKING_WINDOW_DAYS = 14;
 
