@@ -19,9 +19,11 @@ import {
 } from '@/hooks/useBookings';
 import { useEarningsBuckets } from '@/hooks/useEarnings';
 import { useMyExpertProfile } from '@/hooks/useExperts';
+import { BOOKING_WINDOW_DAYS, MIN_BOOKING_NOTICE_MINUTES } from '@/constants/business';
 import { formatDateTime, isoDateKey, minutesBetween } from '@/lib/date';
 import { formatCurrency } from '@/lib/format';
 import { copyExpertShareLink } from '@/lib/share';
+import { generateSlots } from '@/lib/slots';
 import { capture } from '@/services/analytics';
 import type { Booking } from '@/types/booking';
 
@@ -74,6 +76,45 @@ export default function StudioScreen() {
   const weekly = earnings?.[1];
   const monthly = earnings?.[2];
 
+  // What still stands between this expert and a first booking.
+  const hasOpenTimes =
+    generateSlots(expertProfile.availability, expertProfile.availabilityDates, [], {
+      timeZone: expertProfile.timezone,
+      minNoticeMinutes: MIN_BOOKING_NOTICE_MINUTES,
+      daysAhead: BOOKING_WINDOW_DAYS,
+    }).length > 0;
+  const setupSteps = [
+    {
+      done: hasOpenTimes,
+      title: 'Open your calendar',
+      body: 'Customers can only book you once you add hours.',
+      action: 'Set availability',
+      href: '/studio/availability' as const,
+    },
+    {
+      done: expertProfile.hourlyRate !== null,
+      title: 'Set your rate',
+      body: 'Your profile shows "Rate coming soon" until you do.',
+      action: 'Set rate',
+      href: '/expert-profile-edit' as const,
+    },
+    {
+      done: expertProfile.stripeConnectPayoutsEnabled,
+      title: 'Connect payouts',
+      body: 'So we can pay you after each session.',
+      action: 'Set up payouts',
+      href: '/expert-profile-edit' as const,
+    },
+    {
+      done: Boolean(expertProfile.avatarUrl),
+      title: 'Add a photo',
+      body: 'It is the first thing customers see.',
+      action: 'Add photo',
+      href: '/profile-edit' as const,
+    },
+  ];
+  const openSteps = setupSteps.filter((s) => !s.done);
+
   return (
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
@@ -97,6 +138,28 @@ export default function StudioScreen() {
           onPress={() => void copyExpertShareLink(expertProfile.id)}
           style={styles.shareButton}
         />
+
+        {openSteps.length > 0 ? (
+          <Card style={styles.setupCard}>
+            <Text style={styles.cardTitle}>Finish setting up</Text>
+            <Text style={styles.cardCaption}>
+              {setupSteps.length - openSteps.length} of {setupSteps.length} done
+            </Text>
+            {openSteps.map((step) => (
+              <View key={step.title} style={styles.setupRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.setupTitle}>{step.title}</Text>
+                  <Text style={styles.cardCaption}>{step.body}</Text>
+                </View>
+                <Button
+                  title={step.action}
+                  variant="secondary"
+                  onPress={() => router.push(step.href)}
+                />
+              </View>
+            ))}
+          </Card>
+        ) : null}
 
         <View style={styles.stats}>
           <StatCard
@@ -145,22 +208,24 @@ export default function StudioScreen() {
               key={b.id}
               booking={b}
               expert={expertProfile}
+              viewerIsExpert
               onPress={() => router.push(`/booking/${b.id}`)}
             />
           ))
         )}
 
-        <SectionHeader title="Availability" caption="Recurring weekly hours + one-off dates." />
+        <SectionHeader title="Availability" caption="Weekly hours, extra dates and days off." />
         <Card>
           <Text style={styles.cardTitle}>Your calendar</Text>
           <Text style={styles.cardBody}>
-            Manage recurring weekly hours and specific-date availability. New slots become bookable
-            immediately.
+            {hasOpenTimes
+              ? 'Change your weekly hours, add extra dates, or take a day off.'
+              : 'You have no open times, so customers cannot book you yet.'}
           </Text>
           <Button
             title="Manage availability"
             variant="secondary"
-            onPress={() => router.push('/expert-profile-edit')}
+            onPress={() => router.push('/studio/availability')}
           />
           <Button
             title="View booking calendar"
@@ -201,9 +266,13 @@ const RequestCard = ({ booking, onOpen }: { booking: Booking; onOpen: () => void
   return (
     <Card>
       <View style={styles.requestHeader}>
-        <Avatar uri={null} name={`User ${booking.customerId.slice(0, 4)}`} size={40} />
+        <Avatar
+          uri={booking.customerAvatarUrl}
+          name={booking.customerName ?? 'Customer'}
+          size={40}
+        />
         <View style={{ flex: 1 }}>
-          <Text style={styles.requestTitle}>New booking request</Text>
+          <Text style={styles.requestTitle}>{booking.customerName ?? 'New booking request'}</Text>
           <Text style={styles.requestMeta}>{formatDateTime(booking.slot.startIso)}</Text>
           <Text style={styles.requestMeta}>
             {minutesBetween(booking.slot.startIso, booking.slot.endIso)} min ·{' '}
@@ -212,6 +281,12 @@ const RequestCard = ({ booking, onOpen }: { booking: Booking; onOpen: () => void
         </View>
         <Badge label="Requested" tone="warning" />
       </View>
+      {booking.customerNote ? (
+        <View style={styles.requestNote}>
+          <Text style={styles.requestNoteLabel}>What they want to talk about</Text>
+          <Text style={styles.requestNoteText}>{booking.customerNote}</Text>
+        </View>
+      ) : null}
       <View style={styles.requestActions}>
         <Button
           title="Accept"
@@ -219,7 +294,7 @@ const RequestCard = ({ booking, onOpen }: { booking: Booking; onOpen: () => void
             accept(
               {
                 id: booking.id,
-                expertName: 'Customer',
+                expertName: booking.customerName ?? 'your customer',
                 startIso: booking.slot.startIso,
                 endIso: booking.slot.endIso,
               },
@@ -313,6 +388,24 @@ const styles = StyleSheet.create({
   requestTitle: { ...typography.bodyStrong, color: colors.textPrimary },
   requestMeta: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
   requestActions: { flexDirection: 'row', gap: spacing.sm },
+  requestNote: {
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: 12,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  requestNoteLabel: { ...typography.label, color: colors.textSecondary },
+  requestNoteText: { ...typography.body, color: colors.textPrimary, marginTop: 2 },
+  setupCard: { marginBottom: spacing.lg, gap: spacing.sm },
+  setupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingTop: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  setupTitle: { ...typography.bodyStrong, color: colors.textPrimary },
   earningsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

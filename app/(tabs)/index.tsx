@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -19,6 +19,8 @@ import { CUSTOMER_BOOKING_ENABLED, PHONE_SESSIONS_ENABLED } from '@/constants/fe
 import { industries } from '@/constants/industries';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useExperts, useMyExpertProfile } from '@/hooks/useExperts';
+import { sortExperts, type ExpertSort } from '@/lib/discover';
+import { filterExpertsByQuery } from '@/services/api';
 
 const DISCOVER_CAPTION = PHONE_SESSIONS_ENABLED
   ? 'Vetted people who have lived what you need help with, by video or phone.'
@@ -29,7 +31,14 @@ type Filters = {
   query: string;
   minRating?: number;
   maxHourlyRateCents?: number;
+  sort: ExpertSort;
 };
+
+const SORT_OPTIONS: { label: string; value: ExpertSort }[] = [
+  { label: 'Soonest available', value: 'soonest' },
+  { label: 'Top rated', value: 'rating' },
+  { label: 'Price, low to high', value: 'price' },
+];
 
 type FilterOption = { label: string; value?: number };
 
@@ -49,15 +58,23 @@ const PRICE_OPTIONS: FilterOption[] = [
 
 export default function DiscoverScreen() {
   const router = useRouter();
-  const [filters, setFilters] = useState<Filters>({ query: '' });
+  const [filters, setFilters] = useState<Filters>({ query: '', sort: 'soonest' });
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const { data: experts, isLoading } = useExperts({
+  // The text search runs on the list already in memory. Putting the query in
+  // the request reloaded the list on every keystroke and dropped the keyboard.
+  const { data: fetched, isLoading } = useExperts({
     industryId: filters.industryId,
-    query: filters.query || undefined,
     minRating: filters.minRating,
     maxHourlyRateCents: filters.maxHourlyRateCents,
   });
+  const experts = useMemo(
+    () =>
+      fetched
+        ? sortExperts(filterExpertsByQuery(fetched, filters.query), filters.sort)
+        : undefined,
+    [fetched, filters.query, filters.sort],
+  );
 
   // Filter chips only for fields that actually have experts, so a long field
   // list never shows as a row of empty categories.
@@ -90,7 +107,8 @@ export default function DiscoverScreen() {
   const dbIsEmpty = !isLoading && experts && experts.length === 0 && noFiltersActive;
   const activeFilterCount =
     (filters.minRating !== undefined ? 1 : 0) +
-    (filters.maxHourlyRateCents !== undefined ? 1 : 0);
+    (filters.maxHourlyRateCents !== undefined ? 1 : 0) +
+    (filters.sort !== 'soonest' ? 1 : 0);
 
   return (
     <Screen>
@@ -173,7 +191,12 @@ export default function DiscoverScreen() {
         onClose={() => setFiltersOpen(false)}
         onChange={(next) => setFilters({ ...filters, ...next })}
         onReset={() =>
-          setFilters({ ...filters, minRating: undefined, maxHourlyRateCents: undefined })
+          setFilters({
+            ...filters,
+            minRating: undefined,
+            maxHourlyRateCents: undefined,
+            sort: 'soonest',
+          })
         }
       />
     </Screen>
@@ -210,7 +233,23 @@ const FilterSheet = ({
   <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
     <Pressable style={styles.sheetBackdrop} onPress={onClose} />
     <View style={styles.sheet}>
-      <Text style={styles.sheetTitle}>Filters</Text>
+      <Text style={styles.sheetTitle}>Sort and filter</Text>
+
+      <Text style={styles.sheetLabel}>Sort by</Text>
+      <View style={styles.sheetOptions}>
+        {SORT_OPTIONS.map((o) => {
+          const active = filters.sort === o.value;
+          return (
+            <Pressable
+              key={o.value}
+              onPress={() => onChange({ sort: o.value })}
+              style={[chipStyles.chip, active && chipStyles.chipActive]}
+            >
+              <Text style={[chipStyles.text, active && chipStyles.textActive]}>{o.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
 
       <Text style={styles.sheetLabel}>Minimum rating</Text>
       <View style={styles.sheetOptions}>

@@ -89,6 +89,10 @@ export default function RootLayout() {
                   options={{ title: 'Calendar', presentation: 'card' }}
                 />
                 <Stack.Screen
+                  name="studio/availability"
+                  options={{ title: 'Availability', presentation: 'card' }}
+                />
+                <Stack.Screen
                   name="studio/earnings"
                   options={{ title: 'Earnings', presentation: 'card' }}
                 />

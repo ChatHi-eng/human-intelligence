@@ -2,6 +2,7 @@
 // these functions are the only place that knows about the Supabase row shape.
 // If we ever swap the backend, only this file changes.
 import { getSupabase } from './supabase';
+import { industryDisplay } from '@/constants/industries';
 import type {
   AvailabilityDate,
   AvailabilityWindow,
@@ -45,6 +46,7 @@ type ExpertProfileRow = {
   current_title?: string | null;
   current_company?: string | null;
   topics?: string[] | null;
+  timezone?: string | null;
   headline: string;
   hourly_rate_cents: number | null;
   years_experience: number;
@@ -83,6 +85,7 @@ type AvailabilityDateRow = {
   date: string;
   start_minute: number;
   end_minute: number;
+  blocked?: boolean | null;
 };
 
 type BookingRow = {
@@ -96,6 +99,9 @@ type BookingRow = {
   payment_status: PaymentStatus;
   price_cents: number;
   call_room_url: string | null;
+  customer_note?: string | null;
+  // Present when the query joins the customer's profile.
+  customer?: { display_name: string; avatar_url: string | null } | null;
   no_show_reported_by?: string | null;
   no_show_reported_at?: string | null;
   created_at: string;
@@ -151,6 +157,7 @@ const mapAvailabilityDate = (row: AvailabilityDateRow): AvailabilityDate => ({
   date: row.date,
   startMinute: row.start_minute,
   endMinute: row.end_minute,
+  blocked: row.blocked ?? false,
 });
 
 const mapExpert = (row: ExpertWithRelations): Expert | null => {
@@ -177,6 +184,7 @@ const mapExpert = (row: ExpertWithRelations): Expert | null => {
     credentials: (row.credentials ?? []).map(mapCredential),
     availability: (row.availability_windows ?? []).map(mapAvailability),
     availabilityDates: (row.availability_dates ?? []).map(mapAvailabilityDate),
+    timezone: row.timezone ?? null,
     verified: row.verified,
     coverImageUrl: row.cover_image_url ?? '',
     stripeConnectAccountId: row.stripe_connect_account_id,
@@ -195,6 +203,9 @@ const mapBooking = (row: BookingRow): Booking => ({
   paymentStatus: row.payment_status,
   priceCents: row.price_cents,
   callRoomUrl: row.call_room_url,
+  customerNote: row.customer_note ?? null,
+  customerName: row.customer?.display_name ?? null,
+  customerAvatarUrl: row.customer?.avatar_url ?? null,
   // ?? null keeps older databases working until migration 0012 is applied.
   noShowReportedBy: row.no_show_reported_by ?? null,
   noShowReportedAt: row.no_show_reported_at ?? null,
@@ -216,14 +227,17 @@ const mapReview = (row: ReviewRow): Review => ({
 // Shared select string for Expert + relations.
 const EXPERT_SELECT = `
   profile_id, status, linkedin_url, industry_id, industry_custom, current_title, current_company,
-  topics, headline, hourly_rate_cents, years_experience,
+  topics, timezone, headline, hourly_rate_cents, years_experience,
   verified, cover_image_url, rating_average, rating_count, how_i_can_help,
   stripe_connect_account_id, stripe_connect_payouts_enabled, created_at, updated_at,
   profiles!inner(id, display_name, avatar_url, bio, created_at, updated_at),
   credentials(id, expert_profile_id, title, issuer, year, end_year, type),
   availability_windows(id, expert_profile_id, weekday, start_minute, end_minute),
-  availability_dates(id, expert_profile_id, date, start_minute, end_minute)
+  availability_dates(id, expert_profile_id, date, start_minute, end_minute, blocked)
 `;
+
+// Bookings with the customer's public profile, so the expert sees who booked.
+const BOOKING_SELECT = '*, customer:profiles!bookings_customer_id_fkey(display_name, avatar_url)';
 
 // ---------- Storage uploads ----------
 
@@ -339,13 +353,31 @@ export const fetchExperts = async (filters: ExpertsFilters = {}): Promise<Expert
   const experts = (data as unknown as ExpertWithRelations[])
     .map(mapExpert)
     .filter((e): e is Expert => e !== null);
-  if (!filters.query) return experts;
-  const needle = filters.query.toLowerCase();
-  return experts.filter((e) =>
-    `${e.displayName} ${e.headline} ${e.bio ?? ''} ${e.howICanHelp ?? ''} ${e.industryCustom ?? ''} ${e.currentTitle ?? ''} ${e.currentCompany ?? ''} ${e.topics.join(' ')}`
-      .toLowerCase()
-      .includes(needle),
-  );
+  return filterExpertsByQuery(experts, filters.query);
+};
+
+// Text search over what an expert says about themselves. Every word has to
+// appear somewhere, so "tax startup" finds a startup tax adviser. Exported so
+// screens can search an already-loaded list without refetching per keystroke.
+export const filterExpertsByQuery = (experts: Expert[], query: string | undefined): Expert[] => {
+  const terms = (query ?? '').toLowerCase().split(/\s+/).filter(Boolean);
+  if (terms.length === 0) return experts;
+  return experts.filter((e) => {
+    const haystack = [
+      e.displayName,
+      e.headline,
+      e.bio ?? '',
+      e.howICanHelp ?? '',
+      industryDisplay(e.industryId, e.industryCustom)?.label ?? '',
+      e.currentTitle ?? '',
+      e.currentCompany ?? '',
+      e.topics.join(' '),
+      e.credentials.map((c) => `${c.title} ${c.issuer}`).join(' '),
+    ]
+      .join(' ')
+      .toLowerCase();
+    return terms.every((t) => haystack.includes(t));
+  });
 };
 
 export const fetchExpert = async (id: string): Promise<Expert | null> => {
@@ -447,8 +479,16 @@ export const deleteCredential = async (id: string): Promise<void> => {
 export const setAvailability = async (
   expertId: string,
   windows: AvailabilityWindow[],
+  timeZone?: string | null,
 ): Promise<void> => {
   const client = sb();
+  if (timeZone) {
+    const { error: tzError } = await client
+      .from('expert_profiles')
+      .update({ timezone: timeZone })
+      .eq('profile_id', expertId);
+    if (tzError) throw tzError;
+  }
   const { error: delError } = await client
     .from('availability_windows')
     .delete()
@@ -470,13 +510,14 @@ export const setAvailability = async (
 
 export const addAvailabilityDate = async (
   expertId: string,
-  input: { date: string; startMinute: number; endMinute: number },
+  input: { date: string; startMinute: number; endMinute: number; blocked?: boolean },
 ): Promise<void> => {
   const { error } = await sb().from('availability_dates').insert({
     expert_profile_id: expertId,
     date: input.date,
     start_minute: input.startMinute,
     end_minute: input.endMinute,
+    blocked: input.blocked ?? false,
   });
   if (error) throw error;
 };
@@ -491,7 +532,7 @@ export const deleteAvailabilityDate = async (id: string): Promise<void> => {
 export const fetchMyBookings = async (userId: string): Promise<Booking[]> => {
   const { data, error } = await sb()
     .from('bookings')
-    .select('*')
+    .select(BOOKING_SELECT)
     .or(`customer_id.eq.${userId},expert_profile_id.eq.${userId}`)
     .order('start_at', { ascending: true });
   if (error) throw error;
@@ -499,7 +540,11 @@ export const fetchMyBookings = async (userId: string): Promise<Booking[]> => {
 };
 
 export const fetchBooking = async (id: string): Promise<Booking | null> => {
-  const { data, error } = await sb().from('bookings').select('*').eq('id', id).maybeSingle();
+  const { data, error } = await sb()
+    .from('bookings')
+    .select(BOOKING_SELECT)
+    .eq('id', id)
+    .maybeSingle();
   if (error) throw error;
   return data ? mapBooking(data as BookingRow) : null;
 };
@@ -511,6 +556,7 @@ export type CreateBookingInput = {
   medium: CallMedium;
   priceCents: number;
   callRoomUrl?: string | null;
+  customerNote?: string | null;
 };
 
 export const createBooking = async (input: CreateBookingInput): Promise<Booking> => {
@@ -525,6 +571,7 @@ export const createBooking = async (input: CreateBookingInput): Promise<Booking>
       medium: input.medium,
       price_cents: input.priceCents,
       call_room_url: input.callRoomUrl ?? null,
+      customer_note: input.customerNote?.trim() || null,
     })
     .select('*')
     .single();
@@ -578,7 +625,7 @@ export const cancelBooking = async (id: string, reason?: string): Promise<void> 
 export const fetchPendingRequestsForExpert = async (userId: string): Promise<Booking[]> => {
   const { data, error } = await sb()
     .from('bookings')
-    .select('*')
+    .select(BOOKING_SELECT)
     .eq('expert_profile_id', userId)
     .eq('status', 'requested')
     .order('start_at', { ascending: true });
@@ -586,8 +633,22 @@ export const fetchPendingRequestsForExpert = async (userId: string): Promise<Boo
   return (data as BookingRow[]).map(mapBooking);
 };
 
-// Confirmed/in_progress bookings on an expert's calendar — used for slot
-// generation so two customers can't double-book the same time.
+// When an expert is already taken (start and end only). Row-level security
+// hides other customers' bookings, so this goes through the
+// expert_busy_times function from migration 0018; without it a customer could
+// not see that a slot was gone.
+export const fetchExpertBusyTimes = async (
+  expertId: string,
+): Promise<{ startIso: string; endIso: string }[]> => {
+  const { data, error } = await sb().rpc('expert_busy_times', { p_expert_id: expertId });
+  if (error) throw error;
+  return ((data ?? []) as { start_at: string; end_at: string }[]).map((r) => ({
+    startIso: r.start_at,
+    endIso: r.end_at,
+  }));
+};
+
+// The expert's own active bookings (their calendar view).
 export const fetchActiveBookingsForExpert = async (
   userId: string,
   sinceIso?: string,

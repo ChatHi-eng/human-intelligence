@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 import { BookingCard } from '@/components/booking/BookingCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingView } from '@/components/ui/LoadingView';
@@ -50,6 +50,19 @@ export default function BookingsScreen() {
   if (isLoading && !bookings) return <LoadingView label="Loading your bookings…" />;
 
   const list = isExpert ? (segment === 'customer' ? asCustomer : asExpert) : asCustomer;
+  const viewerIsExpert = isExpert && segment === 'expert';
+
+  // Upcoming sessions first (soonest at the top), then history, newest first.
+  const nowMs = Date.now();
+  const isUpcoming = (b: (typeof list)[number]) =>
+    (b.status === 'requested' || b.status === 'confirmed' || b.status === 'in_progress') &&
+    new Date(b.slot.endIso).getTime() >= nowMs;
+  const upcoming = list.filter(isUpcoming);
+  const past = list.filter((b) => !isUpcoming(b)).reverse();
+  const sections = [
+    { title: 'Upcoming', data: upcoming },
+    { title: 'Past and cancelled', data: past },
+  ].filter((s) => s.data.length > 0);
 
   return (
     <Screen>
@@ -73,9 +86,13 @@ export default function BookingsScreen() {
           </Pressable>
         </View>
       )}
-      <FlatList
-        data={list}
+      <SectionList
+        sections={sections}
         keyExtractor={(b) => b.id}
+        stickySectionHeadersEnabled={false}
+        renderSectionHeader={({ section }) => (
+          <Text style={styles.sectionLabel}>{section.title}</Text>
+        )}
         ListHeaderComponent={
           <SectionHeader
             title="Your bookings"
@@ -92,6 +109,7 @@ export default function BookingsScreen() {
           <BookingCard
             booking={item}
             expert={expertsById.get(item.expertId)}
+            viewerIsExpert={viewerIsExpert}
             onPress={() => router.push(`/booking/${item.id}`)}
           />
         )}
@@ -118,6 +136,12 @@ export default function BookingsScreen() {
 
 const styles = StyleSheet.create({
   list: { paddingTop: spacing.md, paddingBottom: spacing.xxxl },
+  sectionLabel: {
+    ...typography.label,
+    color: colors.textSecondary,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
+  },
   segment: {
     flexDirection: 'row',
     padding: 4,

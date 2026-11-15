@@ -10,6 +10,8 @@ import type { Expert } from '@/types/user';
 export type BookingCardProps = {
   booking: Booking;
   expert: Expert | undefined;
+  /** true when the person looking at the card is the expert on the booking. */
+  viewerIsExpert?: boolean;
   onPress?: () => void;
 };
 
@@ -28,14 +30,19 @@ const statusTone = (status: Booking['status']) => {
   }
 };
 
-export const BookingCard = ({ booking, expert, onPress }: BookingCardProps) => {
+export const BookingCard = ({ booking, expert, viewerIsExpert, onPress }: BookingCardProps) => {
   const status = statusTone(booking.status);
+  // Each side sees the person they are meeting, not themselves.
+  const name = viewerIsExpert
+    ? (booking.customerName ?? 'Customer')
+    : (expert?.displayName ?? 'Expert');
+  const avatar = viewerIsExpert ? booking.customerAvatarUrl : expert?.avatarUrl;
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
       <View style={styles.row}>
-        <Avatar uri={expert?.avatarUrl} name={expert?.displayName ?? 'Expert'} />
+        <Avatar uri={avatar} name={name} />
         <View style={{ flex: 1, gap: 2 }}>
-          <Text style={styles.name}>{expert?.displayName ?? 'Expert'}</Text>
+          <Text style={styles.name}>{name}</Text>
           <Text style={styles.meta}>{formatDateTime(booking.slot.startIso)}</Text>
         </View>
         <Badge label={status.label} tone={status.tone} />

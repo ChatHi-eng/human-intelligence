@@ -27,6 +27,7 @@ import { formatDay } from '@/lib/date';
 import { formatCurrency } from '@/lib/format';
 import { capture } from '@/services/analytics';
 import { generateSlots } from '@/lib/slots';
+import { BOOKING_WINDOW_DAYS, MIN_BOOKING_NOTICE_MINUTES } from '@/constants/business';
 
 export default function ExpertProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -59,7 +60,11 @@ export default function ExpertProfileScreen() {
   // Mirror what the booking screen will actually offer: stale one-off dates
   // (or windows that only produce past times) must not light up the Book bar.
   const hasAvailability =
-    generateSlots(expert.availability, expert.availabilityDates, []).length > 0;
+    generateSlots(expert.availability, expert.availabilityDates, [], {
+      timeZone: expert.timezone,
+      minNoticeMinutes: MIN_BOOKING_NOTICE_MINUTES,
+      daysAhead: BOOKING_WINDOW_DAYS,
+    }).length > 0;
   const isSelf = user?.id === expert.id;
 
   return (

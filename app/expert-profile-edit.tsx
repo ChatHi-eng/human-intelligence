@@ -4,8 +4,6 @@ import { Redirect, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Toast from 'react-native-toast-message';
-import { AvailabilityCalendarEditor } from '@/components/expert/AvailabilityCalendarEditor';
-import { AvailabilityEditor } from '@/components/expert/AvailabilityEditor';
 import { BackgroundEditor } from '@/components/expert/BackgroundEditor';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -13,7 +11,7 @@ import { Card } from '@/components/ui/Card';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { Screen } from '@/components/ui/Screen';
 import { SectionHeader } from '@/components/ui/SectionHeader';
-import { industries } from '@/constants/industries';
+import { industries, OTHER_INDUSTRY_ID } from '@/constants/industries';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import {
   useMyExpertProfile,
@@ -30,7 +28,13 @@ type Form = {
   yearsExperience: string;
   coverImageUrl: string;
   howICanHelp: string;
+  industryCustom: string;
+  currentTitle: string;
+  currentCompany: string;
+  topics: string[];
 };
+
+const MAX_TOPICS = 6;
 
 const emptyForm: Form = {
   industryId: '',
@@ -39,6 +43,10 @@ const emptyForm: Form = {
   yearsExperience: '',
   coverImageUrl: '',
   howICanHelp: '',
+  industryCustom: '',
+  currentTitle: '',
+  currentCompany: '',
+  topics: [],
 };
 
 export default function ExpertProfileEditScreen() {
@@ -47,6 +55,20 @@ export default function ExpertProfileEditScreen() {
   const { mutate: upsert, isPending } = useUpsertMyExpertProfile();
   const { mutateAsync: upload, isPending: uploadingCover } = useUploadImage();
   const [form, setForm] = useState<Form>(emptyForm);
+  const [topicDraft, setTopicDraft] = useState('');
+
+  const addTopic = () => {
+    const next = topicDraft.trim().replace(/,+$/, '');
+    if (!next) return;
+    if (form.topics.length >= MAX_TOPICS) {
+      Toast.show({ type: 'error', text1: `Up to ${MAX_TOPICS} topics` });
+      return;
+    }
+    if (!form.topics.some((t) => t.toLowerCase() === next.toLowerCase())) {
+      setForm({ ...form, topics: [...form.topics, next] });
+    }
+    setTopicDraft('');
+  };
 
   useEffect(() => {
     if (existing) {
@@ -58,6 +80,10 @@ export default function ExpertProfileEditScreen() {
         yearsExperience: existing.yearsExperience.toString(),
         coverImageUrl: existing.coverImageUrl ?? '',
         howICanHelp: existing.howICanHelp ?? '',
+        industryCustom: existing.industryCustom ?? '',
+        currentTitle: existing.currentTitle ?? '',
+        currentCompany: existing.currentCompany ?? '',
+        topics: existing.topics,
       });
     }
   }, [existing]);
@@ -102,6 +128,10 @@ export default function ExpertProfileEditScreen() {
       Toast.show({ type: 'error', text1: 'Pick an industry' });
       return;
     }
+    if (form.industryId === OTHER_INDUSTRY_ID && !form.industryCustom.trim()) {
+      Toast.show({ type: 'error', text1: 'Type your field' });
+      return;
+    }
     if (!form.headline.trim()) {
       Toast.show({ type: 'error', text1: 'Add a headline' });
       return;
@@ -127,6 +157,11 @@ export default function ExpertProfileEditScreen() {
         yearsExperience: Math.floor(years),
         coverImageUrl: form.coverImageUrl || null,
         howICanHelp: form.howICanHelp.trim() || null,
+        industryCustom:
+          form.industryId === OTHER_INDUSTRY_ID ? form.industryCustom.trim() : null,
+        currentTitle: form.currentTitle.trim() || null,
+        currentCompany: form.currentCompany.trim() || null,
+        topics: form.topics,
       },
       {
         onSuccess: () => {
@@ -182,7 +217,50 @@ export default function ExpertProfileEditScreen() {
               </Pressable>
             );
           })}
+          <Pressable
+            onPress={() => setForm({ ...form, industryId: OTHER_INDUSTRY_ID })}
+            style={[chipStyles.chip, form.industryId === OTHER_INDUSTRY_ID && chipStyles.active]}
+          >
+            <Text
+              style={[
+                chipStyles.text,
+                form.industryId === OTHER_INDUSTRY_ID && chipStyles.activeText,
+              ]}
+            >
+              ✨ Something else
+            </Text>
+          </Pressable>
         </ScrollView>
+        {form.industryId === OTHER_INDUSTRY_ID ? (
+          <TextInput
+            placeholder="Your field, e.g. Veterinary medicine"
+            placeholderTextColor={colors.textMuted}
+            value={form.industryCustom}
+            onChangeText={(industryCustom) => setForm({ ...form, industryCustom })}
+            style={styles.input}
+            maxLength={60}
+          />
+        ) : null}
+
+        <Text style={styles.label}>Current role</Text>
+        <TextInput
+          placeholder="e.g. Senior Product Designer"
+          placeholderTextColor={colors.textMuted}
+          value={form.currentTitle}
+          onChangeText={(currentTitle) => setForm({ ...form, currentTitle })}
+          style={styles.input}
+          maxLength={80}
+        />
+
+        <Text style={styles.label}>Company or practice (optional)</Text>
+        <TextInput
+          placeholder="e.g. Acme, or Self-employed"
+          placeholderTextColor={colors.textMuted}
+          value={form.currentCompany}
+          onChangeText={(currentCompany) => setForm({ ...form, currentCompany })}
+          style={styles.input}
+          maxLength={80}
+        />
 
         <Text style={styles.label}>Headline</Text>
         <TextInput
@@ -207,6 +285,38 @@ export default function ExpertProfileEditScreen() {
           style={[styles.input, styles.longInput]}
           maxLength={1500}
         />
+
+        <Text style={styles.label}>Topics you can help with (up to {MAX_TOPICS})</Text>
+        <Text style={styles.helper}>
+          Shown as tags on your profile, and used when customers search.
+        </Text>
+        <View style={styles.topicRow}>
+          <TextInput
+            placeholder="e.g. Portfolio reviews"
+            placeholderTextColor={colors.textMuted}
+            value={topicDraft}
+            onChangeText={setTopicDraft}
+            onSubmitEditing={addTopic}
+            returnKeyType="done"
+            blurOnSubmit={false}
+            style={[styles.input, { flex: 1 }]}
+            maxLength={40}
+          />
+          <Button title="Add" variant="secondary" onPress={addTopic} />
+        </View>
+        {form.topics.length > 0 ? (
+          <View style={styles.topicChips}>
+            {form.topics.map((t) => (
+              <Pressable
+                key={t}
+                onPress={() => setForm({ ...form, topics: form.topics.filter((x) => x !== t) })}
+                style={styles.topicChip}
+              >
+                <Text style={styles.topicChipText}>{t}  ✕</Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
 
         <Text style={styles.label}>Hourly rate (USD)</Text>
         <Text style={styles.helper}>
@@ -247,11 +357,12 @@ export default function ExpertProfileEditScreen() {
             <SectionHeader title="Background" caption="Work, education, certifications." />
             <BackgroundEditor entries={existing.credentials} />
 
-            <SectionHeader title="Availability" caption="Recurring weekly hours plus one-off dates." />
-            <Text style={styles.subHeader}>Recurring weekly hours</Text>
-            <AvailabilityEditor initial={existing.availability} />
-            <Text style={[styles.subHeader, { marginTop: spacing.lg }]}>Specific dates</Text>
-            <AvailabilityCalendarEditor dates={existing.availabilityDates} />
+            <SectionHeader title="Availability" caption="Weekly hours, extra dates and days off." />
+            <Button
+              title="Manage availability"
+              variant="secondary"
+              onPress={() => router.push('/studio/availability')}
+            />
           </>
         )}
 
@@ -265,7 +376,15 @@ const styles = StyleSheet.create({
   scroll: { paddingTop: spacing.lg, paddingBottom: spacing.xxxl, gap: spacing.md },
   label: { ...typography.label, color: colors.textSecondary, marginTop: spacing.md },
   helper: { ...typography.caption, color: colors.textMuted, marginBottom: spacing.xs },
-  subHeader: { ...typography.bodyStrong, color: colors.textPrimary, marginTop: spacing.md },
+  topicRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  topicChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  topicChip: {
+    backgroundColor: colors.accentSoft,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  topicChipText: { ...typography.caption, color: colors.accent },
   input: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,

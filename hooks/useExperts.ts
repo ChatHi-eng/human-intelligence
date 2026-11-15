@@ -19,6 +19,7 @@ import {
   openConnectOnboarding,
   syncConnectStatus,
 } from '@/services/stripe';
+import { deviceTimeZone } from '@/lib/slots';
 import { useAuthStore } from '@/store/authStore';
 import type { AvailabilityWindow } from '@/types/user';
 
@@ -29,6 +30,9 @@ export const useExperts = (filters: ExpertsFilters = {}) =>
     queryKey: ['experts', filters],
     queryFn: () => fetchExperts(filters),
     staleTime: 60_000,
+    // Keep showing the current list while a changed filter loads, so the
+    // screen (and the search box in its header) never blanks out.
+    placeholderData: (previous) => previous,
   });
 
 export const useExpert = (id: string | undefined) =>
@@ -97,7 +101,12 @@ export const useAddAvailabilityDate = () => {
   const userId = useAuthStore((s) => s.user?.id);
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { date: string; startMinute: number; endMinute: number }) => {
+    mutationFn: async (input: {
+      date: string;
+      startMinute: number;
+      endMinute: number;
+      blocked?: boolean;
+    }) => {
       if (!userId) throw new Error('Not signed in');
       await addAvailabilityDate(userId, input);
     },
@@ -168,11 +177,14 @@ export const useSetAvailability = () => {
   return useMutation({
     mutationFn: async (windows: AvailabilityWindow[]) => {
       if (!userId) throw new Error('Not signed in');
-      await setAvailability(userId, windows);
+      // The hours are typed in the expert's own clock, so record which zone
+      // that is every time they save.
+      await setAvailability(userId, windows, deviceTimeZone());
     },
     onSuccess: (_data, windows) => {
       capture('availability_saved', { window_count: windows.length });
       void qc.invalidateQueries({ queryKey: ['my-expert-profile'] });
+      void qc.invalidateQueries({ queryKey: ['experts'] });
       if (userId) void qc.invalidateQueries({ queryKey: ['expert', userId] });
     },
   });

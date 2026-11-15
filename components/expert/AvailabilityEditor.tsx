@@ -1,70 +1,113 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { Button } from '@/components/ui/Button';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useSetAvailability } from '@/hooks/useExperts';
+import { deviceTimeZone, normalizeWindows } from '@/lib/slots';
 import type { AvailabilityWindow } from '@/types/user';
 
 export type AvailabilityEditorProps = {
   initial: AvailabilityWindow[];
+  /** The zone the saved hours were written in, if any. */
+  savedTimeZone?: string | null;
 };
 
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+type Weekday = AvailabilityWindow['weekday'];
 
-const defaultWindow: AvailabilityWindow = {
-  weekday: 1,
-  startMinute: 9 * 60,
-  endMinute: 17 * 60,
-};
+// Monday first: that is how people plan a working week.
+const DAYS: { weekday: Weekday; label: string }[] = [
+  { weekday: 1, label: 'Monday' },
+  { weekday: 2, label: 'Tuesday' },
+  { weekday: 3, label: 'Wednesday' },
+  { weekday: 4, label: 'Thursday' },
+  { weekday: 5, label: 'Friday' },
+  { weekday: 6, label: 'Saturday' },
+  { weekday: 0, label: 'Sunday' },
+];
+const WORKDAYS: Weekday[] = [1, 2, 3, 4, 5];
 
-const fmt = (m: number) => {
-  const hr = Math.floor(m / 60);
+export const formatMinutes = (m: number) => {
+  const hr = Math.floor(m / 60) % 24;
   const min = m % 60;
   const period = hr >= 12 ? 'pm' : 'am';
   const h12 = hr % 12 === 0 ? 12 : hr % 12;
   return `${h12}:${min.toString().padStart(2, '0')}${period}`;
 };
 
-export const AvailabilityEditor = ({ initial }: AvailabilityEditorProps) => {
+const serialize = (ws: AvailabilityWindow[]) =>
+  normalizeWindows(ws)
+    .map((w) => `${w.weekday}:${w.startMinute}-${w.endMinute}`)
+    .join('|');
+
+export const AvailabilityEditor = ({ initial, savedTimeZone }: AvailabilityEditorProps) => {
   const [windows, setWindows] = useState<AvailabilityWindow[]>(initial);
   const { mutate: save, isPending: saving } = useSetAvailability();
+  const zone = deviceTimeZone();
 
   useEffect(() => {
     setWindows(initial);
   }, [initial]);
 
-  const addWindow = () =>
-    setWindows((ws) =>
-      [...ws, defaultWindow].sort((a, b) =>
-        a.weekday !== b.weekday ? a.weekday - b.weekday : a.startMinute - b.startMinute,
-      ),
-    );
+  const dirty = useMemo(() => serialize(windows) !== serialize(initial), [windows, initial]);
+  // Saving also records the zone, so hours typed in another zone need a save.
+  const zoneChanged = Boolean(zone && savedTimeZone && zone !== savedTimeZone);
+  const zoneMissing = Boolean(zone && !savedTimeZone && initial.length > 0);
 
-  const removeWindow = (idx: number) =>
-    setWindows((ws) => ws.filter((_, i) => i !== idx));
+  const totalMinutes = normalizeWindows(windows).reduce(
+    (sum, w) => sum + (w.endMinute - w.startMinute),
+    0,
+  );
 
-  const cycleWeekday = (idx: number) =>
-    setWindows((ws) =>
-      ws.map((w, i) =>
-        i === idx ? { ...w, weekday: (((w.weekday + 1) % 7) as AvailabilityWindow['weekday']) } : w,
-      ),
-    );
+  const addWindow = (weekday: Weekday) =>
+    setWindows((ws) => {
+      const day = ws.filter((w) => w.weekday === weekday);
+      const lastEnd = day.reduce((max, w) => Math.max(max, w.endMinute), 0);
+      // First block of a day is 9 to 5; a second block starts an hour after
+      // the last one ends, when there is room for it.
+      const start = day.length === 0 ? 9 * 60 : Math.min(lastEnd + 60, 22 * 60);
+      const end = day.length === 0 ? 17 * 60 : Math.min(start + 120, 24 * 60);
+      if (end <= start) return ws;
+      return [...ws, { weekday, startMinute: start, endMinute: end }];
+    });
 
-  const adjust = (idx: number, field: 'startMinute' | 'endMinute', delta: number) =>
+  const removeWindow = (target: AvailabilityWindow) =>
+    setWindows((ws) => ws.filter((w) => w !== target));
+
+  const adjust = (target: AvailabilityWindow, field: 'startMinute' | 'endMinute', delta: number) =>
     setWindows((ws) =>
-      ws.map((w, i) => {
-        if (i !== idx) return w;
+      ws.map((w) => {
+        if (w !== target) return w;
         const next = Math.max(0, Math.min(1440, w[field] + delta));
         const updated = { ...w, [field]: next };
-        if (updated.endMinute <= updated.startMinute) return w; // ignore invalid
+        if (updated.endMinute <= updated.startMinute || updated.startMinute > 1439) return w;
         return updated;
       }),
     );
 
+  const copyToWorkdays = (weekday: Weekday) =>
+    setWindows((ws) => {
+      const source = ws.filter((w) => w.weekday === weekday);
+      const others = ws.filter((w) => !WORKDAYS.includes(w.weekday) || w.weekday === weekday);
+      const copies = WORKDAYS.filter((d) => d !== weekday).flatMap((d) =>
+        source.map((w) => ({ ...w, weekday: d })),
+      );
+      return [...others, ...copies];
+    });
+
+  const setWorkdayPreset = () =>
+    setWindows((ws) => [
+      ...ws.filter((w) => !WORKDAYS.includes(w.weekday)),
+      ...WORKDAYS.map((weekday) => ({ weekday, startMinute: 9 * 60, endMinute: 17 * 60 })),
+    ]);
+
   const onSave = () => {
-    save(windows, {
-      onSuccess: () => Toast.show({ type: 'success', text1: 'Availability saved' }),
+    const cleaned = normalizeWindows(windows);
+    save(cleaned, {
+      onSuccess: () => {
+        setWindows(cleaned);
+        Toast.show({ type: 'success', text1: 'Weekly hours saved' });
+      },
       onError: (err) =>
         Toast.show({
           type: 'error',
@@ -76,79 +119,156 @@ export const AvailabilityEditor = ({ initial }: AvailabilityEditorProps) => {
 
   return (
     <View style={{ gap: spacing.md }}>
-      {windows.length === 0 ? (
-        <Text style={styles.empty}>No availability set. Customers won&apos;t see any times.</Text>
-      ) : (
-        windows.map((w, idx) => (
-          <View key={idx} style={styles.row}>
-            <Pressable onPress={() => cycleWeekday(idx)} style={styles.dayChip}>
-              <Text style={styles.dayText}>{WEEKDAYS[w.weekday]}</Text>
-            </Pressable>
-            <TimeStepper
-              value={w.startMinute}
-              onAdjust={(delta) => adjust(idx, 'startMinute', delta)}
-            />
-            <Text style={styles.dash}>–</Text>
-            <TimeStepper
-              value={w.endMinute}
-              onAdjust={(delta) => adjust(idx, 'endMinute', delta)}
-            />
-            <Pressable onPress={() => removeWindow(idx)} hitSlop={12}>
-              <Text style={styles.removeText}>✕</Text>
-            </Pressable>
-          </View>
-        ))
-      )}
-      <Button title="Add window" variant="secondary" onPress={addWindow} />
-      <Button title="Save availability" onPress={onSave} loading={saving} />
+      <Text style={styles.caption}>
+        {zone
+          ? `These hours repeat every week, in your time (${zone}). Customers see them converted to their own time zone.`
+          : 'These hours repeat every week.'}
+      </Text>
+      {zoneChanged ? (
+        <Text style={styles.notice}>
+          Your saved hours were set in {savedTimeZone}. Save again to switch them to {zone}.
+        </Text>
+      ) : null}
+
+      <View style={styles.quickRow}>
+        <Pressable onPress={setWorkdayPreset} style={styles.quickChip}>
+          <Text style={styles.quickText}>Weekdays, 9am to 5pm</Text>
+        </Pressable>
+        {windows.length > 0 ? (
+          <Pressable onPress={() => setWindows([])} style={styles.quickChip}>
+            <Text style={styles.quickText}>Clear all</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      <View style={styles.days}>
+        {DAYS.map(({ weekday, label }) => {
+          const day = windows
+            .filter((w) => w.weekday === weekday)
+            .sort((a, b) => a.startMinute - b.startMinute);
+          return (
+            <View key={weekday} style={styles.dayBlock}>
+              <View style={styles.dayHeader}>
+                <Text style={styles.dayLabel}>{label}</Text>
+                {day.length === 0 ? <Text style={styles.off}>Off</Text> : null}
+              </View>
+              {day.map((w, i) => (
+                <View key={i} style={styles.windowRow}>
+                  <TimeStepper
+                    label={`${label} start`}
+                    value={w.startMinute}
+                    onAdjust={(delta) => adjust(w, 'startMinute', delta)}
+                  />
+                  <Text style={styles.to}>to</Text>
+                  <TimeStepper
+                    label={`${label} end`}
+                    value={w.endMinute}
+                    onAdjust={(delta) => adjust(w, 'endMinute', delta)}
+                  />
+                  <Pressable
+                    onPress={() => removeWindow(w)}
+                    hitSlop={12}
+                    accessibilityLabel={`Remove ${label} hours`}
+                  >
+                    <Text style={styles.removeText}>✕</Text>
+                  </Pressable>
+                </View>
+              ))}
+              <View style={styles.dayActions}>
+                <Pressable onPress={() => addWindow(weekday)} hitSlop={8}>
+                  <Text style={styles.link}>{day.length === 0 ? 'Add hours' : 'Add another block'}</Text>
+                </Pressable>
+                {day.length > 0 && WORKDAYS.includes(weekday) ? (
+                  <Pressable onPress={() => copyToWorkdays(weekday)} hitSlop={8}>
+                    <Text style={styles.link}>Copy to all weekdays</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            </View>
+          );
+        })}
+      </View>
+
+      <Text style={styles.summary}>
+        {totalMinutes === 0
+          ? 'No weekly hours yet. Customers will only see dates you add below.'
+          : `${(totalMinutes / 60).toFixed(totalMinutes % 60 === 0 ? 0 : 1)} hours a week, room for ${Math.floor(totalMinutes / 30)} sessions.`}
+      </Text>
+      {dirty ? <Text style={styles.notice}>You have unsaved changes.</Text> : null}
+      <Button
+        title={dirty || zoneChanged || zoneMissing ? 'Save weekly hours' : 'Saved'}
+        onPress={onSave}
+        loading={saving}
+        disabled={!dirty && !zoneChanged && !zoneMissing}
+      />
     </View>
   );
 };
 
-const TimeStepper = ({ value, onAdjust }: { value: number; onAdjust: (delta: number) => void }) => (
+const TimeStepper = ({
+  label,
+  value,
+  onAdjust,
+}: {
+  label: string;
+  value: number;
+  onAdjust: (delta: number) => void;
+}) => (
   <View style={styles.stepper}>
-    <Pressable onPress={() => onAdjust(-30)} hitSlop={8}>
+    <Pressable onPress={() => onAdjust(-30)} hitSlop={8} accessibilityLabel={`${label} earlier`}>
       <Text style={styles.stepperButton}>−</Text>
     </Pressable>
-    <Text style={styles.stepperValue}>{fmt(value)}</Text>
-    <Pressable onPress={() => onAdjust(30)} hitSlop={8}>
+    <Text style={styles.stepperValue}>{formatMinutes(value)}</Text>
+    <Pressable onPress={() => onAdjust(30)} hitSlop={8} accessibilityLabel={`${label} later`}>
       <Text style={styles.stepperButton}>+</Text>
     </Pressable>
   </View>
 );
 
 const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  dayChip: {
+  caption: { ...typography.caption, color: colors.textSecondary },
+  notice: { ...typography.caption, color: colors.warning },
+  quickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  quickChip: {
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
     backgroundColor: colors.surfaceAlt,
     borderRadius: radius.pill,
-    minWidth: 56,
-    alignItems: 'center',
   },
-  dayText: { ...typography.bodyStrong, color: colors.textPrimary },
-  dash: { ...typography.body, color: colors.textMuted },
-  removeText: { ...typography.heading, color: colors.danger, paddingHorizontal: spacing.sm },
-  empty: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
+  quickText: { ...typography.bodyStrong, color: colors.textPrimary },
+  days: {
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  dayBlock: {
+    padding: spacing.md,
+    gap: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  dayHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  dayLabel: { ...typography.bodyStrong, color: colors.textPrimary },
+  off: { ...typography.caption, color: colors.textMuted },
+  windowRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  to: { ...typography.caption, color: colors.textMuted },
+  dayActions: { flexDirection: 'row', gap: spacing.lg, flexWrap: 'wrap' },
+  link: { ...typography.caption, color: colors.accent, fontWeight: '700' },
+  removeText: { ...typography.bodyStrong, color: colors.danger, paddingHorizontal: spacing.sm },
+  summary: { ...typography.caption, color: colors.textSecondary },
   stepper: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    justifyContent: 'space-between',
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
+    backgroundColor: colors.background,
   },
-  stepperButton: {
-    ...typography.heading,
-    color: colors.textPrimary,
-    paddingHorizontal: spacing.sm,
-  },
-  stepperValue: { ...typography.bodyStrong, color: colors.textPrimary, minWidth: 60, textAlign: 'center' },
+  stepperButton: { ...typography.heading, color: colors.textPrimary, paddingHorizontal: spacing.sm },
+  stepperValue: { ...typography.bodyStrong, color: colors.textPrimary, textAlign: 'center' },
 });

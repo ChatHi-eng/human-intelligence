@@ -85,6 +85,9 @@ type BookingRow = {
   payment_status: string;
   price_cents: number;
   cancellation_reason: string | null;
+  // What the customer wants to talk about (migration 0018). Optional so the
+  // function works on rows written before the column existed.
+  customer_note?: string | null;
   // Added by the separate no-show-policy migration. Optional on purpose: this
   // function must work whether or not that migration has run yet.
   no_show_reported_by?: string | null;
@@ -375,6 +378,13 @@ serve(async (req) => {
               ['You earn', `${cut} (after Palam's ${pct}% fee)`],
             ]),
             note(TIMES_NOTE),
+            ...(booking.customer_note
+              ? [
+                  p(
+                    `<strong>What they want to talk about:</strong><br>${escapeHtml(booking.customer_note)}`,
+                  ),
+                ]
+              : []),
             p(`If you decline, ${customerName} is refunded in full, with no fee to either of you.`),
             signoff('Thanks for being here,'),
           ].join('\n'),

@@ -179,9 +179,15 @@ export default function BookingDetailScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <Card>
           <View style={styles.headerRow}>
-            <Avatar uri={expert?.avatarUrl} name={expert?.displayName ?? '?'} size={56} />
+            <Avatar
+              uri={isExpert ? booking.customerAvatarUrl : expert?.avatarUrl}
+              name={isExpert ? (booking.customerName ?? 'Customer') : (expert?.displayName ?? '?')}
+              size={56}
+            />
             <View style={{ flex: 1 }}>
-              <Text style={styles.name}>{expert?.displayName ?? 'Expert'}</Text>
+              <Text style={styles.name}>
+                {isExpert ? (booking.customerName ?? 'Customer') : (expert?.displayName ?? 'Expert')}
+              </Text>
               <Text style={styles.meta}>{formatDateTime(booking.slot.startIso)}</Text>
             </View>
             <Badge label={status.label} tone={status.tone} />
@@ -208,6 +214,14 @@ export default function BookingDetailScreen() {
               {formatCurrency(booking.priceCents)} · {paymentLabel(booking.paymentStatus)}
             </Text>
           </View>
+          {booking.customerNote ? (
+            <View style={styles.noteBox}>
+              <Text style={styles.label}>
+                {isExpert ? 'What they want to talk about' : 'What you asked about'}
+              </Text>
+              <Text style={styles.noteText}>{booking.customerNote}</Text>
+            </View>
+          ) : null}
           {MESSAGING_ENABLED && (
           <Button
             title={isExpert ? 'Message customer' : `Message ${expert?.displayName ?? 'expert'}`}
@@ -305,7 +319,7 @@ export default function BookingDetailScreen() {
             </Text>
             <Text style={styles.cardBody}>
               {booking.medium === 'video'
-                ? 'Opens the Daily.co room in your browser. Allow camera + mic when prompted.'
+                ? 'Opens your video room. Allow the camera and microphone when asked.'
                 : 'Phone calls open via your device dialer (coming with the dev build).'}
             </Text>
             <Button
@@ -448,6 +462,13 @@ const styles = StyleSheet.create({
   },
   label: { ...typography.body, color: colors.textSecondary },
   value: { ...typography.bodyStrong, color: colors.textPrimary },
+  noteBox: {
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderRadius: 12,
+    backgroundColor: colors.surfaceAlt,
+  },
+  noteText: { ...typography.body, color: colors.textPrimary, marginTop: 2 },
   sectionTitle: { ...typography.heading, color: colors.textPrimary, marginBottom: spacing.sm },
   cardBody: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.md },
   policyWarning: { ...typography.bodyStrong, color: colors.danger, marginBottom: spacing.md },

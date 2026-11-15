@@ -4,8 +4,8 @@ import {
   cancelBooking,
   createBooking,
   declineBooking,
-  fetchActiveBookingsForExpert,
   fetchBooking,
+  fetchExpertBusyTimes,
   fetchExpert,
   fetchMyBookings,
   fetchPendingRequestsForExpert,
@@ -74,24 +74,21 @@ export const usePendingRequests = () => {
   });
 };
 
-// Active bookings on the expert's calendar — used for slot generation so we
-// don't offer slots that overlap with existing bookings.
-export const useExpertActiveBookings = (expertId: string | undefined) =>
+// Times an expert is already taken, so the booking screen does not offer
+// them. Start and end only; the customer never sees who booked.
+export const useExpertBusyTimes = (expertId: string | undefined) =>
   useQuery({
-    queryKey: ['bookings', 'expert-active', expertId],
+    queryKey: ['bookings', 'expert-busy', expertId],
     enabled: Boolean(expertId),
-    queryFn: async () => {
-      if (!expertId) return [];
-      const since = new Date(Date.now() - 60_000).toISOString(); // ~now
-      return fetchActiveBookingsForExpert(expertId, since);
-    },
-    staleTime: 30_000,
+    queryFn: () => (expertId ? fetchExpertBusyTimes(expertId) : Promise.resolve([])),
+    staleTime: 15_000,
   });
 
 export type CreateBookingMutationInput = {
   expertId: string;
   slot: TimeSlot;
   medium: CallMedium;
+  note?: string;
 };
 
 export type CreateBookingResult = {
@@ -121,6 +118,7 @@ export const useCreateBooking = () => {
         medium: input.medium,
         priceCents: expert.hourlyRate,
         callRoomUrl: null,
+        customerNote: input.note ?? null,
       });
 
       // Mint a Daily room now that we have a real booking id (video only).

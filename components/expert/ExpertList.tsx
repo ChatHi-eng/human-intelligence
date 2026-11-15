@@ -21,21 +21,19 @@ export const ExpertList = ({
   ListHeaderComponent,
 }: ExpertListProps) => {
   if (isLoading && !experts) return <LoadingView label="Finding experts…" />;
-  if (!experts || experts.length === 0) {
-    return (
-      <View style={styles.empty}>
-        {ListHeaderComponent}
-        <EmptyState
-          title="No experts match those filters"
-          description="Try widening your industry or budget."
-          emoji="🔍"
-        />
-      </View>
-    );
-  }
+  // One list for both cases, so the search box in the header keeps focus
+  // when a search stops matching.
   return (
     <FlatList
-      data={experts}
+      data={experts ?? []}
+      keyboardShouldPersistTaps="handled"
+      ListEmptyComponent={
+        <EmptyState
+          title="No experts match"
+          description="Try fewer words, another field, or a wider price range."
+          emoji="🔍"
+        />
+      }
       keyExtractor={(e) => e.id}
       renderItem={({ item }) => (
         <ExpertCard expert={item} onPress={() => onPressExpert(item)} />
@@ -57,5 +55,4 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
     marginLeft: 64 + spacing.md,
   },
-  empty: { gap: spacing.lg },
 });

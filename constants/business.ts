@@ -7,5 +7,12 @@
 // fee, or expert earnings snapshots will be slightly off until the next sync.
 export const PLATFORM_FEE_PCT = 0.15;
 
+// Slots that start sooner than this are not offered. Booking is
+// request-and-accept, so the expert needs time to see the request.
+export const MIN_BOOKING_NOTICE_MINUTES = 120;
+
+// How far ahead customers can book.
+export const BOOKING_WINDOW_DAYS = 14;
+
 // Palam's fee as a whole percent, for copy.
 export const PLATFORM_FEE_DISPLAY_PCT = Math.round(PLATFORM_FEE_PCT * 100);

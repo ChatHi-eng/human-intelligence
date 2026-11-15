@@ -24,6 +24,11 @@ export type Booking = {
   paymentStatus: PaymentStatus;
   priceCents: number;
   callRoomUrl: string | null;
+  // What the customer wants to talk about, written when they booked.
+  customerNote: string | null;
+  // Filled when the row was read with the customer's profile joined.
+  customerName: string | null;
+  customerAvatarUrl: string | null;
   noShowReportedBy: string | null;
   noShowReportedAt: string | null;
   createdAt: string;

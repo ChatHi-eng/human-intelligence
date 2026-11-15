@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { PaymentSheet } from '@/components/booking/PaymentSheet';
 import { Avatar } from '@/components/ui/Avatar';
@@ -8,13 +8,14 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { Screen } from '@/components/ui/Screen';
+import { BOOKING_WINDOW_DAYS, MIN_BOOKING_NOTICE_MINUTES } from '@/constants/business';
 import { CUSTOMER_BOOKING_ENABLED, PHONE_SESSIONS_ENABLED } from '@/constants/featureFlags';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
-import { useCreateBooking, useExpertActiveBookings } from '@/hooks/useBookings';
+import { useCreateBooking, useExpertBusyTimes } from '@/hooks/useBookings';
 import { useExpert } from '@/hooks/useExperts';
 import { formatTime } from '@/lib/date';
-import { generateSlots, groupSlotsByDate } from '@/lib/slots';
+import { deviceTimeZone, generateSlots, groupSlotsByDate } from '@/lib/slots';
 import type { CallMedium, TimeSlot } from '@/types/booking';
 
 const dayChipLabel = (dateKey: string): { weekday: string; day: string } => {
@@ -30,7 +31,8 @@ export default function BookScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { data: expert, isLoading } = useExpert(id);
-  const { data: busy } = useExpertActiveBookings(id);
+  const { data: busy } = useExpertBusyTimes(id);
+  const [note, setNote] = useState('');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [medium, setMedium] = useState<CallMedium>('video');
@@ -39,7 +41,11 @@ export default function BookScreen() {
   const slotsByDate = useMemo(() => {
     if (!expert) return {};
     return groupSlotsByDate(
-      generateSlots(expert.availability, expert.availabilityDates, busy ?? []),
+      generateSlots(expert.availability, expert.availabilityDates, busy ?? [], {
+        timeZone: expert.timezone,
+        minNoticeMinutes: MIN_BOOKING_NOTICE_MINUTES,
+        daysAhead: BOOKING_WINDOW_DAYS,
+      }),
     );
   }, [expert, busy]);
 
@@ -100,7 +106,7 @@ export default function BookScreen() {
       return;
     }
     book(
-      { expertId: expert.id, slot: selectedSlot, medium },
+      { expertId: expert.id, slot: selectedSlot, medium, note },
       {
         onSuccess: (result) => {
           if (result.checkoutResult === 'cancel') {
@@ -169,6 +175,11 @@ export default function BookScreen() {
             </ScrollView>
 
             <Text style={styles.label}>Pick a time</Text>
+            <Text style={styles.zoneNote}>
+              {deviceTimeZone()
+                ? `Times are shown in your time zone (${deviceTimeZone()}).`
+                : 'Times are shown in your local time.'}
+            </Text>
             <View style={styles.timeGrid}>
               {timesForDay.map((slot) => {
                 const active = selectedSlot?.startIso === slot.startIso;
@@ -205,6 +216,21 @@ export default function BookScreen() {
                 </View>
               </>
             )}
+
+            <Text style={styles.label}>What do you want to talk about?</Text>
+            <Text style={styles.zoneNote}>
+              {expert.displayName} reads this before accepting, so the 30 minutes start on your
+              actual question.
+            </Text>
+            <TextInput
+              placeholder="e.g. I have an offer from a startup and need help reading the equity terms."
+              placeholderTextColor={colors.textMuted}
+              value={note}
+              onChangeText={setNote}
+              multiline
+              maxLength={500}
+              style={styles.noteInput}
+            />
 
             <View style={{ marginTop: spacing.lg }}>
               <PaymentSheet
@@ -266,4 +292,17 @@ const styles = StyleSheet.create({
   timeText: { ...typography.bodyStrong, color: colors.textPrimary },
   timeTextActive: { color: '#FFFFFF' },
   mediumRow: { flexDirection: 'row', gap: spacing.md, paddingTop: spacing.sm },
+  zoneNote: { ...typography.caption, color: colors.textMuted },
+  noteInput: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    minHeight: 96,
+    textAlignVertical: 'top',
+    ...typography.body,
+    color: colors.textPrimary,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
 });

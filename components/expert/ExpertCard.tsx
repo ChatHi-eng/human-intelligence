@@ -1,6 +1,9 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/ui/Avatar';
+import { industryDisplay } from '@/constants/industries';
 import { colors, spacing, typography } from '@/constants/theme';
+import { formatDay } from '@/lib/date';
+import { nextOpening } from '@/lib/discover';
 import { formatCurrency, formatRating } from '@/lib/format';
 import type { Expert } from '@/types/user';
 
@@ -13,6 +16,11 @@ export type ExpertCardProps = {
 // scanning many experts per screen; the full portrait treatment lives on the
 // expert's profile page.
 export const ExpertCard = ({ expert, onPress }: ExpertCardProps) => {
+  const field = industryDisplay(expert.industryId, expert.industryCustom);
+  const role = [expert.currentTitle, expert.currentCompany].filter(Boolean).join(' at ');
+  const opening = nextOpening(expert);
+  // One quiet line of context: who they are and for how long.
+  const context = [role || field?.label, `${expert.yearsExperience} yrs`].filter(Boolean).join(' · ');
   return (
     <Pressable
       onPress={onPress}
@@ -30,6 +38,9 @@ export const ExpertCard = ({ expert, onPress }: ExpertCardProps) => {
             </Text>
           ) : null}
         </View>
+        <Text style={styles.context} numberOfLines={1}>
+          {context}
+        </Text>
         <Text style={styles.headline} numberOfLines={2}>
           {expert.headline}
         </Text>
@@ -47,6 +58,12 @@ export const ExpertCard = ({ expert, onPress }: ExpertCardProps) => {
             `${formatCurrency(expert.hourlyRate)}/hr`
           ) : (
             <Text style={styles.newLabel}>Rate coming soon</Text>
+          )}
+          <Text style={styles.dot}> · </Text>
+          {opening ? (
+            <Text style={styles.opening}>Next: {formatDay(opening)}</Text>
+          ) : (
+            <Text style={styles.newLabel}>No open times</Text>
           )}
         </Text>
       </View>
@@ -66,7 +83,9 @@ const styles = StyleSheet.create({
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   name: { ...typography.bodyStrong, color: colors.textPrimary, flexShrink: 1 },
   verified: { ...typography.label, color: colors.success },
+  context: { ...typography.caption, color: colors.textMuted },
   headline: { ...typography.caption, color: colors.textSecondary },
+  opening: { ...typography.caption, color: colors.accent },
   footer: { ...typography.caption, color: colors.textPrimary, marginTop: 2 },
   star: { color: colors.accent },
   newLabel: { ...typography.caption, color: colors.textMuted },

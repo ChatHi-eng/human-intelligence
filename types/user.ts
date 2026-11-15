@@ -35,6 +35,8 @@ export type AvailabilityDate = {
   date: string; // ISO date YYYY-MM-DD
   startMinute: number;
   endMinute: number;
+  // true = the expert is off that whole day; the hours are ignored.
+  blocked: boolean;
 };
 
 // Application review state. New expert applications start 'pending' and only
@@ -64,6 +66,8 @@ export type Expert = Profile & {
   credentials: Credential[];
   availability: AvailabilityWindow[];
   availabilityDates: AvailabilityDate[];
+  // IANA zone the availability hours are written in. null = not set yet.
+  timezone: string | null;
   verified: boolean;
   coverImageUrl: string;
   // Stripe Connect — set after expert starts onboarding. payoutsEnabled flips
