@@ -127,7 +127,14 @@ serve(async (req) => {
     case 'charge.refunded': {
       const charge = event.data.object as Stripe.Charge;
       const piId = typeof charge.payment_intent === 'string' ? charge.payment_intent : null;
-      if (piId) await updateBookingByPI(piId, { payment_status: 'refunded' });
+      // Stripe also sends charge.refunded when a hold that was never captured
+      // is let go. No money moved in that case, so it is a release, not a
+      // refund, and the customer should read "hold released".
+      if (piId) {
+        await updateBookingByPI(piId, {
+          payment_status: charge.captured ? 'refunded' : 'released',
+        });
+      }
       break;
     }
     case 'account.updated': {

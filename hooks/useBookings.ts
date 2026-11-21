@@ -119,6 +119,7 @@ export const useCreateBooking = () => {
           customerNote: input.note ?? null,
           kind: 'intro',
         });
+        capture('booking_requested');
         return { bookingId: intro.id, checkoutResult: 'success' };
       }
 
@@ -157,13 +158,15 @@ export const useCreateBooking = () => {
       // Open hosted Checkout. Resolves when the browser dismisses — Stripe's
       // webhook handles the actual payment update on the server side, and the
       // bookings database webhook sends the request emails to both parties.
+      // Counted here, not after checkout: on the web the page leaves for
+      // Stripe and nothing after this line runs.
+      capture('booking_requested');
       const result = await openCheckout(session.sessionUrl);
 
       return { bookingId: booking.id, checkoutResult: result.type };
     },
     onSuccess: () => {
       if (userId) void registerForPush(userId);
-      capture('booking_requested');
       void qc.invalidateQueries({ queryKey: ['bookings'] });
     },
   });

@@ -33,7 +33,13 @@ serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
   const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
-  const returnBase = Deno.env.get('APP_DEEP_LINK_RETURN_BASE') ?? 'http://localhost:8081';
+  const defaultReturnBase = Deno.env.get('APP_DEEP_LINK_RETURN_BASE') ?? 'http://localhost:8081';
+  // A web browser sets up payouts in the same tab and comes straight back to
+  // the web app. Only Palam's own web addresses are accepted; anything else
+  // (the phone app included) gets the default hand-off page.
+  const webReturnOrigins = ['https://app.palamapp.com', 'http://localhost:8081', 'http://127.0.0.1:8081'];
+  const requested = await req.json().then((b) => (b as { returnBase?: unknown })?.returnBase).catch(() => undefined);
+  const returnBase = typeof requested === 'string' && webReturnOrigins.includes(requested) ? requested : defaultReturnBase;
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -96,8 +102,8 @@ serve(async (req) => {
 
   const link = await stripe.accountLinks.create({
     account: accountId,
-    refresh_url: `${returnBase}/expert-profile-edit?stripe=refresh`,
-    return_url: `${returnBase}/expert-profile-edit?stripe=connect-return`,
+    refresh_url: `${returnBase}/studio/session-settings?stripe=refresh`,
+    return_url: `${returnBase}/studio/session-settings?stripe=connect-return`,
     type: 'account_onboarding',
   });
 

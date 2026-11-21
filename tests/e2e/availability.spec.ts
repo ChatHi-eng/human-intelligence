@@ -156,6 +156,9 @@ const stubSupabase = async (page: Page) => {
 test.use({ viewport: { width: 390, height: 844 } });
 
 test('expert sets weekly hours in a few taps and shows up as bookable', async ({ page }) => {
+  // This walks five screens with full page loads; the default 30 seconds is
+  // not enough on a busy machine.
+  test.setTimeout(90_000);
   const env = readEnv();
   test.skip(!env?.EXPO_PUBLIC_SUPABASE_URL, 'No .env — app boots to the Setup screen');
   const ref = new URL(env!.EXPO_PUBLIC_SUPABASE_URL!).hostname.split('.')[0];

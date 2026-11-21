@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { Avatar } from '@/components/ui/Avatar';
@@ -66,10 +66,10 @@ const paymentLabel = (status: PaymentStatus): string => {
 };
 
 export default function BookingDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, stripe } = useLocalSearchParams<{ id: string; stripe?: string }>();
   const router = useRouter();
   const { user } = useAuth();
-  const { data: booking, isLoading } = useBooking(id);
+  const { data: booking, isLoading, refetch } = useBooking(id);
   const { data: expert } = useExpert(booking?.expertId);
   const { mutate: cancel, isPending: cancelling } = useCancelBooking();
   const { mutate: completePayment, isPending: paying } = useCompletePayment();
@@ -82,6 +82,21 @@ export default function BookingDetailScreen() {
   const [rating, setRating] = useState<1 | 2 | 3 | 4 | 5 | null>(null);
   const [comment, setComment] = useState('');
   const [confirmingNoShow, setConfirmingNoShow] = useState(false);
+
+  // Back from Stripe on the web (?stripe=success): the payment lands a few
+  // seconds after the page does, so check often for half a minute before
+  // deciding it did not go through.
+  const [confirmWindowOpen, setConfirmWindowOpen] = useState(stripe === 'success');
+  const confirmingPayment = confirmWindowOpen && booking?.paymentStatus === 'pending';
+  useEffect(() => {
+    if (!confirmingPayment) return;
+    const poll = setInterval(() => void refetch(), 2000);
+    const giveUp = setTimeout(() => setConfirmWindowOpen(false), 30_000);
+    return () => {
+      clearInterval(poll);
+      clearTimeout(giveUp);
+    };
+  }, [confirmingPayment, refetch]);
 
   if (isLoading && !booking) return <LoadingView label="Loading booking…" />;
   if (!booking) {
@@ -154,7 +169,12 @@ export default function BookingDetailScreen() {
   const bookingActive = booking.status === 'requested' || booking.status === 'confirmed';
   const paymentIncomplete =
     booking.paymentStatus === 'pending' || booking.paymentStatus === 'failed';
-  const needsPayment = isCustomer && bookingActive && paymentIncomplete;
+  const needsPayment = isCustomer && bookingActive && paymentIncomplete && !confirmingPayment;
+  // A request the expert has not answered yet: taking it back costs nothing.
+  const withdrawable =
+    isCustomer &&
+    booking.status === 'requested' &&
+    (booking.paymentStatus === 'authorized' || booking.kind === 'intro');
   const callOver = new Date(booking.slot.endIso).getTime() < Date.now();
   // Customers can review after the call: right when they hang up (stage
   // 'review'), or any time after the slot has passed on a non-cancelled booking.
@@ -211,13 +231,15 @@ export default function BookingDetailScreen() {
             <Text
               style={[
                 styles.value,
-                paymentIncomplete && { color: colors.danger },
+                paymentIncomplete && !confirmingPayment && { color: colors.danger },
                 booking.paymentStatus === 'refunded' && { color: colors.textMuted },
               ]}
             >
               {booking.kind === 'intro'
                 ? 'Free intro call'
-                : `${formatCurrency(booking.priceCents)} · ${paymentLabel(booking.paymentStatus)}`}
+                : `${formatCurrency(booking.priceCents)} · ${
+                    confirmingPayment ? 'Confirming' : paymentLabel(booking.paymentStatus)
+                  }`}
             </Text>
           </View>
           {booking.customerNote ? (
@@ -253,6 +275,15 @@ export default function BookingDetailScreen() {
           )}
         </Card>
 
+        {confirmingPayment && isCustomer && (
+          <Card style={{ marginTop: spacing.lg }}>
+            <Text style={styles.sectionTitle}>Confirming your payment</Text>
+            <Text style={[styles.cardBody, { marginBottom: 0 }]}>
+              This takes a few seconds. Stay on this page and it will update on its own.
+            </Text>
+          </Card>
+        )}
+
         {needsPayment && (
           <Card style={{ marginTop: spacing.lg }}>
             <Text style={styles.sectionTitle}>Finish your payment</Text>
@@ -277,7 +308,9 @@ export default function BookingDetailScreen() {
           </Card>
         )}
 
-        {booking.status === 'requested' && isCustomer && !needsPayment && (
+        {booking.status === 'requested' &&
+          isCustomer &&
+          (!paymentIncomplete || booking.kind === 'intro') && (
           <Card style={{ marginTop: spacing.lg }}>
             <Text style={styles.sectionTitle}>
               {booking.paymentStatus === 'authorized' || booking.kind === 'intro'
@@ -354,11 +387,15 @@ export default function BookingDetailScreen() {
 
         {canCancel && (
           <Card style={{ marginTop: spacing.lg }}>
-            <Text style={styles.sectionTitle}>Need to cancel?</Text>
+            <Text style={styles.sectionTitle}>
+              {withdrawable ? 'Changed your mind?' : 'Need to cancel?'}
+            </Text>
             <Text style={styles.cardBody}>
               {isExpert
                 ? 'Cancelling releases the time slot and refunds the customer in full. Their plans are in your hands, so please only cancel when you really have to.'
-                : 'Cancelling is free until 24 hours before your session. After that, the payment stays with the expert.'}
+                : withdrawable
+                  ? `You can take this request back any time before ${expert?.displayName ?? 'the expert'} answers. You pay nothing.`
+                  : 'Cancelling is free until 24 hours before your session. After that, the payment stays with the expert.'}
             </Text>
             {forfeitsPayment && (
               <Text style={styles.policyWarning}>
@@ -367,7 +404,13 @@ export default function BookingDetailScreen() {
               </Text>
             )}
             <Button
-              title={forfeitsPayment ? 'Cancel anyway (no refund)' : 'Cancel booking'}
+              title={
+                forfeitsPayment
+                  ? 'Cancel anyway (no refund)'
+                  : withdrawable
+                    ? 'Withdraw request'
+                    : 'Cancel booking'
+              }
               variant="danger"
               loading={cancelling}
               onPress={() =>
@@ -387,7 +430,10 @@ export default function BookingDetailScreen() {
                   {
                     onSuccess: () => {
                       capture('booking_cancelled', { by_customer: isCustomer });
-                      Toast.show({ type: 'success', text1: 'Booking cancelled' });
+                      Toast.show({
+                        type: 'success',
+                        text1: withdrawable ? 'Request withdrawn' : 'Booking cancelled',
+                      });
                       router.replace('/(tabs)/bookings');
                     },
                     onError: (err) =>
@@ -454,6 +500,17 @@ export default function BookingDetailScreen() {
             />
           </Card>
         ) : null}
+
+        {/* Opened straight from a link (back from Stripe, or from an email):
+            there is no previous screen, so give a way to the bookings list. */}
+        {!router.canGoBack() && (
+          <Button
+            title="Go to your bookings"
+            variant="ghost"
+            onPress={() => router.replace('/(tabs)/bookings')}
+            style={{ marginTop: spacing.lg }}
+          />
+        )}
       </ScrollView>
     </Screen>
   );

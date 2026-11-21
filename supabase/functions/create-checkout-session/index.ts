@@ -15,7 +15,17 @@ import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import Stripe from 'https://esm.sh/stripe@16.12.0?target=deno';
 
-type RequestBody = { bookingId: string };
+type RequestBody = { bookingId: string; returnBase?: string };
+
+// A web browser pays in the same tab and comes straight back to the web app
+// it started from. Only Palam's own web addresses are accepted, so nobody can
+// have a customer sent to another site after paying. Anything else (the phone
+// app included) gets the default hand-off page.
+const WEB_RETURN_ORIGINS = [
+  'https://app.palamapp.com',
+  'http://localhost:8081',
+  'http://127.0.0.1:8081',
+];
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -38,7 +48,7 @@ serve(async (req) => {
   }
 
   const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
-  const returnBase = Deno.env.get('APP_DEEP_LINK_RETURN_BASE') ?? 'http://localhost:8081';
+  const defaultReturnBase = Deno.env.get('APP_DEEP_LINK_RETURN_BASE') ?? 'http://localhost:8081';
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -56,6 +66,10 @@ serve(async (req) => {
     return json({ error: 'Invalid JSON' }, 400);
   }
   if (!body.bookingId) return json({ error: 'bookingId required' }, 400);
+  const returnBase =
+    typeof body.returnBase === 'string' && WEB_RETURN_ORIGINS.includes(body.returnBase)
+      ? body.returnBase
+      : defaultReturnBase;
 
   // User-scoped client — respects RLS, so the user can only see their own booking.
   const userClient = createClient(supabaseUrl, anonKey, {

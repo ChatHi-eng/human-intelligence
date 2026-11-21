@@ -1,4 +1,4 @@
-import { Redirect, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput } from 'react-native';
 import Toast from 'react-native-toast-message';
@@ -10,7 +10,11 @@ import { Screen } from '@/components/ui/Screen';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { PLATFORM_FEE_DISPLAY_PCT, PLATFORM_FEE_PCT } from '@/constants/business';
 import { colors, radius, spacing, typography } from '@/constants/theme';
-import { useMyExpertProfile, useUpsertMyExpertProfile } from '@/hooks/useExperts';
+import {
+  useMyExpertProfile,
+  useSyncConnectStatus,
+  useUpsertMyExpertProfile,
+} from '@/hooks/useExperts';
 import { currentProfileInput } from '@/lib/expertProfile';
 import { formatCurrency } from '@/lib/format';
 
@@ -26,6 +30,26 @@ export default function SessionSettingsScreen() {
   useEffect(() => {
     if (expert) setPrice(expert.sessionPrice !== null ? String(expert.sessionPrice / 100) : '');
   }, [expert]);
+
+  // Back from Stripe's payout setup on the web (?stripe=...): the page was
+  // reloaded, so ask Stripe where things stand and say so once.
+  const { stripe } = useLocalSearchParams<{ stripe?: string }>();
+  const { mutate: syncPayouts } = useSyncConnectStatus();
+  const hasExpert = Boolean(expert);
+  useEffect(() => {
+    if (!stripe || !hasExpert) return;
+    syncPayouts(undefined, {
+      onSuccess: (result) =>
+        Toast.show({
+          type: result.payoutsEnabled ? 'success' : 'info',
+          text1: result.payoutsEnabled ? 'Payouts enabled' : 'Back from Stripe',
+          text2: result.payoutsEnabled
+            ? 'Ready to accept bookings that pay out to you.'
+            : 'Stripe still needs some details. Tap "Finish Stripe setup" to carry on.',
+        }),
+    });
+    router.setParams({ stripe: undefined });
+  }, [stripe, hasExpert, syncPayouts, router]);
 
   if (isLoading) return <LoadingView label="Loading your settings…" />;
   if (!expert) return <Redirect href="/expert-onboarding" />;
@@ -110,7 +134,12 @@ export default function SessionSettingsScreen() {
           />
         </Card>
 
-        <Button title="Done" variant="ghost" onPress={() => router.back()} fullWidth />
+        <Button
+          title="Done"
+          variant="ghost"
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/studio'))}
+          fullWidth
+        />
       </ScrollView>
     </Screen>
   );
