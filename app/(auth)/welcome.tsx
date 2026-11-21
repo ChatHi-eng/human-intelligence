@@ -8,8 +8,8 @@ import { colors, spacing, typography } from '@/constants/theme';
 
 // The front door for anyone who is not signed in: what Palam is, then the two
 // things a visitor can do here, create an account or sign in. The expert
-// application comes after the account exists (login.tsx walks a new account
-// into it), so nothing on this screen is labelled as the application itself.
+// application comes after the account exists (a card at the top of the home
+// screen starts it), so nothing on this screen is labelled as the application.
 export default function WelcomeScreen() {
   const router = useRouter();
   return (
@@ -51,7 +51,7 @@ export default function WelcomeScreen() {
           />
           {!CUSTOMER_BOOKING_ENABLED && (
             <Text style={styles.note}>
-              Create your account first. Your expert application starts right after.
+              Create your account first. You can apply as an expert from your home screen.
             </Text>
           )}
         </View>

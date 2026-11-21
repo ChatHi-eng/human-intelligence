@@ -5,12 +5,10 @@ import Toast from 'react-native-toast-message';
 import * as WebBrowser from 'expo-web-browser';
 import { Button } from '@/components/ui/Button';
 import { Screen } from '@/components/ui/Screen';
-import { CUSTOMER_BOOKING_ENABLED } from '@/constants/featureFlags';
 import { PRIVACY_URL, TERMS_URL } from '@/constants/links';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { capture } from '@/services/analytics';
-import { fetchExpert } from '@/services/api';
 import { getCurrentSession } from '@/services/supabase';
 
 type Stage = 'enter-email' | 'enter-code';
@@ -79,20 +77,12 @@ export default function LoginScreen() {
           : undefined,
       );
       Toast.show({ type: 'success', text1: 'Signed in' });
+      // Everyone lands on the home screen, new accounts included. Someone
+      // without an expert application sees the "Become an expert" card at the
+      // top of it and chooses when to start (decided 2026-11-20: an account
+      // is not an application, so signing up no longer drops people into
+      // step 1 of the form).
       router.replace('/(tabs)');
-      // Supply-first launch: a sign-in with no expert application yet is almost
-      // certainly a prospective expert, walk them straight into the
-      // application. Tabs stay beneath it, so Cancel lands on Discover.
-      if (!CUSTOMER_BOOKING_ENABLED) {
-        try {
-          const session = await getCurrentSession();
-          if (session && !(await fetchExpert(session.user.id))) {
-            router.push('/expert-onboarding');
-          }
-        } catch {
-          // The nudge is best-effort, never block sign-in on it.
-        }
-      }
     } catch (err) {
       Toast.show({
         type: 'error',
@@ -168,9 +158,7 @@ export default function LoginScreen() {
         <Text style={styles.title}>{creating ? 'Create your account' : 'Sign in'}</Text>
         <Text style={styles.caption}>
           {creating
-            ? `Enter your email and we'll send you a code. There is no password to set up.${
-                CUSTOMER_BOOKING_ENABLED ? '' : ' Your expert application starts right after.'
-              }`
+            ? "Enter your email and we'll send you a code. There is no password to set up."
             : "Enter the email you signed up with and we'll send you a sign-in code."}
         </Text>
         <TextInput

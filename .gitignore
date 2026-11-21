@@ -54,3 +54,8 @@ Thumbs.db
 tests/e2e/.results/
 tests/e2e/.playwright-report/
 tests/e2e/screenshots/*.png
+
+# Every-page review: generated pictures and page (rebuild with the gallery config)
+tests/gallery/shots/
+tests/gallery/.results/
+tests/gallery/every-page.html
