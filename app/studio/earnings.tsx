@@ -1,5 +1,7 @@
+import { useRouter } from 'expo-router';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { BarChart } from 'react-native-gifted-charts';
+import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { Screen } from '@/components/ui/Screen';
@@ -9,6 +11,7 @@ import { useDailyEarningsSeries, useEarningsBuckets } from '@/hooks/useEarnings'
 import { formatCurrency } from '@/lib/format';
 
 export default function ExpertEarningsScreen() {
+  const router = useRouter();
   const { data: buckets, isLoading } = useEarningsBuckets();
   const { data: daily } = useDailyEarningsSeries();
 
@@ -24,7 +27,7 @@ export default function ExpertEarningsScreen() {
   return (
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <SectionHeader title="Earnings" caption="Daily / weekly / monthly. Payouts arrive via Stripe." />
+        <SectionHeader title="Earnings" caption="What you earned today, this week and this month." />
         <View style={styles.row}>
           {buckets?.map((b) => (
             <Card key={b.periodLabel} style={{ flex: 1 }}>
@@ -55,9 +58,15 @@ export default function ExpertEarningsScreen() {
         <Card style={{ marginTop: spacing.lg }}>
           <Text style={styles.cardTitle}>Payouts</Text>
           <Text style={styles.cardBody}>
-            Stripe Connect onboarding will let you receive automatic payouts. Wiring up after the
-            UI scaffold is approved.
+            Stripe pays what you earn into your bank account. The amounts above are what you
+            receive. You set up and change your bank details in Session settings.
           </Text>
+          <Button
+            title="Open Session settings"
+            variant="secondary"
+            onPress={() => router.push('/studio/session-settings')}
+            style={{ marginTop: spacing.md }}
+          />
         </Card>
       </ScrollView>
     </Screen>
