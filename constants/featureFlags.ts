@@ -17,9 +17,10 @@ export const PHONE_SESSIONS_ENABLED = false;
 // once the Twilio secrets are set and the number is registered with carriers.
 export const SMS_REMINDERS_ENABLED = false;
 
-// Customer booking — decided 2026-10-20 to launch supply-first: experts join
-// and get vetted before customers can pay. Hides the Book session bar on
-// expert profiles, blocks the /book/[id] route ("Booking opens soon"), and
-// switches the welcome screen to expert-recruitment copy. Discover stays
-// visible as a roster. Flip to true to open the doors to customers.
-export const CUSTOMER_BOOKING_ENABLED = false;
+// Customer booking — ON since 2026-11-21: the owner decided to launch
+// customers and experts together instead of building up experts first (the
+// 2026-10-20 supply-first plan). When false it hides the Book session bar on
+// expert profiles and blocks the /book/[id] route ("Booking opens soon").
+// The Supabase secret CUSTOMER_BOOKING_ENABLED must match, so the welcome
+// email uses the right wording.
+export const CUSTOMER_BOOKING_ENABLED = true;

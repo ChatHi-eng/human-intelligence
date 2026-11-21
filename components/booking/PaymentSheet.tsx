@@ -2,6 +2,12 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Button } from '@/components/ui/Button';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { formatCurrency } from '@/lib/format';
+import { stripePublishableKey } from '@/services/stripe';
+
+// True while the app is built with Stripe's test key. Real cards are refused
+// in that mode, so the sheet says so and gives the card that works. The
+// notice disappears by itself once the live key is in place.
+const STRIPE_TEST_MODE = Boolean(stripePublishableKey?.startsWith('pk_test'));
 
 export type PaymentSheetProps = {
   amountCents: number;
@@ -37,9 +43,10 @@ export const PaymentSheet = ({
           ? `${expertName} approves each request. Your card is held, not charged, until they accept. If they decline or do not answer within 24 hours, the hold is released and you pay nothing.`
           : 'You pay on the next screen, and your session is confirmed as soon as the payment goes through.'}
       </Text>
-      {__DEV__ ? (
-        <Text style={styles.notice}>
-          Test mode card: 4242 4242 4242 4242, any future expiry, any CVC.
+      {STRIPE_TEST_MODE ? (
+        <Text style={styles.testMode}>
+          Palam is in test mode, so no real money moves. Pay with the test card 4242 4242 4242
+          4242, any future date and any 3 digits.
         </Text>
       ) : null}
     </View>
@@ -69,4 +76,11 @@ const styles = StyleSheet.create({
   fineprint: { gap: spacing.sm },
   policy: { ...typography.caption, color: colors.textSecondary },
   notice: { ...typography.caption, color: colors.textMuted },
+  testMode: {
+    ...typography.caption,
+    color: colors.textPrimary,
+    backgroundColor: colors.accentSoft,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+  },
 });

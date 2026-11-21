@@ -2,41 +2,31 @@ import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 import { Button } from '@/components/ui/Button';
 import { Screen } from '@/components/ui/Screen';
-import { CUSTOMER_BOOKING_ENABLED, PHONE_SESSIONS_ENABLED } from '@/constants/featureFlags';
+import { PHONE_SESSIONS_ENABLED } from '@/constants/featureFlags';
 
 import { colors, spacing, typography } from '@/constants/theme';
 
-// The front door for anyone who is not signed in: what Palam is, then the two
-// things a visitor can do here, create an account or sign in. The expert
-// application comes after the account exists (a card at the top of the home
-// screen starts it), so nothing on this screen is labelled as the application.
+// The front door for anyone who is not signed in. Customers and experts
+// launch together (decided 2026-11-21), so this speaks to both: what a
+// customer gets first, then the invitation to people who could be experts.
+// One account serves both; the expert application starts from a card on the
+// home screen, so nothing here is labelled as the application itself.
 export default function WelcomeScreen() {
   const router = useRouter();
   return (
     <Screen>
       <View style={styles.container}>
         <Text style={styles.wordmark}>palam</Text>
-        {/* Supply-first launch: sell becoming an expert until customer booking
-            opens; the customer pitch returns when the flag flips. */}
-        {CUSTOMER_BOOKING_ENABLED ? (
-          <>
-            <Text style={styles.title}>Talk to a human who knows.</Text>
-            <Text style={styles.body}>
-              {PHONE_SESSIONS_ENABLED
-                ? 'Every search answers with AI now. Palam is a direct line to people who have lived it: lawyers, therapists, coders, designers, tradesmen. Book a video or phone call with one when you need it.'
-                : 'Every search answers with AI now. Palam is a direct line to people who have lived it: lawyers, therapists, coders, designers, tradesmen. Book a video call with one when you need it.'}
-            </Text>
-          </>
-        ) : (
-          <>
-            <Text style={styles.title}>Get paid for what you know.</Text>
-            <Text style={styles.body}>
-              The internet answers everything with AI now, compiled from other people&apos;s work.
-              Palam pays the people who did that work. You set your rate and take 30-minute video
-              sessions. Apply now and you&apos;ll be first in line when booking opens.
-            </Text>
-          </>
-        )}
+        <Text style={styles.title}>Talk to a human who knows.</Text>
+        <Text style={styles.body}>
+          {PHONE_SESSIONS_ENABLED
+            ? 'Every search answers with AI now. Palam is a direct line to people who have lived it: lawyers, therapists, coders, designers, tradesmen. Book a 30-minute video or phone call with one when you need it.'
+            : 'Every search answers with AI now. Palam is a direct line to people who have lived it: lawyers, therapists, coders, designers, tradesmen. Book a 30-minute video call with one when you need it.'}
+        </Text>
+        <Text style={styles.body}>
+          If you&apos;re the one people come to for advice, apply as an expert and get paid for
+          it.
+        </Text>
         <View style={styles.actions}>
           <Button
             title="Create account"
@@ -49,11 +39,9 @@ export default function WelcomeScreen() {
             onPress={() => router.push({ pathname: '/(auth)/login', params: { mode: 'signin' } })}
             fullWidth
           />
-          {!CUSTOMER_BOOKING_ENABLED && (
-            <Text style={styles.note}>
-              Create your account first. You can apply as an expert from your home screen.
-            </Text>
-          )}
+          <Text style={styles.note}>
+            With one account you can book a session or apply as an expert.
+          </Text>
         </View>
       </View>
     </Screen>

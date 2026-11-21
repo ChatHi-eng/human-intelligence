@@ -16,6 +16,10 @@ test('signed-out visitors land on /welcome with create account and sign in', asy
   await expect(page).toHaveURL(/\/welcome$/);
   await expect(page.getByText('Sign in', { exact: true })).toBeVisible();
   await expect(page.getByText('Start your application')).toHaveCount(0);
+  // It speaks to both sides: the customer promise first, then the expert invitation.
+  await expect(page.getByText('Talk to a human who knows.')).toBeVisible();
+  await expect(page.getByText(/Book a 30-minute video call/)).toBeVisible();
+  await expect(page.getByText(/apply as an expert and get paid for it/)).toBeVisible();
   await page.screenshot({ path: 'tests/e2e/screenshots/welcome.png' });
 
   // Create account opens the emailed-code step worded for a new account.

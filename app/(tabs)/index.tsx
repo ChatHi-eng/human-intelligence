@@ -24,7 +24,7 @@ import {
   GUIDED_MATCH_MIN_EXPERTS,
   MIN_REVIEWS_FOR_RATING,
 } from '@/constants/business';
-import { CUSTOMER_BOOKING_ENABLED, PHONE_SESSIONS_ENABLED } from '@/constants/featureFlags';
+import { PHONE_SESSIONS_ENABLED } from '@/constants/featureFlags';
 import { industries } from '@/constants/industries';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useExperts, useMyExpertProfile } from '@/hooks/useExperts';
@@ -96,10 +96,11 @@ export default function DiscoverScreen() {
   // reviews for a star average to show.
   const ratingsExist = (allExperts ?? []).some((e) => e.ratingCount >= MIN_REVIEWS_FOR_RATING);
 
-  // Supply-first launch: anyone signed in without an expert application gets a
-  // front-and-center path into it (the You tab entry stays, but is buried).
+  // Customers and experts launch together: anyone signed in without an expert
+  // application sees the way into it on the home screen, whether or not
+  // booking is open (the You tab entry stays, but is buried).
   const { data: myExpert, isFetched: myExpertFetched } = useMyExpertProfile();
-  const showApplyCard = !CUSTOMER_BOOKING_ENABLED && myExpertFetched && !myExpert;
+  const showApplyCard = myExpertFetched && !myExpert;
 
   const applyCard = showApplyCard ? (
     <Pressable onPress={() => router.push('/expert-onboarding')} style={styles.applyCard}>

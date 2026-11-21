@@ -106,7 +106,7 @@ a:focus {
 }
 
 .cta-row .btn {
-  margin: 14px 0 10px;
+  margin: 14px 8px 6px 0;
 }
 
 .cta-row .muted {
@@ -324,6 +324,18 @@ a:focus {
   background: var(--green-deep);
   color: #fff;
   text-decoration: none;
+}
+
+/* The second choice beside a main button. */
+.btn-quiet {
+  background: var(--mint);
+  color: var(--green-deep);
+}
+
+.btn-quiet:hover,
+.btn-quiet:focus {
+  background: var(--rule);
+  color: var(--green-deep);
 }
 
 .muted {
