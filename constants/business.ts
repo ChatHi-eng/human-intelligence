@@ -42,3 +42,8 @@ export const BOOKING_WINDOW_DAYS = 14;
 
 // Palam's fee as a whole percent, for copy.
 export const PLATFORM_FEE_DISPLAY_PCT = Math.round(PLATFORM_FEE_PCT * 100);
+
+// The welcome screen shows a few experts' photos only once there are enough
+// people listed for it to look like a marketplace. With one or two it reads
+// as odd (owner's call, 2026-11-21), so below this number it shows none.
+export const WELCOME_FACES_MIN_EXPERTS = 12;

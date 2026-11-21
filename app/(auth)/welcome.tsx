@@ -4,6 +4,7 @@ import { Portrait } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Screen } from '@/components/ui/Screen';
+import { WELCOME_FACES_MIN_EXPERTS } from '@/constants/business';
 import { PHONE_SESSIONS_ENABLED } from '@/constants/featureFlags';
 import { colors, fonts, radius, shadow, spacing, typography } from '@/constants/theme';
 import { useExperts } from '@/hooks/useExperts';
@@ -14,13 +15,13 @@ import { useExperts } from '@/hooks/useExperts';
 // One account serves both; the expert application starts from a card on the
 // home screen, so nothing here is labelled as the application itself.
 //
-// The picture at the top is the product itself: the people you can book right
-// now, read from the same public list Discover uses. With nobody listed yet
-// it is left out and the words stand alone.
+// Once enough experts are listed, the top shows three of them, read from the
+// same public list Discover uses. Until then the words stand alone.
 export default function WelcomeScreen() {
   const router = useRouter();
   const { data: experts } = useExperts({});
-  const faces = (experts ?? []).slice(0, 3);
+  const listed = experts ?? [];
+  const faces = listed.length >= WELCOME_FACES_MIN_EXPERTS ? listed.slice(0, 3) : [];
 
   return (
     <Screen>
