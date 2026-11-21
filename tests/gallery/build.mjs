@@ -181,12 +181,12 @@ const html = `<title>Palam Every Page</title>
 <div class="wrap">
   <header>
     <span class="wordmark">palam</span>
-    <h1>Every page in the new design</h1>
-    <p class="lede">${entries.length} screens from the app and the website, taken on ${today} at phone size. This is the proposed redesign; the live site still has the previous look until you approve it. Each one is tagged by who its wording speaks to, so you can see where the app talks to experts, to customers, or to both. The people and numbers in the pictures are samples, not real accounts.</p>
+    <h1>Every page, as it stands today</h1>
+    <p class="lede">${entries.length} screens from the app and the website, taken on ${today} at phone size. Each one is tagged by who its wording speaks to, so you can see where the app talks to experts, to customers, or to both. The people and numbers in the pictures are samples, not real accounts.</p>
   </header>
 
   <div class="findings">
-    <h2>Proposed redesign, not live yet</h2>
+    <h2>The new design, live since 21 November</h2>
     <ol>
       <li><strong>People first.</strong> <a href="#p201">Discover</a> and each <a href="#p206">expert profile</a> now lead with a large photo, then the rating, price and next open time. The experts shown here are samples without photos, so you see a soft colored tile with initials where a face will be.</li>
       <li><strong>Quieter everywhere else.</strong> No emoji, no capital-letter capsule tags, far less mint. Palam green is kept for the one main button on a screen and the vetted mark.</li>
