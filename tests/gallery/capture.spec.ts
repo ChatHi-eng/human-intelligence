@@ -7,12 +7,8 @@ import path from 'node:path';
 // phone-sized picture of each, plus a list of what was captured
 // (shots/manifest.json). The backend is stubbed at the network level, so
 // nothing real is read or written and the people shown are made up.
-//
-// GALLERY_BOOKING=1 captures only the pages that sit behind the
-// CUSTOMER_BOOKING_ENABLED switch; run it with that switch turned on locally.
 
 const SHOTS = path.resolve(__dirname, 'shots');
-const BOOKING_PASS = process.env.GALLERY_BOOKING === '1';
 const WIDTH = 390;
 const HEIGHT = 844;
 
@@ -590,7 +586,6 @@ const EXPERT: World = {
 // ---------------------------------------------------------------- the walk
 
 test.describe('main pass', () => {
-  test.skip(BOOKING_PASS, 'booking pass only');
 
   test('1 visitor (not signed in)', async ({ page }) => {
     begin(1);
@@ -643,10 +638,14 @@ test.describe('main pass', () => {
     await shot(page, { group, title: 'Search with no match', route: '/', note: 'The request is emailed to you to answer personally.' }, 'home-no-match');
 
     await open(page, `/expert/${expertId(1)}`, 'Ana Morales');
-    await shot(page, { group, title: 'Expert profile', route: '/expert/[id]', note: 'With booking switched off there is no "Book session" bar.' }, 'expert-profile');
+    await shot(page, { group, title: 'Expert profile', route: '/expert/[id]', }, 'expert-profile');
 
-    await open(page, `/book/${expertId(1)}`);
-    await shot(page, { group, title: 'Book a session (switched off)', route: '/book/[id]', note: 'What the booking page shows while customer booking is off.' }, 'book-switched-off');
+    await open(page, `/book/${expertId(1)}`, 'Pick a day');
+    await shot(page, { group, title: 'Book a session: pick a time', route: '/book/[id]' }, 'book-pick-time');
+    await page.getByText(/^[0-9]{1,2}:[0-9]{2} (AM|PM)$/).first().click().catch(() => undefined);
+    await shot(page, { group, title: 'Book a session: time picked, ready to pay', route: '/book/[id]', note: 'The green notice shows only while payments are in test mode.' }, 'book-ready-to-pay');
+    await page.getByText('Free 15-min intro', { exact: true }).click().catch(() => undefined);
+    await shot(page, { group, title: 'Book a free 15-minute intro', route: '/book/[id]' }, 'book-free-intro');
 
     await open(page, '/bookings', 'Your bookings');
     await shot(page, { group, title: 'Bookings, empty', route: '/bookings' }, 'bookings-empty');
@@ -730,7 +729,7 @@ test.describe('main pass', () => {
     await enter(page, CUSTOMER);
 
     await open(page, '/bookings', 'Your bookings');
-    await shot(page, { group, title: 'Bookings', route: '/bookings', note: 'These exist only once customer booking is switched on.' }, 'bookings');
+    await shot(page, { group, title: 'Bookings', route: '/bookings', }, 'bookings');
 
     await open(page, `/booking/${B(1)}`, 'Ana Morales');
     await shot(page, { group, title: 'Booking, confirmed and paid', route: '/booking/[id]' }, 'booking-confirmed');
@@ -814,36 +813,5 @@ test.describe('main pass', () => {
       await page.screenshot({ path: path.join(SHOTS, out), fullPage: true });
       entries.push({ file: out, group, title, route: name === 'index.html' ? 'palamapp.com' : `palamapp.com/${name.replace('.html', '')}` });
     }
-  });
-});
-
-test.describe('booking pass', () => {
-  test.skip(!BOOKING_PASS, 'main pass only');
-
-  test('7 pages behind the customer booking switch', async ({ page }) => {
-    begin(7);
-    const group = '7. Switched off today (customer booking)';
-    await enter(page, VISITOR);
-    await open(page, '/', 'Create account');
-    await shot(page, { group, title: 'Welcome, customer wording', route: '/welcome', note: 'The welcome screen swaps to this wording when booking is switched on.' }, 'welcome-customer');
-
-    await enter(page, NEW_ACCOUNT);
-    await open(page, '/', 'Talk to a human');
-    await shot(page, { group, title: 'Home with booking on', route: '/', note: 'No "Become an expert" card on the home screen in this mode.' }, 'home-booking-on');
-
-    await open(page, `/expert/${expertId(1)}`, 'Ana Morales');
-    await shot(page, { group, title: 'Expert profile with Book session', route: '/expert/[id]' }, 'expert-profile-bookable');
-
-    await open(page, `/book/${expertId(1)}`, 'Pick a day');
-    await shot(page, { group, title: 'Book a session: pick a time', route: '/book/[id]' }, 'book-pick-time');
-
-    await page.getByText(/^\d{1,2}:\d{2} (AM|PM)$/).first().click().catch(() => undefined);
-    await shot(page, { group, title: 'Book a session: time picked, ready to pay', route: '/book/[id]' }, 'book-ready-to-pay');
-
-    await page.getByText('Free 15-min intro', { exact: true }).click().catch(() => undefined);
-    await shot(page, { group, title: 'Book a free 15-minute intro', route: '/book/[id]' }, 'book-free-intro');
-
-    await open(page, '/profile', 'Edit account');
-    await shot(page, { group, title: 'You, with booking on', route: '/profile' }, 'you-booking-on');
   });
 });

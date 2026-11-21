@@ -21,13 +21,12 @@ const CUSTOMERS = 'customers';
 const BOTH = 'both';
 const ANYONE = 'anyone';
 const audienceByNumber = {
-  101: EXPERTS, 102: ANYONE, 103: ANYONE, 104: ANYONE, 105: CUSTOMERS,
+  101: BOTH, 102: ANYONE, 103: ANYONE, 104: ANYONE, 105: CUSTOMERS,
   201: BOTH, 202: BOTH, 203: EXPERTS, 204: CUSTOMERS, 205: CUSTOMERS, 206: CUSTOMERS,
-  207: CUSTOMERS, 208: CUSTOMERS, 209: BOTH, 210: ANYONE, 211: ANYONE, 212: ANYONE,
+  207: CUSTOMERS, 208: CUSTOMERS, 209: CUSTOMERS, 210: CUSTOMERS, 211: BOTH,
+  212: ANYONE, 213: ANYONE, 214: ANYONE,
   401: CUSTOMERS, 402: CUSTOMERS, 403: CUSTOMERS, 404: CUSTOMERS, 405: CUSTOMERS,
   515: BOTH, 601: BOTH, 602: ANYONE, 603: ANYONE, 604: ANYONE, 605: ANYONE,
-  701: CUSTOMERS, 702: CUSTOMERS, 703: CUSTOMERS, 704: CUSTOMERS, 705: CUSTOMERS,
-  706: CUSTOMERS, 707: BOTH,
 };
 const audienceLabel = {
   [EXPERTS]: 'Speaks to experts',
@@ -187,12 +186,12 @@ const html = `<title>Palam Every Page</title>
   </header>
 
   <div class="findings">
-    <h2>What stands out</h2>
+    <h2>Where things stand</h2>
     <ol>
-      <li><strong>The app's first screen speaks only to experts.</strong> <a href="#p101">Welcome</a> says "Get paid for what you know." The website's <a href="#p601">landing page</a> does both jobs: it opens with "Talk to a human who knows" and has a "Become an expert" block lower down. That is the both-sides wording you remembered.</li>
-      <li><strong>The customer wording for the app exists but is switched off.</strong> <a href="#p701">Welcome, customer wording</a> only appears when customer booking is turned on, and when it does, the expert pitch disappears. Neither version speaks to both.</li>
-      <li><strong>A new account lands on a customer-facing home screen it cannot use yet.</strong> <a href="#p201">Home</a> says "Talk to a human" and lists experts, but tapping through ends at <a href="#p207">Booking opens soon</a>.</li>
-      <li><strong>The Earnings page has leftover builder text.</strong> Under Payouts, <a href="#p506">Earnings</a> says "Wiring up after the UI scaffold is approved." That should not be shown to experts.</li>
+      <li><strong>The first screen now speaks to both sides.</strong> <a href="#p101">Welcome</a> opens with "Talk to a human who knows" for customers, then invites people to apply as an expert. It matches the website's <a href="#p601">landing page</a>.</li>
+      <li><strong>Customer booking is on.</strong> An <a href="#p206">expert profile</a> has a Book session button, and the <a href="#p207">booking page</a> offers paid sessions and free 15-minute intros.</li>
+      <li><strong>Payments are still in test mode.</strong> The <a href="#p208">payment step</a> says so and gives the test card. Real cards are refused until Stripe is switched to live keys.</li>
+      <li><strong>A new account lands on Home, not in the application.</strong> <a href="#p201">Home</a> shows the experts, with a "Become an expert" card at the top for anyone who has not applied.</li>
     </ol>
   </div>
 
