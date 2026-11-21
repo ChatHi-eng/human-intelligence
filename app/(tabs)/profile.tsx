@@ -1,6 +1,8 @@
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
+import { SignOutSheet } from '@/components/account/SignOutSheet';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -22,6 +24,7 @@ export default function YouScreen() {
   const router = useRouter();
   const { user, email, signOut } = useAuth();
   const { data: expertProfile, isLoading: expertLoading } = useMyExpertProfile();
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
 
   if (!user) return <LoadingView label="Loading…" />;
 
@@ -42,12 +45,23 @@ export default function YouScreen() {
             <Text style={styles.email}>{email ?? `Account #${user.id.slice(0, 6)}`}</Text>
           </View>
         </View>
-        <Button
-          title="Edit account"
-          variant="secondary"
-          onPress={() => router.push('/profile-edit')}
-          style={{ marginTop: spacing.md }}
-        />
+        {/* Sign out sits beside the name and email it belongs to, in view
+            without scrolling. It is repeated at the foot of the page, where
+            people also look for it. */}
+        <View style={styles.accountActions}>
+          <Button
+            title="Edit account"
+            variant="secondary"
+            onPress={() => router.push('/profile-edit')}
+            style={{ flex: 1 }}
+          />
+          <Button
+            title="Sign out"
+            variant="secondary"
+            onPress={() => setConfirmingSignOut(true)}
+            style={{ flex: 1 }}
+          />
+        </View>
       </Card>
 
       {/* ---------- Expert card OR Become an expert ---------- */}
@@ -170,7 +184,12 @@ export default function YouScreen() {
 
       {/* ---------- Sign out / delete ---------- */}
       <View style={styles.section}>
-        <Button title="Sign out" onPress={() => void signOut()} variant="ghost" />
+        <Button
+          title="Sign out"
+          onPress={() => setConfirmingSignOut(true)}
+          variant="secondary"
+          fullWidth
+        />
         <Pressable
           onPress={() => router.push('/delete-account')}
           style={({ pressed }) => [styles.deleteEntry, pressed && styles.deleteEntryPressed]}
@@ -178,6 +197,13 @@ export default function YouScreen() {
           <Text style={styles.deleteText}>Delete account</Text>
         </Pressable>
       </View>
+
+      <SignOutSheet
+        visible={confirmingSignOut}
+        email={email}
+        onClose={() => setConfirmingSignOut(false)}
+        onSignOut={signOut}
+      />
     </Screen>
   );
 }
@@ -186,6 +212,7 @@ const styles = StyleSheet.create({
   accountRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
   name: { ...typography.heading, color: colors.textPrimary },
   email: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  accountActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   section: { marginTop: spacing.xl },
   expertHeader: { gap: spacing.sm },
   expertHeadline: { ...typography.bodyStrong, color: colors.textPrimary },
