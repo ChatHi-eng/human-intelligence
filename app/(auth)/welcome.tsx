@@ -54,8 +54,8 @@ export default function WelcomeScreen() {
           <Text style={styles.title}>Talk to a human who knows.</Text>
           <Text style={styles.body}>
             {PHONE_SESSIONS_ENABLED
-              ? 'Every search answers with AI now. Palam is a direct line to people who have lived it: lawyers, therapists, coders, designers, tradesmen. Book a 30-minute video or phone call with one when you need it.'
-              : 'Every search answers with AI now. Palam is a direct line to people who have lived it: lawyers, therapists, coders, designers, tradesmen. Book a 30-minute video call with one when you need it.'}
+              ? 'Every search answers with AI now. Palam is a direct line to people who have lived it, across business, entertainment, healthcare, law, design, fashion, contracting, home repair and more. Book a 30-minute video or phone call with one when you need it.'
+              : 'Every search answers with AI now. Palam is a direct line to people who have lived it, across business, entertainment, healthcare, law, design, fashion, contracting, home repair and more. Book a 30-minute video call with one when you need it.'}
           </Text>
           <View style={styles.expertLine}>
             <Icon name="award" size={18} color={colors.accentInk} />
