@@ -30,7 +30,7 @@ export default function ExpertCalendarScreen() {
     <Screen padded={false}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <View style={styles.padded}>
-          <SectionHeader title="Calendar" caption="Tap a day to see bookings." />
+          <SectionHeader level="page" title="Calendar" caption="Tap a day to see bookings." />
         </View>
         <Calendar
           markedDates={{ ...marked, [selected]: { ...marked[selected], selected: true } }}
@@ -50,7 +50,7 @@ export default function ExpertCalendarScreen() {
             <EmptyState
               title="No bookings this day"
               description="Open more availability to get booked."
-              emoji="🗓️"
+              icon="calendar"
             />
           ) : (
             <View style={{ gap: spacing.md }}>

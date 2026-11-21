@@ -1,9 +1,10 @@
-import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 import * as WebBrowser from 'expo-web-browser';
 import { Button } from '@/components/ui/Button';
+import { Icon } from '@/components/ui/Icon';
 import { Screen } from '@/components/ui/Screen';
 import { PRIVACY_URL, TERMS_URL } from '@/constants/links';
 import { colors, radius, spacing, typography } from '@/constants/theme';
@@ -15,15 +16,11 @@ type Stage = 'enter-email' | 'enter-code';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
   // Creating an account and signing in are the same step underneath (an
   // emailed code; a new email gets an account). The welcome screen offers
   // both, and this screen words itself to match the one that was chosen.
   const params = useLocalSearchParams<{ mode?: string }>();
   const [creating, setCreating] = useState(params.mode === 'signup');
-  useEffect(() => {
-    navigation.setOptions({ title: creating ? 'Create account' : 'Sign in' });
-  }, [navigation, creating]);
   const { signInWithMagicLink, verifyEmailOtp, configError } = useAuth();
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -112,7 +109,9 @@ export default function LoginScreen() {
     return (
       <Screen>
         <View style={styles.container}>
-          <Text style={styles.emoji}>📬</Text>
+          <View style={styles.codeIcon}>
+            <Icon name="mail" size={24} color={colors.textPrimary} />
+          </View>
           <Text style={styles.title}>Enter your code</Text>
           <Text style={styles.caption}>
             We emailed a code to <Text style={styles.bold}>{email}</Text>. It may take a minute to
@@ -208,11 +207,18 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   container: { gap: spacing.md, paddingTop: spacing.xxl, alignItems: 'stretch' },
-  emoji: { fontSize: 48, alignSelf: 'center' },
+  codeIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   title: { ...typography.display, color: colors.textPrimary },
   caption: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.md },
   legal: { ...typography.caption, color: colors.textMuted, textAlign: 'center' },
-  legalLink: { color: colors.accent, textDecorationLine: 'underline' },
+  legalLink: { color: colors.accentInk, textDecorationLine: 'underline' },
   bold: { ...typography.bodyStrong, color: colors.textPrimary },
   input: {
     backgroundColor: colors.surface,
@@ -221,13 +227,13 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     ...typography.body,
     color: colors.textPrimary,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
   },
   codeInput: {
     textAlign: 'center',
     fontSize: 24,
-    fontWeight: '700',
+    fontFamily: 'Manrope_600SemiBold',
     letterSpacing: 4,
   },
 });

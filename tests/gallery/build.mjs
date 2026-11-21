@@ -26,7 +26,7 @@ const audienceByNumber = {
   207: CUSTOMERS, 208: CUSTOMERS, 209: CUSTOMERS, 210: CUSTOMERS, 211: BOTH,
   212: ANYONE, 213: ANYONE, 214: ANYONE,
   401: CUSTOMERS, 402: CUSTOMERS, 403: CUSTOMERS, 404: CUSTOMERS, 405: CUSTOMERS,
-  515: BOTH, 601: BOTH, 602: ANYONE, 603: ANYONE, 604: ANYONE, 605: ANYONE,
+  515: BOTH, 601: BOTH, 602: ANYONE, 603: ANYONE, 604: ANYONE, 605: ANYONE, 606: BOTH,
 };
 const audienceLabel = {
   [EXPERTS]: 'Speaks to experts',
@@ -181,17 +181,18 @@ const html = `<title>Palam Every Page</title>
 <div class="wrap">
   <header>
     <span class="wordmark">palam</span>
-    <h1>Every page, as it stands today</h1>
-    <p class="lede">${entries.length} screens from the app and the website, taken on ${today} at phone size. Each one is tagged by who its wording speaks to, so you can see where the app talks to experts, to customers, or to both. The people and numbers in the pictures are samples, not real accounts.</p>
+    <h1>Every page in the new design</h1>
+    <p class="lede">${entries.length} screens from the app and the website, taken on ${today} at phone size. This is the proposed redesign; the live site still has the previous look until you approve it. Each one is tagged by who its wording speaks to, so you can see where the app talks to experts, to customers, or to both. The people and numbers in the pictures are samples, not real accounts.</p>
   </header>
 
   <div class="findings">
-    <h2>Where things stand</h2>
+    <h2>Proposed redesign, not live yet</h2>
     <ol>
-      <li><strong>The first screen now speaks to both sides.</strong> <a href="#p101">Welcome</a> opens with "Talk to a human who knows" for customers, then invites people to apply as an expert. It matches the website's <a href="#p601">landing page</a>.</li>
-      <li><strong>Customer booking is on.</strong> An <a href="#p206">expert profile</a> has a Book session button, and the <a href="#p207">booking page</a> offers paid sessions and free 15-minute intros.</li>
-      <li><strong>Payments are still in test mode.</strong> The <a href="#p208">payment step</a> says so and gives the test card. Real cards are refused until Stripe is switched to live keys.</li>
-      <li><strong>A new account lands on Home, not in the application.</strong> <a href="#p201">Home</a> shows the experts, with a "Become an expert" card at the top for anyone who has not applied.</li>
+      <li><strong>People first.</strong> <a href="#p201">Discover</a> and each <a href="#p206">expert profile</a> now lead with a large photo, then the rating, price and next open time. The experts shown here are samples without photos, so you see a soft colored tile with initials where a face will be.</li>
+      <li><strong>Quieter everywhere else.</strong> No emoji, no capital-letter capsule tags, far less mint. Palam green is kept for the one main button on a screen and the vetted mark.</li>
+      <li><strong>Browse by field.</strong> A row of field icons under the search bar on <a href="#p201">Discover</a>, and the same icons in <a href="#p301">step 1 of the application</a>.</li>
+      <li><strong>A photo is now required to apply.</strong> <a href="#p305">Step 5</a> no longer lets an applicant skip it.</li>
+      <li><strong>The website matches.</strong> The <a href="#p606">landing page</a> has a picture of the product beside the headline and plain columns instead of boxes.</li>
     </ol>
   </div>
 

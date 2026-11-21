@@ -7,6 +7,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import Toast from 'react-native-toast-message';
 import { Button } from '@/components/ui/Button';
 import { LoadingView } from '@/components/ui/LoadingView';
+import { Icon } from '@/components/ui/Icon';
 import { Screen } from '@/components/ui/Screen';
 import {
   industries,
@@ -204,6 +205,16 @@ export default function ExpertOnboardingScreen() {
         return false;
       }
     }
+    // A photo is required: people book a person, and a face is the first
+    // thing they look at on Discover.
+    if (step === 4 && !avatarUrl) {
+      Toast.show({
+        type: 'error',
+        text1: 'Add a profile photo',
+        text2: 'Customers choose a person, so every expert has one.',
+      });
+      return false;
+    }
     if (step === 5 && !applicationGoal.trim()) {
       Toast.show({
         type: 'error',
@@ -329,7 +340,7 @@ export default function ExpertOnboardingScreen() {
                     onPress={() => setIndustryId(i.id)}
                     style={[styles.industryTile, active && styles.industryTileActive]}
                   >
-                    <Text style={styles.industryEmoji}>{i.emoji}</Text>
+                    <Icon name={i.icon} size={24} color={colors.textPrimary} />
                     <Text style={[styles.industryLabel, active && styles.industryLabelActive]}>
                       {i.label}
                     </Text>
@@ -346,7 +357,7 @@ export default function ExpertOnboardingScreen() {
                 }}
                 style={[styles.industryTile, isOther && styles.industryTileActive]}
               >
-                <Text style={styles.industryEmoji}>✨</Text>
+                <Icon name="plus-circle" size={24} color={colors.textPrimary} />
                 <Text style={[styles.industryLabel, isOther && styles.industryLabelActive]}>
                   Something else
                 </Text>
@@ -572,17 +583,20 @@ export default function ExpertOnboardingScreen() {
           <>
             <Text style={styles.title}>Add a profile photo</Text>
             <Text style={styles.caption}>
-              Your photo is the first thing customers see on Discover. You can skip this step,
-              but we recommend adding one.
+              Your photo is the first thing customers see on Discover. Use a clear, recent photo
+              of your face.
             </Text>
             <View style={styles.photoRow}>
               <Pressable onPress={pickPhoto} style={styles.photoPicker}>
                 {avatarUrl ? (
                   <Image source={{ uri: avatarUrl }} style={styles.photoImage} contentFit="cover" />
                 ) : (
-                  <Text style={styles.photoPlaceholder}>
-                    {uploading ? 'Uploading…' : 'Tap to add'}
-                  </Text>
+                  <>
+                    <Icon name="camera" size={28} color={colors.textPrimary} />
+                    <Text style={styles.photoPlaceholder}>
+                      {uploading ? 'Uploading…' : 'Add photo'}
+                    </Text>
+                  </>
                 )}
               </Pressable>
             </View>
@@ -615,7 +629,7 @@ export default function ExpertOnboardingScreen() {
             <View style={styles.summaryCard}>
               <SummaryRow
                 label="Field"
-                value={fieldDisplay ? `${fieldDisplay.emoji} ${fieldDisplay.label}` : '—'}
+                value={fieldDisplay ? fieldDisplay.label : '—'}
                 onEdit={() => setStep(0)}
               />
               <SummaryRow
@@ -730,7 +744,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     ...typography.body,
     color: colors.textPrimary,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
     marginTop: spacing.xs,
   },
@@ -740,12 +754,12 @@ const styles = StyleSheet.create({
   topicRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
   topicChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
   topicChip: {
-    backgroundColor: colors.accentSoft,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
   },
-  topicChipText: { ...typography.caption, color: colors.accent },
+  topicChipText: { ...typography.caption, color: colors.textPrimary },
   industryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -753,19 +767,26 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   industryTile: {
-    width: '47%',
-    paddingVertical: spacing.lg,
-    borderRadius: radius.lg,
+    width: '48%',
+    minHeight: 96,
+    padding: spacing.lg,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.background,
-    alignItems: 'center',
-    gap: spacing.xs,
+    justifyContent: 'space-between',
+    gap: spacing.md,
   },
-  industryTileActive: { backgroundColor: colors.textPrimary, borderColor: colors.textPrimary },
-  industryEmoji: { fontSize: 28 },
-  industryLabel: { ...typography.bodyStrong, color: colors.textPrimary, textAlign: 'center' },
-  industryLabelActive: { color: '#FFFFFF' },
+  // Chosen: a dark outline and a faint ground, the way a picked option looks
+  // on a form. Nothing inverts.
+  industryTileActive: {
+    borderColor: colors.textPrimary,
+    backgroundColor: colors.surface,
+    borderWidth: 2,
+    padding: spacing.lg - 1,
+  },
+  industryLabel: { ...typography.bodyStrong, color: colors.textPrimary },
+  industryLabelActive: { color: colors.textPrimary },
   resumeRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -782,25 +803,25 @@ const styles = StyleSheet.create({
   resumeRowDone: {
     borderStyle: 'solid',
     borderColor: colors.accent,
-    backgroundColor: colors.accentSoft,
+    backgroundColor: colors.surface,
   },
   resumeIcon: { fontSize: 22 },
   resumeTitle: { ...typography.bodyStrong, color: colors.textPrimary },
   resumeHint: { ...typography.caption, color: colors.textSecondary, marginTop: 1 },
   ratePanel: {
-    backgroundColor: colors.accentSoft,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.lg,
     gap: spacing.xs,
     marginBottom: spacing.sm,
   },
-  ratePanelTitle: { ...typography.bodyStrong, color: colors.accent },
+  ratePanelTitle: { ...typography.bodyStrong, color: colors.accentInk },
   ratePanelHint: { ...typography.caption, color: colors.textSecondary },
   rateChips: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
   rateChip: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
-    borderRadius: radius.pill,
+    borderRadius: radius.md,
     backgroundColor: colors.background,
     borderWidth: 1,
     borderColor: colors.border,
@@ -819,14 +840,14 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.background,
   },
-  decideLaterActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  decideLaterActive: { borderColor: colors.accent, backgroundColor: colors.surface },
   decideLaterCheck: {
     width: 24,
     height: 24,
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: colors.accent,
-    color: colors.accent,
+    color: colors.accentInk,
     textAlign: 'center',
     lineHeight: 21,
     fontSize: 14,
@@ -839,19 +860,21 @@ const styles = StyleSheet.create({
     width: 160,
     height: 160,
     borderRadius: 80,
-    backgroundColor: colors.accentSoft,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: colors.textMuted,
+    gap: spacing.xs,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   photoImage: { width: '100%', height: '100%' },
-  photoPlaceholder: { ...typography.body, color: colors.accent },
+  photoPlaceholder: { ...typography.bodyStrong, color: colors.textPrimary },
   summaryCard: {
     marginTop: spacing.xs,
     borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.background,
   },
@@ -863,17 +886,17 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   summaryRowBorder: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   summaryLabel: { ...typography.label, color: colors.textSecondary, width: 86 },
   summaryValue: { ...typography.body, color: colors.textPrimary, flex: 1 },
-  summaryEdit: { ...typography.label, color: colors.accent },
+  summaryEdit: { ...typography.label, color: colors.accentInk },
   footer: {
     flexDirection: 'row',
     gap: spacing.md,
     paddingVertical: spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: 1,
     borderTopColor: colors.border,
   },
   doneWrap: { flex: 1, justifyContent: 'center', gap: spacing.md },

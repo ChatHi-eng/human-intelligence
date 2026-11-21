@@ -95,6 +95,7 @@ export default function BookingsScreen() {
         )}
         ListHeaderComponent={
           <SectionHeader
+            level="page"
             title="Your bookings"
             caption={
               isExpert
@@ -124,7 +125,7 @@ export default function BookingsScreen() {
                 ? 'When customers book you, they show up here.'
                 : 'Find an expert from Discover and book your first session.'
             }
-            emoji="📅"
+            icon="calendar"
           />
         }
         contentContainerStyle={styles.list}
@@ -146,14 +147,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: 4,
     backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.pill,
+    borderRadius: radius.md,
     marginTop: spacing.md,
     marginBottom: spacing.sm,
   },
   segItem: {
     flex: 1,
     paddingVertical: spacing.sm,
-    borderRadius: radius.pill,
+    borderRadius: radius.md,
     alignItems: 'center',
   },
   segItemActive: { backgroundColor: colors.background, ...shadowIfy() },

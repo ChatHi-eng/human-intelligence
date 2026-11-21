@@ -707,6 +707,14 @@ test.describe('main pass', () => {
 
     await page.getByText('Add a profile photo').waitFor();
     await shot(page, step(5, 'Photo'), 'apply-5-photo');
+    const photoChooser = page.waitForEvent('filechooser');
+    await page.getByText('Add photo', { exact: true }).click();
+    await (await photoChooser).setFiles({
+      name: 'me.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64'),
+    });
+    await page.getByText('Add photo', { exact: true }).waitFor({ state: 'detached', timeout: 20_000 }).catch(() => undefined);
     await next();
 
     await page.getByText('Before you submit').waitFor();
@@ -813,5 +821,14 @@ test.describe('main pass', () => {
       await page.screenshot({ path: path.join(SHOTS, out), fullPage: true });
       entries.push({ file: out, group, title, route: name === 'index.html' ? 'palamapp.com' : `palamapp.com/${name.replace('.html', '')}` });
     }
+    // The landing page again at desktop width, where the hero sits in two columns.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto(file('index.html'));
+    await page.waitForTimeout(800);
+    counter += 1;
+    const wide = `${String(counter).padStart(3, '0')}-web-index-desktop.png`;
+    await page.screenshot({ path: path.join(SHOTS, wide), fullPage: true });
+    entries.push({ file: wide, group, title: 'Landing page on a computer', route: 'palamapp.com' });
+    await page.setViewportSize({ width: WIDTH, height: HEIGHT });
   });
 });

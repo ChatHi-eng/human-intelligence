@@ -1,8 +1,9 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Avatar } from '@/components/ui/Avatar';
+import { Portrait } from '@/components/ui/Avatar';
+import { Icon } from '@/components/ui/Icon';
 import { MIN_REVIEWS_FOR_RATING } from '@/constants/business';
 import { industryDisplay } from '@/constants/industries';
-import { colors, spacing, typography } from '@/constants/theme';
+import { colors, fonts, radius, spacing, typography } from '@/constants/theme';
 import { nextOpening, openingLabel } from '@/lib/discover';
 import { formatCurrency, formatRating } from '@/lib/format';
 import type { Expert } from '@/types/user';
@@ -12,84 +13,94 @@ export type ExpertCardProps = {
   onPress?: () => void;
 };
 
-// Compact people-row for Discover — face left, essentials right. Optimized for
-// scanning many experts per screen; the full portrait treatment lives on the
-// expert's profile page.
+// The small white tag on a vetted expert's photo. It is Palam's one signature
+// mark, so it appears on photos and nowhere else.
+export const VettedTag = () => (
+  <View style={styles.vetted}>
+    <Icon name="check-circle" size={14} color={colors.accent} />
+    <Text style={styles.vettedText}>Vetted</Text>
+  </View>
+);
+
+// A person on Discover: their photo first and large, then who they are, how
+// they are rated, what a session costs and when they are next free.
 export const ExpertCard = ({ expert, onPress }: ExpertCardProps) => {
   const field = industryDisplay(expert.industryId, expert.industryCustom);
-  const role = [expert.currentTitle, expert.currentCompany].filter(Boolean).join(' at ');
   const opening = nextOpening(expert);
-  // One quiet line of context: who they are and for how long.
-  const context = [role || field?.label, `${expert.yearsExperience} yrs`].filter(Boolean).join(' · ');
+  const context = [expert.currentTitle || field?.label, `${expert.yearsExperience} years`]
+    .filter(Boolean)
+    .join(' · ');
+  const rated = expert.ratingCount >= MIN_REVIEWS_FOR_RATING;
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-    >
-      <Avatar uri={expert.avatarUrl} name={expert.displayName} size={64} />
-      <View style={styles.content}>
-        <View style={styles.nameRow}>
-          <Text style={styles.name} numberOfLines={1}>
-            {expert.displayName}
-          </Text>
-          {expert.verified ? (
-            <Text style={styles.verified} numberOfLines={1}>
-              ✓ Verified
-            </Text>
-          ) : null}
-        </View>
-        <Text style={styles.context} numberOfLines={1}>
-          {context}
-        </Text>
-        <Text style={styles.headline} numberOfLines={2}>
-          {expert.headline}
-        </Text>
-        {expert.introEnabled ? <Text style={styles.intro}>Free 15-minute intro</Text> : null}
-        <Text style={styles.footer} numberOfLines={1}>
-          {expert.ratingCount >= MIN_REVIEWS_FOR_RATING ? (
-            <>
-              <Text style={styles.star}>★ </Text>
-              {formatRating(expert.ratingAverage)} ({expert.ratingCount})
-            </>
-          ) : (
-            <Text style={styles.newLabel}>New on Palam</Text>
-          )}
-          <Text style={styles.dot}> · </Text>
-          {expert.sessionPrice !== null ? (
-            `${formatCurrency(expert.sessionPrice)} per session`
-          ) : (
-            <Text style={styles.newLabel}>Price coming soon</Text>
-          )}
-          <Text style={styles.dot}> · </Text>
-          {opening ? (
-            <Text style={styles.opening}>{openingLabel(opening)}</Text>
-          ) : (
-            <Text style={styles.newLabel}>No open times</Text>
-          )}
-        </Text>
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
+      <View>
+        <Portrait uri={expert.avatarUrl} name={expert.displayName} height={200} />
+        {expert.verified ? <VettedTag /> : null}
       </View>
+      <View style={styles.titleRow}>
+        <Text style={styles.name} numberOfLines={1}>
+          {expert.displayName}
+        </Text>
+        {rated ? (
+          <Text style={styles.rating}>
+            ★ {formatRating(expert.ratingAverage)}{' '}
+            <Text style={styles.muted}>({expert.ratingCount})</Text>
+          </Text>
+        ) : (
+          <Text style={styles.muted}>New on Palam</Text>
+        )}
+      </View>
+      <Text style={styles.line} numberOfLines={1}>
+        {context}
+      </Text>
+      <Text style={styles.line} numberOfLines={2}>
+        {expert.headline}
+      </Text>
+      <Text style={styles.line} numberOfLines={1}>
+        {opening ? openingLabel(opening) : 'No open times'}
+      </Text>
+      <Text style={styles.priceLine} numberOfLines={1}>
+        {expert.sessionPrice !== null ? (
+          <>
+            <Text style={styles.price}>{formatCurrency(expert.sessionPrice)}</Text> per session
+          </>
+        ) : (
+          'Price coming soon'
+        )}
+        {expert.introEnabled ? <Text style={styles.intro}> · Free 15-minute intro</Text> : null}
+      </Text>
     </Pressable>
   );
 };
 
 const styles = StyleSheet.create({
-  row: {
+  card: { gap: 2, paddingBottom: spacing.sm },
+  pressed: { opacity: 0.85 },
+  vetted: {
+    position: 'absolute',
+    top: spacing.md,
+    left: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: spacing.md,
+    gap: spacing.xs,
+    backgroundColor: colors.background,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs + 2,
   },
-  pressed: { opacity: 0.7 },
-  content: { flex: 1, gap: 2 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  name: { ...typography.bodyStrong, color: colors.textPrimary, flexShrink: 1 },
-  verified: { ...typography.label, color: colors.success },
-  context: { ...typography.caption, color: colors.textMuted },
-  headline: { ...typography.caption, color: colors.textSecondary },
-  opening: { ...typography.caption, color: colors.accent },
-  intro: { ...typography.caption, color: colors.success, fontWeight: '700' },
-  footer: { ...typography.caption, color: colors.textPrimary, marginTop: 2 },
-  star: { color: colors.accent },
-  newLabel: { ...typography.caption, color: colors.textMuted },
-  dot: { color: colors.textMuted },
+  vettedText: { ...typography.label, fontFamily: fonts.semiBold, color: colors.textPrimary },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    marginTop: spacing.md,
+  },
+  name: { ...typography.bodyStrong, fontSize: 16, color: colors.textPrimary, flexShrink: 1 },
+  rating: { ...typography.body, color: colors.textPrimary },
+  muted: { ...typography.body, color: colors.textMuted },
+  line: { ...typography.body, color: colors.textSecondary },
+  priceLine: { ...typography.body, color: colors.textPrimary, marginTop: spacing.xs },
+  price: { fontFamily: fonts.semiBold },
+  intro: { fontFamily: fonts.semiBold, color: colors.accentInk },
 });

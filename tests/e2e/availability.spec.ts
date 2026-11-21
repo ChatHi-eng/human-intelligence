@@ -228,7 +228,7 @@ test('expert sets weekly hours in a few taps and shows up as bookable', async ({
   // Discover now shows the expert with their field, role and next opening.
   await page.goto('/');
   await expect(page.getByText('Dana Example')).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText(/Employment Lawyer at Example LLP · 14 yrs/)).toBeVisible();
+  await expect(page.getByText(/Employment Lawyer · 14 years/)).toBeVisible();
   await expect(page.getByText(/Next: /)).toBeVisible();
   await expect(page.getByText('Free 15-minute intro')).toBeVisible();
   // Search matches the field name and needs every word to match.

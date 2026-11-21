@@ -6,7 +6,7 @@
     <title>Palam: Talk to a human who knows.</title>
     <meta
       name="description"
-      content="Every search answers with AI now. Palam is a direct line to real, personally vetted humans on 30-minute paid video calls. Now accepting expert applications."
+      content="Every search answers with AI now. Palam is a direct line to real, personally vetted humans on 30-minute paid video calls."
     />
     <link
       rel="icon"
@@ -15,21 +15,23 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body>
+  <body class="home">
     <header class="site-header">
-      <div class="wrap">
+      <div class="wrap header-row">
         <a class="wordmark" href="index.html">palam</a>
+        <a class="header-link" href="https://app.palamapp.com/login">Sign in</a>
       </div>
     </header>
 
     <main>
       <section class="hero">
-        <div class="wrap">
+        <div class="wrap hero-grid">
+          <div class="hero-copy">
           <h1>Talk to a human who&nbsp;knows.</h1>
           <p class="lede">
             Search anything today and a machine answers. LinkedIn and Reddit are filling up
@@ -47,6 +49,36 @@
             <p class="muted">
               Applying takes about four minutes. A human reads every application.
             </p>
+          </div>
+          </div>
+
+          <!-- A picture of the product, drawn in the page: what an expert looks
+               like in the app. An example, not a real person. -->
+          <div class="preview" aria-hidden="true">
+            <div class="preview-card">
+              <div class="preview-photo">
+                <span class="preview-initials">AM</span>
+                <span class="preview-vetted">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><path d="M22 4 12 14.01l-3-3" /></svg>
+                  Vetted
+                </span>
+              </div>
+              <div class="preview-row">
+                <span class="preview-name">Employment lawyer</span>
+                <span class="preview-muted">14 years</span>
+              </div>
+              <p class="preview-line">Read your severance or job offer with someone who writes them</p>
+              <p class="preview-line">Next: Mon 9:00 AM</p>
+              <p class="preview-price"><strong>$90</strong> per session · <span class="preview-intro">Free 15-minute intro</span></p>
+            </div>
+            <div class="preview-slip">
+              <div>
+                <p class="preview-slip-title">Mon, Nov 23 · 9:00 AM</p>
+                <p class="preview-muted">30-minute video call</p>
+              </div>
+              <span class="preview-book">Book</span>
+            </div>
+            <p class="preview-caption">An example of an expert in the app</p>
           </div>
         </div>
       </section>

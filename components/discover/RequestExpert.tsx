@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
     padding: spacing.lg,
     gap: spacing.md,
@@ -90,7 +90,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     ...typography.body,
     color: colors.textPrimary,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
   },
 });

@@ -84,6 +84,7 @@ export default function SessionSettingsScreen() {
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <SectionHeader
+          level="page"
           title="Session settings"
           caption="Your price, your payouts and when you can be booked."
         />
@@ -156,7 +157,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     ...typography.body,
     color: colors.textPrimary,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
   },
   inputError: { borderColor: colors.danger, borderWidth: 1 },

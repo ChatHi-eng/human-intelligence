@@ -49,7 +49,7 @@ export default function MessagesScreen() {
           <EmptyState
             title="No conversations yet"
             description="Message an expert from their profile, or a customer from a booking."
-            emoji="💬"
+            icon="message-circle"
           />
         }
         contentContainerStyle={styles.list}
@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
   name: { ...typography.bodyStrong, color: colors.textPrimary },
   nameUnread: { color: colors.textPrimary },
   preview: { ...typography.body, color: colors.textMuted, marginTop: 2 },
-  previewUnread: { color: colors.textPrimary, fontWeight: '600' },
+  previewUnread: { color: colors.textPrimary, fontFamily: 'Manrope_600SemiBold' },
   metaCol: { alignItems: 'flex-end', gap: spacing.xs },
   time: { ...typography.caption, color: colors.textMuted },
   unreadDot: {
@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
   },
   separator: {
-    height: StyleSheet.hairlineWidth,
+    height: 1,
     backgroundColor: colors.border,
   },
 });

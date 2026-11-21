@@ -51,7 +51,7 @@ export default function StudioScreen() {
           <EmptyState
             title="Application under review"
             description={`Thanks for applying, ${firstName}. A person on our team reads every application, including your pitch, experience, LinkedIn, and resume. You'll hear back within 2 to 3 days. Once you're approved, your Studio unlocks with availability, bookings, and earnings.`}
-            emoji="⏳"
+            icon="clock"
           />
         </View>
       </Screen>
@@ -64,7 +64,7 @@ export default function StudioScreen() {
           <EmptyState
             title="We couldn't approve your application"
             description="Thanks for your interest in Palam. We weren't able to approve your application this time. If your situation changes, or you think we got it wrong, get in touch and we'll gladly take another look."
-            emoji="💌"
+            icon="mail"
           />
         </View>
       </Screen>
@@ -225,7 +225,7 @@ export default function StudioScreen() {
           <EmptyState
             title="No pending requests"
             description="When a customer books, you'll see it here to accept or decline."
-            emoji="🌤️"
+            icon="sun"
           />
         ) : (
           <View style={{ gap: spacing.md }}>
@@ -240,7 +240,7 @@ export default function StudioScreen() {
           <EmptyState
             title="No calls today"
             description="Enjoy the breather, or open up more availability."
-            emoji="☕"
+            icon="coffee"
           />
         ) : (
           todays.map((b) => (
@@ -418,13 +418,13 @@ const StatCard = ({
   highlight?: boolean;
 }) => (
   <Card style={{ flex: 1 }}>
-    <Text style={[styles.statLabel, highlight && { color: colors.accent }]}>{label}</Text>
+    <Text style={[styles.statLabel, highlight && { color: colors.accentInk }]}>{label}</Text>
     {/* A long amount ("$127.50", "$1,275.50") gets smaller type so it stays
         on one line in the narrow tile instead of breaking mid-number. */}
     <Text
       style={[
         styles.statValue,
-        highlight && { color: colors.accent },
+        highlight && { color: colors.accentInk },
         value.length > 9
           ? { fontSize: 13 }
           : value.length > 7
@@ -484,7 +484,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
     paddingTop: spacing.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: 1,
     borderTopColor: colors.border,
   },
   setupTitle: { ...typography.bodyStrong, color: colors.textPrimary },

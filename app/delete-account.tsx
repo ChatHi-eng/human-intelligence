@@ -32,7 +32,7 @@ export default function DeleteAccountScreen() {
   return (
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <SectionHeader title="Delete your account" caption="This is permanent. There is no undo." />
+        <SectionHeader level="page" title="Delete your account" caption="This is permanent. There is no undo." />
 
         <Text style={styles.body}>
           Deleting your account permanently removes your profile, expert application, bookings,
@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     ...typography.body,
     color: colors.textPrimary,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
   },
   error: { ...typography.caption, color: colors.danger },

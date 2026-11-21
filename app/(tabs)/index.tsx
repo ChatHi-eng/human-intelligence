@@ -15,6 +15,7 @@ import { RequestExpert } from '@/components/discover/RequestExpert';
 import { ExpertList } from '@/components/expert/ExpertList';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Icon, type IconName } from '@/components/ui/Icon';
 import { Screen } from '@/components/ui/Screen';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 
@@ -26,7 +27,7 @@ import {
 } from '@/constants/business';
 import { PHONE_SESSIONS_ENABLED } from '@/constants/featureFlags';
 import { industries } from '@/constants/industries';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { colors, radius, shadow, spacing, typography } from '@/constants/theme';
 import { useExperts, useMyExpertProfile } from '@/hooks/useExperts';
 import { availableWithin, sortExperts, type ExpertSort } from '@/lib/discover';
 import { filterExpertsByQuery } from '@/services/api';
@@ -103,13 +104,19 @@ export default function DiscoverScreen() {
   const showApplyCard = myExpertFetched && !myExpert;
 
   const applyCard = showApplyCard ? (
-    <Pressable onPress={() => router.push('/expert-onboarding')} style={styles.applyCard}>
-      <Text style={styles.applyTitle}>Become an expert</Text>
-      <Text style={styles.applyBody}>
-        Set your own price and get paid for 30-minute video sessions. Applying takes about
-        four minutes.
-      </Text>
-      <Text style={styles.applyCta}>Start your application →</Text>
+    <Pressable
+      onPress={() => router.push('/expert-onboarding')}
+      style={({ pressed }) => [styles.applyCard, pressed && { opacity: 0.85 }]}
+    >
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={styles.applyTitle}>Become an expert</Text>
+        <Text style={styles.applyBody}>
+          Set your own price and get paid for 30-minute video sessions. Applying takes about
+          four minutes.
+        </Text>
+        <Text style={styles.applyCta}>Start your application</Text>
+      </View>
+      <Icon name="chevron-right" size={20} color={colors.textPrimary} />
     </Pressable>
   ) : null;
 
@@ -141,15 +148,12 @@ export default function DiscoverScreen() {
     <Screen>
       {dbIsEmpty ? (
         <View style={{ flex: 1, gap: spacing.md, paddingTop: spacing.lg }}>
-          <SectionHeader
-            title="Talk to a human"
-            caption={DISCOVER_CAPTION}
-          />
+          <SectionHeader level="page" title="Talk to a human" caption={DISCOVER_CAPTION} />
           {applyCard}
           <EmptyState
             title="No experts yet"
             description="Be the first human on Palam. Your application takes about four minutes."
-            emoji="🌱"
+            icon="users"
           />
         </View>
       ) : (
@@ -160,54 +164,57 @@ export default function DiscoverScreen() {
           ListEmptyComponent={<RequestExpert searched={filters.query || undefined} />}
           ListHeaderComponent={
             <View style={styles.header}>
-              <SectionHeader
-                title="Talk to a human"
-                caption={DISCOVER_CAPTION}
-              />
-              {applyCard}
+              <SectionHeader level="page" title="Talk to a human" caption={DISCOVER_CAPTION} />
               <View style={styles.searchRow}>
-                <TextInput
-                  placeholder="Search by expertise, name…"
-                  placeholderTextColor={colors.textMuted}
-                  style={styles.search}
-                  value={filters.query}
-                  onChangeText={(query) => setFilters({ ...filters, query })}
-                  autoCorrect={false}
-                  returnKeyType="search"
-                />
+                <View style={styles.search}>
+                  <Icon name="search" size={18} color={colors.textPrimary} />
+                  <TextInput
+                    placeholder="Search by expertise, name…"
+                    placeholderTextColor={colors.textMuted}
+                    style={styles.searchInput}
+                    value={filters.query}
+                    onChangeText={(query) => setFilters({ ...filters, query })}
+                    autoCorrect={false}
+                    returnKeyType="search"
+                  />
+                </View>
                 <Pressable
                   onPress={() => setFiltersOpen(true)}
+                  accessibilityLabel={
+                    activeFilterCount > 0 ? `Filters, ${activeFilterCount} on` : 'Filters'
+                  }
                   style={[styles.filterButton, activeFilterCount > 0 && styles.filterButtonActive]}
                 >
-                  <Text
-                    style={[
-                      styles.filterText,
-                      activeFilterCount > 0 && styles.filterTextActive,
-                    ]}
-                  >
-                    Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
-                  </Text>
+                  <Icon
+                    name="sliders"
+                    size={18}
+                    color={activeFilterCount > 0 ? '#FFFFFF' : colors.textPrimary}
+                  />
                 </Pressable>
               </View>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.chips}
+                style={styles.chipsRow}
               >
                 <FilterChip
                   label="All"
+                  icon="grid"
                   active={filters.industryId === undefined}
                   onPress={() => setFilters({ ...filters, industryId: undefined })}
                 />
                 {chipIndustries.map((i) => (
                   <FilterChip
                     key={i.id}
-                    label={`${i.emoji}  ${i.label}`}
+                    label={i.label}
+                    icon={i.icon}
                     active={filters.industryId === i.id}
                     onPress={() => setFilters({ ...filters, industryId: i.id })}
                   />
                 ))}
               </ScrollView>
+              {applyCard}
               {showGuided ? <GuidedMatch experts={everyone} onPressExpert={openExpert} /> : null}
               {showOpenRow ? (
                 <ExpertRow
@@ -220,7 +227,7 @@ export default function DiscoverScreen() {
                 ? fieldsWithExperts.map((field) => (
                     <ExpertRow
                       key={field.id}
-                      title={`${field.emoji}  ${field.label}`}
+                      title={field.label}
                       experts={sortExperts(
                         everyone.filter((e) => e.industryId === field.id),
                         'recommended',
@@ -256,19 +263,35 @@ export default function DiscoverScreen() {
   );
 }
 
+// A field to browse by: a line icon over its name, underlined when chosen.
+// Without an icon it is a plain choice chip (used in the filter sheet).
 const FilterChip = ({
   label,
+  icon,
   active,
   onPress,
 }: {
   label: string;
+  icon?: IconName;
   active: boolean;
   onPress: () => void;
-}) => (
-  <Pressable onPress={onPress} style={[chipStyles.chip, active && chipStyles.chipActive]}>
-    <Text style={[chipStyles.text, active && chipStyles.textActive]}>{label}</Text>
-  </Pressable>
-);
+}) =>
+  icon ? (
+    <Pressable
+      onPress={onPress}
+      accessibilityState={{ selected: active }}
+      style={[chipStyles.tab, active && chipStyles.tabActive]}
+    >
+      <Icon name={icon} size={22} color={active ? colors.textPrimary : colors.textMuted} />
+      <Text style={[chipStyles.tabText, active && chipStyles.tabTextActive]} numberOfLines={1}>
+        {label}
+      </Text>
+    </Pressable>
+  ) : (
+    <Pressable onPress={onPress} style={[chipStyles.chip, active && chipStyles.chipActive]}>
+      <Text style={[chipStyles.text, active && chipStyles.textActive]}>{label}</Text>
+    </Pressable>
+  );
 
 const FilterSheet = ({
   visible,
@@ -351,41 +374,60 @@ const FilterSheet = ({
 );
 
 const styles = StyleSheet.create({
-  header: { paddingTop: spacing.lg, gap: spacing.md, marginBottom: spacing.md },
+  header: { paddingTop: spacing.lg, gap: spacing.lg, marginBottom: spacing.lg },
   applyCard: {
-    backgroundColor: colors.accentSoft,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    gap: spacing.xs,
-  },
-  allTitle: { ...typography.heading, color: colors.textPrimary, marginTop: spacing.sm },
-  applyTitle: { ...typography.heading, color: colors.textPrimary },
-  applyBody: { ...typography.body, color: colors.textSecondary },
-  applyCta: { ...typography.bodyStrong, color: colors.accent, marginTop: spacing.xs },
-  searchRow: { flexDirection: 'row', gap: spacing.sm },
-  search: {
-    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    ...typography.body,
-    color: colors.textPrimary,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    padding: spacing.lg,
   },
-  filterButton: {
+  allTitle: { ...typography.heading, color: colors.textPrimary, marginTop: spacing.sm },
+  applyTitle: { ...typography.bodyStrong, fontSize: 16, color: colors.textPrimary },
+  applyBody: { ...typography.caption, color: colors.textSecondary },
+  applyCta: {
+    ...typography.bodyStrong,
+    color: colors.textPrimary,
+    textDecorationLine: 'underline',
+    marginTop: spacing.sm,
+  },
+  searchRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center' },
+  // The search bar is the one floating thing on the screen.
+  search: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    height: 52,
+    backgroundColor: colors.background,
+    borderRadius: radius.pill,
     paddingHorizontal: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadow.floating,
+  },
+  searchInput: {
+    flex: 1,
+    height: 52,
+    ...typography.body,
+    lineHeight: undefined,
+    color: colors.textPrimary,
+    outlineStyle: 'none',
+  } as object,
+  filterButton: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.pill,
+    borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.background,
   },
   filterButtonActive: { backgroundColor: colors.textPrimary, borderColor: colors.textPrimary },
-  filterText: { ...typography.bodyStrong, color: colors.textPrimary },
-  filterTextActive: { color: '#FFFFFF' },
-  chips: { gap: spacing.sm, paddingVertical: spacing.xs },
+  chipsRow: { borderBottomWidth: 1, borderBottomColor: colors.border, marginHorizontal: -spacing.lg },
+  chips: { gap: spacing.xl, paddingHorizontal: spacing.lg },
   sheetBackdrop: { flex: 1, backgroundColor: colors.overlay },
   sheet: {
     backgroundColor: colors.background,
@@ -401,13 +443,25 @@ const styles = StyleSheet.create({
 });
 
 const chipStyles = StyleSheet.create({
-  chip: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surfaceAlt,
+  tab: {
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingBottom: spacing.md - 2,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
   },
-  chipActive: { backgroundColor: colors.textPrimary },
-  text: { ...typography.bodyStrong, color: colors.textPrimary },
-  textActive: { color: '#FFFFFF' },
+  tabActive: { borderBottomColor: colors.textPrimary },
+  tabText: { ...typography.label, fontSize: 12, color: colors.textMuted },
+  tabTextActive: { color: colors.textPrimary },
+  chip: {
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  chipActive: { borderColor: colors.textPrimary, backgroundColor: colors.surface },
+  text: { ...typography.body, color: colors.textPrimary },
+  textActive: { fontFamily: 'Manrope_600SemiBold' },
 });

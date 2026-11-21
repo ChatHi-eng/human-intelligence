@@ -34,7 +34,7 @@ export default function YouScreen() {
 
   return (
     <Screen>
-      <SectionHeader title="You" />
+      <SectionHeader level="page" title="You" />
 
       {/* ---------- Account card ---------- */}
       <Card>
@@ -85,13 +85,13 @@ export default function YouScreen() {
                   {expertProfile.sessionPrice !== null
                     ? `${formatCurrency(expertProfile.sessionPrice)} per session`
                     : 'Price coming soon'}{' '}
-                  · {expertProfile.yearsExperience}y experience
+                  · {expertProfile.yearsExperience} years of experience
                 </Text>
                 <View style={styles.expertBadgeRow}>
                   {expertField && (
-                    <Badge label={`${expertField.emoji}  ${expertField.label}`} tone="neutral" />
+                    <Badge label={expertField.label} icon={expertField.icon} tone="neutral" />
                   )}
-                  {expertProfile.verified && <Badge label="Verified" tone="success" />}
+                  {expertProfile.verified && <Badge label="Vetted" icon="check-circle" tone="success" />}
                   <Badge
                     label={
                       expertProfile.stripeConnectPayoutsEnabled ? 'Payouts on' : 'Payouts pending'
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
   supportLabel: { ...typography.body, color: colors.textPrimary },
   supportEmail: { ...typography.caption, color: colors.textSecondary },
   supportHint: { ...typography.caption, color: colors.textMuted },
-  supportDivider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
+  supportDivider: { height: 1, backgroundColor: colors.border },
   deleteEntry: { alignItems: 'center', paddingVertical: spacing.md, marginTop: spacing.sm },
   deleteEntryPressed: { opacity: 0.6 },
   deleteText: { ...typography.caption, color: colors.danger },

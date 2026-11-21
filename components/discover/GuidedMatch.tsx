@@ -52,7 +52,7 @@ export const GuidedMatch = ({ experts, onPressExpert }: GuidedMatchProps) => {
       {!fieldId ? (
         <View style={styles.chips}>
           {fields.map((f) => (
-            <Chip key={f.id} label={`${f.emoji}  ${f.label}`} onPress={() => pickField(f.id)} />
+            <Chip key={f.id} label={f.label} onPress={() => pickField(f.id)} />
           ))}
         </View>
       ) : !answered ? (
@@ -124,21 +124,23 @@ const Chip = ({ label, onPress }: { label: string; onPress: () => void }) => (
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.accentSoft,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.lg,
     gap: spacing.md,
   },
   title: { ...typography.heading, color: colors.textPrimary },
-  step: { ...typography.label, color: colors.textSecondary },
+  step: { ...typography.body, color: colors.textSecondary },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
     backgroundColor: colors.background,
   },
-  chipText: { ...typography.bodyStrong, color: colors.textPrimary },
+  chipText: { ...typography.body, color: colors.textPrimary },
   match: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -149,6 +151,6 @@ const styles = StyleSheet.create({
   },
   matchName: { ...typography.bodyStrong, color: colors.textPrimary },
   matchReason: { ...typography.caption, color: colors.textSecondary },
-  matchOpening: { ...typography.caption, color: colors.accent, marginTop: 2 },
-  link: { ...typography.caption, color: colors.accent, fontWeight: '700' },
+  matchOpening: { ...typography.caption, color: colors.textPrimary, marginTop: 2 },
+  link: { ...typography.bodyStrong, color: colors.textPrimary, textDecorationLine: 'underline' },
 });

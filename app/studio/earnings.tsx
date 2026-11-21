@@ -27,7 +27,7 @@ export default function ExpertEarningsScreen() {
   return (
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <SectionHeader title="Earnings" caption="What you earned today, this week and this month." />
+        <SectionHeader level="page" title="Earnings" caption="What you earned today, this week and this month." />
         <View style={styles.row}>
           {buckets?.map((b) => (
             <Card key={b.periodLabel} style={{ flex: 1 }}>

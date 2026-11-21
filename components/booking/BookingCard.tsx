@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
-import { colors, radius, shadow, spacing, typography } from '@/constants/theme';
+import { colors, radius, spacing, typography } from '@/constants/theme';
 import { formatDateTime, minutesBetween } from '@/lib/date';
 import { formatCurrency } from '@/lib/format';
 import type { Booking } from '@/types/booking';
@@ -40,7 +40,7 @@ export const BookingCard = ({ booking, expert, viewerIsExpert, onPress }: Bookin
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
       <View style={styles.row}>
-        <Avatar uri={avatar} name={name} />
+        <Avatar uri={avatar} name={name} size={52} />
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={styles.name}>{name}</Text>
           <Text style={styles.meta}>{formatDateTime(booking.slot.startIso)}</Text>
@@ -66,9 +66,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.lg,
     gap: spacing.md,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
-    ...shadow.card,
   },
   pressed: { opacity: 0.92 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
@@ -78,7 +77,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: 1,
     borderTopColor: colors.border,
     paddingTop: spacing.md,
   },

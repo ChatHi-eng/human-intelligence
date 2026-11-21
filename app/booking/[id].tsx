@@ -102,7 +102,7 @@ export default function BookingDetailScreen() {
   if (!booking) {
     return (
       <Screen>
-        <EmptyState title="Booking not found" emoji="🤷" />
+        <EmptyState title="Booking not found" icon="help-circle" />
       </Screen>
     );
   }
@@ -411,7 +411,7 @@ export default function BookingDetailScreen() {
                     ? 'Withdraw request'
                     : 'Cancel booking'
               }
-              variant="danger"
+              variant="dangerQuiet"
               loading={cancelling}
               onPress={() =>
                 cancel(
@@ -530,7 +530,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingVertical: spacing.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: 1,
     borderTopColor: colors.border,
   },
   label: { ...typography.body, color: colors.textSecondary },
@@ -550,7 +550,7 @@ const styles = StyleSheet.create({
   reviewInput: {
     minHeight: 96,
     borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
     padding: spacing.md,
     ...typography.body,

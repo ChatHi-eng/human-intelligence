@@ -91,6 +91,7 @@ export default function ProfileEditScreen() {
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <SectionHeader
+          level="page"
           title="Edit account"
           caption="Basic info. If you're an expert, edit your public expert profile separately."
         />
@@ -154,7 +155,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     ...typography.body,
     color: colors.textPrimary,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
   },
 });

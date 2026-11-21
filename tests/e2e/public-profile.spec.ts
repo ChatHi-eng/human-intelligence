@@ -82,7 +82,7 @@ const mockPublicRoutes = async (page: Page, expertSelects: string[]) => {
 
 test.use({ viewport: { width: 420, height: 900 } });
 
-test('signed-out visitor sees the full profile with the invite-only CTA', async ({ page }) => {
+test('signed-out visitor sees the full profile and an invitation to sign up', async ({ page }) => {
   const expertSelects: string[] = [];
   await mockPublicRoutes(page, expertSelects);
 
@@ -97,8 +97,9 @@ test('signed-out visitor sees the full profile with the invite-only CTA', async 
   await expect(page.getByText('Customer').first()).toBeVisible();
 
   // The Book bar is replaced by the invite-only CTA.
-  await expect(page.getByText('Palam is invite-only for now')).toBeVisible();
-  await expect(page.getByText('Visit palamapp.com')).toBeVisible();
+  // Booking is open, so a signed-out visitor is invited to sign up and book.
+  await expect(page.getByText('Create an account to book')).toBeVisible();
+  await expect(page.getByText('Sign up to book')).toBeVisible();
   await expect(page.getByText('Book session')).toHaveCount(0);
 
   // No redirect to onboarding: the auth guard lets /expert/[id] through.

@@ -55,6 +55,7 @@ export default function AvailabilityScreen() {
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <SectionHeader
+          level="page"
           title="Availability"
           caption="When customers can book 30-minute sessions with you."
         />
@@ -228,7 +229,7 @@ const styles = StyleSheet.create({
   gapChip: {
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
-    borderRadius: radius.pill,
+    borderRadius: radius.md,
     backgroundColor: colors.surfaceAlt,
   },
   gapChipActive: { backgroundColor: colors.textPrimary },

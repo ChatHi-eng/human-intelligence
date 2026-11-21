@@ -205,7 +205,7 @@ export default function ExpertProfileEditScreen() {
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
       >
-        <SectionHeader title={SECTIONS[section].title} caption={SECTIONS[section].caption} />
+        <SectionHeader level="page" title={SECTIONS[section].title} caption={SECTIONS[section].caption} />
 
         {section === 'identity' ? (
           <>
@@ -218,7 +218,7 @@ export default function ExpertProfileEditScreen() {
               {industries.map((i) => (
                 <Chip
                   key={i.id}
-                  label={`${i.emoji} ${i.label}`}
+                  label={i.label}
                   active={industryId === i.id}
                   onPress={() => setIndustryId(i.id)}
                 />
@@ -449,7 +449,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     ...typography.body,
     color: colors.textPrimary,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
   },
   inputError: { borderColor: colors.danger, borderWidth: 1 },
@@ -458,7 +458,7 @@ const styles = StyleSheet.create({
   chip: {
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
+    borderRadius: radius.md,
     backgroundColor: colors.surfaceAlt,
   },
   chipActive: { backgroundColor: colors.textPrimary },
@@ -467,17 +467,17 @@ const styles = StyleSheet.create({
   topicRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   topicChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   topicChip: {
-    backgroundColor: colors.accentSoft,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
   },
-  topicChipText: { ...typography.caption, color: colors.accent },
+  topicChipText: { ...typography.caption, color: colors.accentInk },
   coverPicker: {
     height: 180,
     borderRadius: radius.lg,
     backgroundColor: colors.surfaceAlt,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',

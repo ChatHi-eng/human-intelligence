@@ -87,7 +87,7 @@ export default function BookScreen() {
         <EmptyState
           title="Booking opens soon"
           description="Palam is signing up experts first. You will be able to book sessions here soon."
-          emoji="🌱"
+          icon="users"
         />
       </Screen>
     );
@@ -97,7 +97,7 @@ export default function BookScreen() {
   if (!expert) {
     return (
       <Screen>
-        <EmptyState title="Expert not found" emoji="🤷" />
+        <EmptyState title="Expert not found" icon="help-circle" />
       </Screen>
     );
   }
@@ -107,7 +107,7 @@ export default function BookScreen() {
         <EmptyState
           title="This is your own profile"
           description="You can't book a session with yourself. Share your profile so customers can."
-          emoji="🪞"
+          icon="user"
         />
       </Screen>
     );
@@ -118,7 +118,7 @@ export default function BookScreen() {
         <EmptyState
           title="Not taking bookings right now"
           description={`${expert.displayName} has paused new sessions. Check back soon.`}
-          emoji="⏸️"
+          icon="pause-circle"
         />
       </Screen>
     );
@@ -132,7 +132,7 @@ export default function BookScreen() {
         <EmptyState
           title="Price coming soon"
           description={`${expert.displayName} hasn't set a session price yet. Check back soon. Booking opens the moment they do.`}
-          emoji="🕰️"
+          icon="clock"
         />
       </Screen>
     );
@@ -204,7 +204,7 @@ export default function BookScreen() {
           <EmptyState
             title="No times available"
             description={`${expert.displayName} hasn't opened up their calendar yet. Check back soon.`}
-            emoji="📅"
+            icon="calendar"
           />
         ) : (
           <>
@@ -364,7 +364,7 @@ const styles = StyleSheet.create({
   timeChip: {
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.background,
@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     ...typography.body,
     color: colors.textPrimary,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
   },
 });

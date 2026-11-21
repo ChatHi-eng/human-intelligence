@@ -35,7 +35,7 @@ export const CredentialBadge = ({ credential }: CredentialBadgeProps) => {
 
 const styles = StyleSheet.create({
   container: {
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
     padding: spacing.md,

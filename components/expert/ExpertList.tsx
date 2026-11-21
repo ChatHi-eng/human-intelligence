@@ -2,7 +2,7 @@ import { FlatList, StyleSheet, View } from 'react-native';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { ExpertCard } from '@/components/expert/ExpertCard';
-import { colors, spacing } from '@/constants/theme';
+import { spacing } from '@/constants/theme';
 import type { Expert } from '@/types/user';
 
 export type ExpertListProps = {
@@ -14,8 +14,8 @@ export type ExpertListProps = {
   ListEmptyComponent?: React.ReactElement;
 };
 
-// Dense people-list — compact rows with hairline separators so many experts
-// fit per screen.
+// The list of people on Discover: one photo card after another, with room
+// between them.
 export const ExpertList = ({
   experts,
   isLoading,
@@ -35,7 +35,7 @@ export const ExpertList = ({
         <EmptyState
           title="No experts match"
           description="Try fewer words, another field, or a wider price range."
-          emoji="🔍"
+          icon="search"
         />
         )
       }
@@ -55,9 +55,5 @@ const Separator = () => <View style={styles.separator} />;
 
 const styles = StyleSheet.create({
   content: { paddingBottom: spacing.xxxl },
-  separator: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.border,
-    marginLeft: 64 + spacing.md,
-  },
+  separator: { height: spacing.xl },
 });

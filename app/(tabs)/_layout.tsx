@@ -1,5 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Tabs } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MESSAGING_ENABLED } from '@/constants/featureFlags';
 import { colors, fonts } from '@/constants/theme';
 import { usePendingRequests } from '@/hooks/useBookings';
@@ -9,7 +10,7 @@ type FeatherName = keyof typeof Feather.glyphMap;
 type TabIconProps = { color: string; size: number };
 
 const TabIcon = ({ name, color, size }: TabIconProps & { name: FeatherName }) => (
-  <Feather name={name} size={size - 2} color={color} />
+  <Feather name={name} size={Math.min(size, 22)} color={color} />
 );
 
 export default function TabsLayout() {
@@ -17,21 +18,26 @@ export default function TabsLayout() {
   const { data: pending = [] } = usePendingRequests();
   const isExpert = Boolean(expertProfile);
   const pendingCount = pending.length;
+  const insets = useSafeAreaInsets();
 
   return (
     <Tabs
       screenOptions={{
+        // Each tab opens with its own big title, so the bar above it would
+        // only say the same word twice.
+        headerShown: false,
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textMuted,
+        // Tall enough for the icon and its label; the label was being cut off.
         tabBarStyle: {
           borderTopColor: colors.border,
           backgroundColor: colors.background,
-          paddingTop: 6,
+          height: 60 + insets.bottom,
+          paddingTop: 8,
+          paddingBottom: 8 + insets.bottom,
         },
-        tabBarLabelStyle: { fontFamily: fonts.semiBold, fontSize: 11 },
-        headerShadowVisible: false,
-        headerStyle: { backgroundColor: colors.background },
-        headerTitleStyle: { color: colors.textPrimary, fontFamily: fonts.bold, fontSize: 18 },
+        tabBarLabelStyle: { fontFamily: fonts.medium, fontSize: 11, marginTop: 2 },
+        sceneStyle: { backgroundColor: colors.background, paddingTop: insets.top },
       }}
     >
       <Tabs.Screen

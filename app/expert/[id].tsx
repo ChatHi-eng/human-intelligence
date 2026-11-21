@@ -1,14 +1,14 @@
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { CredentialBadge } from '@/components/expert/CredentialBadge';
 import { ExpertCard } from '@/components/expert/ExpertCard';
-import { Avatar } from '@/components/ui/Avatar';
-import { Badge } from '@/components/ui/Badge';
+import { Avatar, Portrait } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Icon } from '@/components/ui/Icon';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { RatingStars } from '@/components/ui/RatingStars';
 import { Screen } from '@/components/ui/Screen';
@@ -19,15 +19,14 @@ import {
   PHONE_SESSIONS_ENABLED,
 } from '@/constants/featureFlags';
 import { industryDisplay } from '@/constants/industries';
-import { MARKETING_URL } from '@/constants/links';
-import { colors, radius, shadow, spacing, typography } from '@/constants/theme';
+import { colors, fonts, radius, shadow, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useExpert } from '@/hooks/useExperts';
 import { useOpenConversation } from '@/hooks/useMessages';
 import { useReviewsForExpert } from '@/hooks/useReviews';
 import { formatDay } from '@/lib/date';
 import { nextOpening, openingLabel } from '@/lib/discover';
-import { formatCurrency } from '@/lib/format';
+import { formatCurrency, formatRating } from '@/lib/format';
 import { capture } from '@/services/analytics';
 
 // The sections an expert can edit from their own profile. Each opens a small
@@ -61,7 +60,7 @@ export default function ExpertProfileScreen() {
   if (!expert || (expert.status !== 'approved' && user?.id !== expert.id)) {
     return (
       <Screen>
-        <EmptyState title="Expert not found" emoji="🤷" />
+        <EmptyState title="Expert not found" icon="help-circle" />
       </Screen>
     );
   }
@@ -78,6 +77,15 @@ export default function ExpertProfileScreen() {
 
   return (
     <Screen padded={false}>
+      {/* The photo runs to the top of the screen; the way back floats on it. */}
+      <Pressable
+        onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+        style={styles.back}
+        accessibilityLabel="Back"
+        hitSlop={8}
+      >
+        <Icon name="arrow-left" size={20} color={colors.textPrimary} />
+      </Pressable>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <View>
           {expert.coverImageUrl ? (
@@ -88,9 +96,13 @@ export default function ExpertProfileScreen() {
               contentFit="cover"
             />
           ) : (
-            <View style={[styles.cover, styles.coverFallback]}>
-              <Text style={styles.coverEmoji}>{industry?.emoji ?? '🧠'}</Text>
-            </View>
+            // No cover image: the person's own photo is the top of the page.
+            <Portrait
+              uri={expert.avatarUrl}
+              name={expert.displayName}
+              height={300}
+              rounded={false}
+            />
           )}
           {isSelf ? (
             <Pressable
@@ -134,48 +146,77 @@ export default function ExpertProfileScreen() {
           ) : null}
 
           <View style={styles.headerRow}>
-            <Pressable
-              disabled={!isSelf}
-              onPress={() => router.push('/profile-edit')}
-              accessibilityLabel={isSelf ? 'Change your photo' : undefined}
-            >
-              <Avatar uri={expert.avatarUrl} name={expert.displayName} size={64} />
-            </Pressable>
-            <View style={{ flex: 1 }}>
+            {/* With a cover image on top, the face sits beside the name. */}
+            {expert.coverImageUrl ? (
+              <Pressable
+                disabled={!isSelf}
+                onPress={() => router.push('/profile-edit')}
+                accessibilityLabel={isSelf ? 'Change your photo' : undefined}
+              >
+                <Avatar uri={expert.avatarUrl} name={expert.displayName} size={64} />
+              </Pressable>
+            ) : null}
+            <View style={{ flex: 1, gap: 2 }}>
               <Text style={styles.name}>{expert.displayName}</Text>
               {roleLine ? <Text style={styles.roleLine}>{roleLine}</Text> : null}
-              <Text style={styles.headline}>{expert.headline}</Text>
+              {industry ? (
+                <View style={styles.fieldRow}>
+                  <Icon name={industry.icon} size={16} color={colors.textSecondary} />
+                  <Text style={styles.fieldText}>{industry.label}</Text>
+                </View>
+              ) : null}
             </View>
             {isSelf ? <EditLink label="Edit who you are" onPress={() => edit('identity')} /> : null}
           </View>
 
-          <View style={styles.badgeRow}>
-            {industry && <Badge label={`${industry.emoji}  ${industry.label}`} />}
-            {expert.verified && (
+          {/* Three facts people look for first, side by side. */}
+          <View style={styles.stats}>
+            <View style={styles.stat}>
+              {expert.ratingCount >= MIN_REVIEWS_FOR_RATING ? (
+                <>
+                  <Text style={styles.statValue}>★ {formatRating(expert.ratingAverage)}</Text>
+                  <Text style={styles.statLabel}>
+                    {expert.ratingCount} review{expert.ratingCount === 1 ? '' : 's'}
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.statValue}>New</Text>
+                  <Text style={styles.statLabel}>on Palam</Text>
+                </>
+              )}
+            </View>
+            <View style={[styles.stat, styles.statDivided]}>
+              <Text style={styles.statValue}>{expert.yearsExperience}</Text>
+              <Text style={styles.statLabel}>
+                year{expert.yearsExperience === 1 ? '' : 's'} of experience
+              </Text>
+            </View>
+            {expert.verified ? (
               <Pressable
+                style={[styles.stat, styles.statDivided]}
                 onPress={() => setShowVerified((v) => !v)}
-                accessibilityLabel="What verified means"
+                accessibilityLabel="What vetted means"
               >
-                <Badge label="Verified ⓘ" tone="success" />
+                <Icon name="check-circle" size={20} color={colors.accent} />
+                <Text style={[styles.statLabel, styles.statLink]}>Vetted by Palam</Text>
               </Pressable>
-            )}
-            <Badge label={`${expert.yearsExperience}y experience`} tone="accent" />
-            {expert.introEnabled && !expert.paused ? (
-              <Badge label="Free 15-minute intro" tone="success" />
             ) : null}
           </View>
           {showVerified ? (
             <Text style={styles.explainer}>
-              Verified means a person at Palam read this expert&apos;s application and checked
+              Vetted means a person at Palam read this expert&apos;s application and checked
               their LinkedIn profile or resume before they were listed.
             </Text>
           ) : null}
 
-          {expert.ratingCount >= MIN_REVIEWS_FOR_RATING ? (
-            <RatingStars value={expert.ratingAverage} count={expert.ratingCount} size={18} />
-          ) : (
-            <Text style={styles.newHere}>New on Palam</Text>
-          )}
+          <Text style={styles.headline}>{expert.headline}</Text>
+          {expert.introEnabled && !expert.paused ? (
+            <View style={styles.fieldRow}>
+              <Icon name="gift" size={16} color={colors.accentInk} />
+              <Text style={styles.introText}>Free 15-minute intro call</Text>
+            </View>
+          ) : null}
 
           {expert.topics.length > 0 || isSelf ? (
             <>
@@ -183,7 +224,9 @@ export default function ExpertProfileScreen() {
               {expert.topics.length > 0 ? (
                 <View style={styles.badgeRow}>
                   {expert.topics.map((t) => (
-                    <Badge key={t} label={t} tone="accent" />
+                    <View key={t} style={styles.tag}>
+                      <Text style={styles.tagText}>{t}</Text>
+                    </View>
                   ))}
                 </View>
               ) : (
@@ -282,19 +325,36 @@ export default function ExpertProfileScreen() {
       {!user ? (
         <View style={styles.bookBar}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.bookRate}>Palam is invite-only for now</Text>
-            <Text style={styles.bookHint}>Apply as an expert or get the app</Text>
+            <Text style={styles.bookRate}>
+              {expert.sessionPrice !== null ? (
+                <>
+                  {formatCurrency(expert.sessionPrice)}{' '}
+                  <Text style={styles.bookUnit}>per session</Text>
+                </>
+              ) : (
+                'Price coming soon'
+              )}
+            </Text>
+            <Text style={styles.bookHint}>Create an account to book</Text>
           </View>
-          <Button title="Visit palamapp.com" onPress={() => void Linking.openURL(MARKETING_URL)} />
+          <Button
+            title="Sign up to book"
+            onPress={() => router.push({ pathname: '/(auth)/login', params: { mode: 'signup' } })}
+          />
         </View>
       ) : (
         CUSTOMER_BOOKING_ENABLED && (
           <View style={styles.bookBar}>
             <View style={{ flex: 1 }}>
               <Text style={styles.bookRate}>
-                {expert.sessionPrice !== null
-                  ? `${formatCurrency(expert.sessionPrice)} per session`
-                  : 'Price coming soon'}
+                {expert.sessionPrice !== null ? (
+                  <>
+                    {formatCurrency(expert.sessionPrice)}{' '}
+                    <Text style={styles.bookUnit}>per session</Text>
+                  </>
+                ) : (
+                  'Price coming soon'
+                )}
               </Text>
               <Text style={styles.bookHint}>
                 {isSelf
@@ -336,7 +396,7 @@ export default function ExpertProfileScreen() {
               />
             )}
             <Button
-              title={expert.sessionPrice === null && expert.introEnabled ? 'Book intro' : 'Book session'}
+              title={expert.sessionPrice === null && expert.introEnabled ? 'Book intro' : 'Book'}
               onPress={() => router.push({ pathname: '/book/[id]', params: { id: expert.id } })}
               disabled={
                 isSelf ||
@@ -367,13 +427,20 @@ const EditLink = ({ label, onPress }: { label: string; onPress: () => void }) =>
 
 const styles = StyleSheet.create({
   scroll: { paddingBottom: spacing.xxl },
-  cover: { width: '100%', height: 220, backgroundColor: colors.surfaceAlt },
-  coverFallback: {
-    backgroundColor: colors.accentSoft,
+  back: {
+    position: 'absolute',
+    top: spacing.lg,
+    left: spacing.lg,
+    zIndex: 2,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
+    ...shadow.floating,
   },
-  coverEmoji: { fontSize: 72 },
+  cover: { width: '100%', height: 260, backgroundColor: colors.surfaceAlt },
   coverEdit: {
     position: 'absolute',
     right: spacing.md,
@@ -383,10 +450,10 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.md,
   },
-  coverEditText: { ...typography.caption, color: colors.accent, fontWeight: '700' },
-  body: { padding: spacing.lg, gap: spacing.md },
+  coverEditText: { ...typography.label, color: colors.textPrimary },
+  body: { padding: spacing.lg, paddingTop: spacing.xl, gap: spacing.lg },
   ownerCard: {
-    backgroundColor: colors.accentSoft,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.lg,
     gap: spacing.sm,
@@ -400,21 +467,44 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     marginTop: spacing.sm,
   },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  name: { ...typography.title, color: colors.textPrimary },
-  headline: { ...typography.body, color: colors.textSecondary },
-  roleLine: { ...typography.bodyStrong, color: colors.textPrimary },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
+  name: { ...typography.display, fontSize: 28, lineHeight: 34, color: colors.textPrimary },
+  headline: { ...typography.body, fontSize: 16, lineHeight: 24, color: colors.textPrimary },
+  roleLine: { ...typography.body, color: colors.textSecondary },
+  fieldRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  fieldText: { ...typography.body, color: colors.textSecondary },
+  introText: { ...typography.bodyStrong, color: colors.accentInk },
+  stats: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: spacing.lg,
+  },
+  stat: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: spacing.xs },
+  statDivided: { borderLeftWidth: 1, borderLeftColor: colors.border },
+  statValue: { ...typography.heading, color: colors.textPrimary },
+  statLabel: { ...typography.caption, color: colors.textSecondary, textAlign: 'center' },
+  statLink: { textDecorationLine: 'underline' },
   badgeRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
+  tag: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  tagText: { ...typography.body, color: colors.textPrimary },
   explainer: { ...typography.caption, color: colors.textSecondary },
   newHere: { ...typography.caption, color: colors.textMuted },
   sectionHead: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
   },
-  sectionTitle: { ...typography.heading, color: colors.textPrimary },
-  editLink: { ...typography.bodyStrong, color: colors.accent },
+  sectionTitle: { ...typography.heading, fontSize: 20, lineHeight: 26, color: colors.textPrimary },
+  editLink: { ...typography.bodyStrong, color: colors.textPrimary, textDecorationLine: 'underline' },
   prompt: { ...typography.body, color: colors.textMuted },
   bodyText: { ...typography.body, color: colors.textPrimary },
   policy: { ...typography.caption, color: colors.textMuted, marginTop: spacing.lg },
@@ -424,18 +514,18 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: 1,
     borderTopColor: colors.border,
     backgroundColor: colors.background,
-    ...shadow.floating,
   },
   bookRate: { ...typography.heading, color: colors.textPrimary },
+  bookUnit: { ...typography.body, fontFamily: fonts.regular, color: colors.textSecondary },
   bookHint: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
   reviewCard: {
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: spacing.md,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
     gap: spacing.sm,
   },
   reviewHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

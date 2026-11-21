@@ -177,6 +177,18 @@ test('expert application wizard walks all six steps and submits', async ({ page 
 
   // ---- Step 5 · Photo (skippable) ----------------------------------------
   await expect(page.getByText('Add a profile photo')).toBeVisible();
+  // A photo is required. Next is refused without one.
+  await next();
+  await expect(page.getByText('Customers choose a person, so every expert has one.')).toBeVisible();
+  const photoChooser = page.waitForEvent('filechooser');
+  await page.getByText('Add photo', { exact: true }).click();
+  await (await photoChooser).setFiles({
+    name: 'me.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64'),
+  });
+  await expect(page.getByText('Add photo', { exact: true })).toHaveCount(0);
+  await page.waitForTimeout(4500);
   await shot('wizard-5-photo');
   await next();
 

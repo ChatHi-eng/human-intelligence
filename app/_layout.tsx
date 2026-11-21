@@ -1,5 +1,6 @@
 import {
   Manrope_400Regular,
+  Manrope_500Medium,
   Manrope_600SemiBold,
   Manrope_700Bold,
   useFonts,
@@ -20,6 +21,7 @@ import { useAuthStore } from '@/store/authStore';
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     Manrope_400Regular,
+    Manrope_500Medium,
     Manrope_600SemiBold,
     Manrope_700Bold,
   });
@@ -48,8 +50,8 @@ export default function RootLayout() {
                   headerTintColor: colors.textPrimary,
                   headerTitleStyle: {
                     color: colors.textPrimary,
-                    fontFamily: fonts.bold,
-                    fontSize: 18,
+                    fontFamily: fonts.semiBold,
+                    fontSize: 16,
                   },
                 }}
               >
@@ -57,7 +59,7 @@ export default function RootLayout() {
                 <Stack.Screen name="(auth)" options={{ headerShown: false }} />
                 <Stack.Screen
                   name="expert/[id]"
-                  options={{ title: 'Expert', presentation: 'card' }}
+                  options={{ headerShown: false, presentation: 'card' }}
                 />
                 <Stack.Screen
                   name="booking/[id]"
@@ -70,7 +72,7 @@ export default function RootLayout() {
                 <Stack.Screen name="chat/[id]" options={{ title: 'Chat', presentation: 'card' }} />
                 <Stack.Screen
                   name="expert-profile-edit"
-                  options={{ title: 'Edit profile', presentation: 'modal' }}
+                  options={{ title: '', presentation: 'modal' }}
                 />
                 <Stack.Screen
                   name="expert-onboarding"
@@ -78,27 +80,27 @@ export default function RootLayout() {
                 />
                 <Stack.Screen
                   name="profile-edit"
-                  options={{ title: 'Edit account', presentation: 'modal' }}
+                  options={{ title: '', presentation: 'modal' }}
                 />
                 <Stack.Screen
                   name="delete-account"
-                  options={{ title: 'Delete account', presentation: 'modal' }}
+                  options={{ title: '', presentation: 'modal' }}
                 />
                 <Stack.Screen
                   name="studio/calendar"
-                  options={{ title: 'Calendar', presentation: 'card' }}
+                  options={{ title: '', presentation: 'card' }}
                 />
                 <Stack.Screen
                   name="studio/session-settings"
-                  options={{ title: 'Session settings', presentation: 'card' }}
+                  options={{ title: '', presentation: 'card' }}
                 />
                 <Stack.Screen
                   name="studio/availability"
-                  options={{ title: 'Availability', presentation: 'card' }}
+                  options={{ title: '', presentation: 'card' }}
                 />
                 <Stack.Screen
                   name="studio/earnings"
-                  options={{ title: 'Earnings', presentation: 'card' }}
+                  options={{ title: '', presentation: 'card' }}
                 />
                 <Stack.Screen
                   name="auth-callback"
