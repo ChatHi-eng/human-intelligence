@@ -148,7 +148,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     // build) — /expert/[id] renders signed-out; RLS limits anon to approved rows.
     const onPublicExpert = segments[0] === 'expert';
     if (!user && !inAuthGroup && !onAuthCallback && !onPublicExpert) {
-      router.replace('/(auth)/onboarding');
+      router.replace('/(auth)/welcome');
     } else if (user && inAuthGroup) {
       router.replace('/(tabs)');
     }

@@ -24,7 +24,7 @@ export default function DeleteAccountScreen() {
     deleteAccount(undefined, {
       onSuccess: async () => {
         await signOut();
-        router.replace('/(auth)/onboarding');
+        router.replace('/(auth)/welcome');
       },
     });
   };

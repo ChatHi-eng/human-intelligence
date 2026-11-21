@@ -93,7 +93,7 @@ test('sign out is in view on the You tab, asks once, then signs out', async ({ p
   await buttons.last().click();
   await expect(page.getByText('Sign out?', { exact: true })).toBeVisible();
   await page.getByText('Sign out', { exact: true }).last().click();
-  await expect(page).toHaveURL(/onboarding/, { timeout: 30_000 });
+  await expect(page).toHaveURL(/welcome/, { timeout: 30_000 });
   const stored = await page.evaluate((key) => window.localStorage.getItem(key), `sb-${ref}-auth-token`);
   expect(stored).toBeNull();
 });

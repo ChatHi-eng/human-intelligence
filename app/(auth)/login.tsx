@@ -1,5 +1,5 @@
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 import * as WebBrowser from 'expo-web-browser';
@@ -17,6 +17,15 @@ type Stage = 'enter-email' | 'enter-code';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
+  // Creating an account and signing in are the same step underneath (an
+  // emailed code; a new email gets an account). The welcome screen offers
+  // both, and this screen words itself to match the one that was chosen.
+  const params = useLocalSearchParams<{ mode?: string }>();
+  const [creating, setCreating] = useState(params.mode === 'signup');
+  useEffect(() => {
+    navigation.setOptions({ title: creating ? 'Create account' : 'Sign in' });
+  }, [navigation, creating]);
   const { signInWithMagicLink, verifyEmailOtp, configError } = useAuth();
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -116,8 +125,8 @@ export default function LoginScreen() {
           <Text style={styles.emoji}>📬</Text>
           <Text style={styles.title}>Enter your code</Text>
           <Text style={styles.caption}>
-            We emailed a sign-in code to <Text style={styles.bold}>{email}</Text>. It may take a
-            minute to arrive.
+            We emailed a code to <Text style={styles.bold}>{email}</Text>. It may take a minute to
+            arrive.
           </Text>
           <TextInput
             placeholder="Enter code"
@@ -129,7 +138,12 @@ export default function LoginScreen() {
             autoFocus
             style={[styles.input, styles.codeInput]}
           />
-          <Button title="Verify and sign in" onPress={onVerify} loading={verifying} fullWidth />
+          <Button
+            title={creating ? 'Verify and create account' : 'Verify and sign in'}
+            onPress={onVerify}
+            loading={verifying}
+            fullWidth
+          />
           <Button
             title="Resend code"
             variant="ghost"
@@ -151,10 +165,13 @@ export default function LoginScreen() {
   return (
     <Screen>
       <View style={styles.container}>
-        <Text style={styles.title}>Sign in or create account</Text>
+        <Text style={styles.title}>{creating ? 'Create your account' : 'Sign in'}</Text>
         <Text style={styles.caption}>
-          Enter your email and we&apos;ll send you a sign-in code. New here? The code signs you in
-          and creates your account at the same time.
+          {creating
+            ? `Enter your email and we'll send you a code. There is no password to set up.${
+                CUSTOMER_BOOKING_ENABLED ? '' : ' Your expert application starts right after.'
+              }`
+            : "Enter the email you signed up with and we'll send you a sign-in code."}
         </Text>
         <TextInput
           placeholder="you@example.com"
@@ -167,6 +184,12 @@ export default function LoginScreen() {
           style={styles.input}
         />
         <Button title="Send code" onPress={onSendCode} loading={sending} fullWidth />
+        <Button
+          title={creating ? 'I already have an account' : 'New here? Create an account'}
+          variant="ghost"
+          onPress={() => setCreating((c) => !c)}
+          fullWidth
+        />
         <Text style={styles.legal}>
           By continuing you agree to Palam&apos;s{' '}
           <Text
@@ -184,7 +207,12 @@ export default function LoginScreen() {
           </Text>
           .
         </Text>
-        <Button title="Back" variant="ghost" onPress={() => router.back()} fullWidth />
+        <Button
+          title="Back"
+          variant="ghost"
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(auth)/welcome'))}
+          fullWidth
+        />
       </View>
     </Screen>
   );
