@@ -419,7 +419,23 @@ const StatCard = ({
 }) => (
   <Card style={{ flex: 1 }}>
     <Text style={[styles.statLabel, highlight && { color: colors.accent }]}>{label}</Text>
-    <Text style={[styles.statValue, highlight && { color: colors.accent }]}>{value}</Text>
+    {/* A long amount ("$127.50", "$1,275.50") gets smaller type so it stays
+        on one line in the narrow tile instead of breaking mid-number. */}
+    <Text
+      style={[
+        styles.statValue,
+        highlight && { color: colors.accent },
+        value.length > 9
+          ? { fontSize: 13 }
+          : value.length > 7
+            ? { fontSize: 15 }
+            : value.length > 5
+              ? { fontSize: 18 }
+              : null,
+      ]}
+    >
+      {value}
+    </Text>
     {caption ? <Text style={styles.statCaption}>{caption}</Text> : null}
   </Card>
 );

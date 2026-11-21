@@ -600,7 +600,11 @@ serve(async (req) => {
           [
             p(`Hi ${customerName},`),
             p(
-              booking.decline_reason === 'time'
+              // A session that was already confirmed was cancelled, not
+              // declined: the customer had it in their calendar.
+              old?.status === 'confirmed'
+                ? `${expertName} had to cancel your session. We're sorry, we know you had planned around it.`
+                : booking.decline_reason === 'time'
                 ? `${expertName} could not do the time you picked.`
                 : booking.decline_reason === 'not_a_fit'
                   ? `${expertName} read your request and felt it was outside what they can help with.`
