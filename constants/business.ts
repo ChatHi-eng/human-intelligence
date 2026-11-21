@@ -47,3 +47,8 @@ export const PLATFORM_FEE_DISPLAY_PCT = Math.round(PLATFORM_FEE_PCT * 100);
 // people listed for it to look like a marketplace. With one or two it reads
 // as odd (owner's call, 2026-11-21), so below this number it shows none.
 export const WELCOME_FACES_MIN_EXPERTS = 12;
+
+// Discover's row of fields to browse by only helps when there are several to
+// choose between. With experts in one or two fields it showed a single odd
+// option, so below this number of fields the search bar stands alone.
+export const FIELD_FILTER_MIN_FIELDS = 3;

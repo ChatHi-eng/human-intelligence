@@ -17,6 +17,14 @@ import { useExperts } from '@/hooks/useExperts';
 //
 // Once enough experts are listed, the top shows three of them, read from the
 // same public list Discover uses. Until then the words stand alone.
+// The kind of thing people bring to a session, one from each corner of the
+// fields named in the pitch below.
+const QUESTIONS = [
+  'Should I sign this severance offer?',
+  "Is this contractor's quote fair?",
+  'How do I get my first design job?',
+];
+
 export default function WelcomeScreen() {
   const router = useRouter();
   const { data: experts } = useExperts({});
@@ -55,7 +63,17 @@ export default function WelcomeScreen() {
               </View>
             ))}
           </View>
-        ) : null}
+        ) : (
+          // Before there are enough experts to show, the top shows what people
+          // come here to ask, set like messages.
+          <View style={styles.questions} accessibilityLabel="Examples of questions people bring">
+            {QUESTIONS.map((q, i) => (
+              <View key={q} style={[styles.bubble, i % 2 === 1 && styles.bubbleRight]}>
+                <Text style={styles.bubbleText}>{q}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
         <View style={styles.words}>
           <Text style={styles.title}>Talk to a human who knows.</Text>
@@ -126,6 +144,18 @@ const styles = StyleSheet.create({
   faceSolo: { maxWidth: 200 },
   faceName: { ...typography.bodyStrong, color: colors.textPrimary, marginTop: spacing.sm },
   faceRole: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.xs },
+  questions: { gap: spacing.sm, alignItems: 'flex-start' },
+  // A message bubble: rounded, with the corner nearest the speaker left tight.
+  bubble: {
+    maxWidth: '88%',
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    borderBottomLeftRadius: 6,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
+  bubbleRight: { alignSelf: 'flex-end', borderBottomLeftRadius: 20, borderBottomRightRadius: 6 },
+  bubbleText: { ...typography.body, fontSize: 16, lineHeight: 22, color: colors.textPrimary },
   words: { gap: spacing.md },
   title: { ...typography.display, fontSize: 34, lineHeight: 40, color: colors.textPrimary },
   body: { ...typography.body, fontSize: 16, lineHeight: 24, color: colors.textSecondary },

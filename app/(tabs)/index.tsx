@@ -21,6 +21,7 @@ import { SectionHeader } from '@/components/ui/SectionHeader';
 
 import {
   AVAILABLE_ROW_MIN_EXPERTS,
+  FIELD_FILTER_MIN_FIELDS,
   FIELD_ROWS_MIN_EXPERTS,
   GUIDED_MATCH_MIN_EXPERTS,
   MIN_REVIEWS_FOR_RATING,
@@ -192,6 +193,7 @@ export default function DiscoverScreen() {
                   />
                 </Pressable>
               </View>
+              {chipIndustries.length >= FIELD_FILTER_MIN_FIELDS ? (
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -214,6 +216,7 @@ export default function DiscoverScreen() {
                   />
                 ))}
               </ScrollView>
+              ) : null}
               {applyCard}
               {showGuided ? <GuidedMatch experts={everyone} onPressExpert={openExpert} /> : null}
               {showOpenRow ? (

@@ -2,7 +2,7 @@ import { FlatList, StyleSheet, View } from 'react-native';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { ExpertCard } from '@/components/expert/ExpertCard';
-import { spacing } from '@/constants/theme';
+import { colors, spacing } from '@/constants/theme';
 import type { Expert } from '@/types/user';
 
 export type ExpertListProps = {
@@ -14,8 +14,7 @@ export type ExpertListProps = {
   ListEmptyComponent?: React.ReactElement;
 };
 
-// The list of people on Discover: one photo card after another, with room
-// between them.
+// The list of people on Discover: one person per row, photo on the left.
 export const ExpertList = ({
   experts,
   isLoading,
@@ -55,5 +54,5 @@ const Separator = () => <View style={styles.separator} />;
 
 const styles = StyleSheet.create({
   content: { paddingBottom: spacing.xxxl },
-  separator: { height: spacing.xl },
+  separator: { height: 1, backgroundColor: colors.border, marginVertical: spacing.lg },
 });

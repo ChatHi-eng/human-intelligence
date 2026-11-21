@@ -77,7 +77,7 @@ export default function ExpertProfileScreen() {
 
   return (
     <Screen padded={false}>
-      {/* The photo runs to the top of the screen; the way back floats on it. */}
+      {/* The way back floats at the top, over the cover image when there is one. */}
       <Pressable
         onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
         style={styles.back}
@@ -96,13 +96,9 @@ export default function ExpertProfileScreen() {
               contentFit="cover"
             />
           ) : (
-            // No cover image: the person's own photo is the top of the page.
-            <Portrait
-              uri={expert.avatarUrl}
-              name={expert.displayName}
-              height={300}
-              rounded={false}
-            />
+            // No cover image: leave room for the back button. The person's
+            // photo sits beside their name below, whole and square.
+            <View style={styles.noCover} />
           )}
           {isSelf ? (
             <Pressable
@@ -146,16 +142,16 @@ export default function ExpertProfileScreen() {
           ) : null}
 
           <View style={styles.headerRow}>
-            {/* With a cover image on top, the face sits beside the name. */}
-            {expert.coverImageUrl ? (
-              <Pressable
-                disabled={!isSelf}
-                onPress={() => router.push('/profile-edit')}
-                accessibilityLabel={isSelf ? 'Change your photo' : undefined}
-              >
-                <Avatar uri={expert.avatarUrl} name={expert.displayName} size={64} />
-              </Pressable>
-            ) : null}
+            {/* Profile photos are square, so the photo is shown square and
+                whole, never stretched across the screen. */}
+            <Pressable
+              disabled={!isSelf}
+              onPress={() => router.push('/profile-edit')}
+              accessibilityLabel={isSelf ? 'Change your photo' : undefined}
+              style={styles.photo}
+            >
+              <Portrait uri={expert.avatarUrl} name={expert.displayName} height={PROFILE_PHOTO} />
+            </Pressable>
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={styles.name}>{expert.displayName}</Text>
               {roleLine ? <Text style={styles.roleLine}>{roleLine}</Text> : null}
@@ -412,6 +408,9 @@ export default function ExpertProfileScreen() {
   );
 }
 
+// The size of the photo beside the name at the top of a profile.
+const PROFILE_PHOTO = 120;
+
 const SectionHead = ({ title, onEdit }: { title: string; onEdit?: () => void }) => (
   <View style={styles.sectionHead}>
     <Text style={styles.sectionTitle}>{title}</Text>
@@ -467,8 +466,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     marginTop: spacing.sm,
   },
-  headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
-  name: { ...typography.display, fontSize: 28, lineHeight: 34, color: colors.textPrimary },
+  noCover: { height: 56 },
+  photo: { width: PROFILE_PHOTO, height: PROFILE_PHOTO },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
+  name: { ...typography.title, color: colors.textPrimary },
   headline: { ...typography.body, fontSize: 16, lineHeight: 24, color: colors.textPrimary },
   roleLine: { ...typography.body, color: colors.textSecondary },
   fieldRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
