@@ -20,7 +20,7 @@ import { useExperts } from '@/hooks/useExperts';
 // The kind of thing people bring to a session, one from each corner of the
 // fields named in the pitch below.
 const QUESTIONS = [
-  'Should I sign this severance offer?',
+  'How do I start my own clothing brand?',
   "Is this contractor's quote fair?",
   'How do I get my first design job?',
 ];
