@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Portrait } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
@@ -24,7 +24,13 @@ export default function WelcomeScreen() {
 
   return (
     <Screen>
-      <View style={styles.container}>
+      {/* Scrolls when a short phone cannot fit it all; otherwise the actions
+          rest at the bottom. */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.container}
+        style={styles.scroller}
+      >
         <Text style={styles.wordmark}>palam</Text>
 
         {faces.length > 0 ? (
@@ -38,7 +44,7 @@ export default function WelcomeScreen() {
                   faces.length === 1 && styles.faceSolo,
                 ]}
               >
-                <Portrait uri={e.avatarUrl} name={e.displayName} height={faces.length === 1 ? 200 : 140} />
+                <Portrait uri={e.avatarUrl} name={e.displayName} height={faces.length === 1 ? 160 : 140} />
                 <Text style={styles.faceName} numberOfLines={1}>
                   {e.displayName}
                 </Text>
@@ -82,7 +88,7 @@ export default function WelcomeScreen() {
             With one account you can book a session or apply as an expert.
           </Text>
         </View>
-      </View>
+      </ScrollView>
     </Screen>
   );
 }
@@ -90,11 +96,10 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   // Wordmark at the top, the actions within thumb reach at the bottom, and
   // the pitch between them. Capped so it does not stretch on a wide window.
+  scroller: { flex: 1, width: '100%', maxWidth: 480, alignSelf: 'center' },
   container: {
-    flex: 1,
-    width: '100%',
-    maxWidth: 480,
-    alignSelf: 'center',
+    flexGrow: 1,
+    justifyContent: 'space-between',
     paddingTop: spacing.xl,
     paddingBottom: spacing.xl,
     gap: spacing.xl,
@@ -117,10 +122,10 @@ const styles = StyleSheet.create({
     ...shadow.floating,
   },
   faceRaised: { marginTop: spacing.xl },
-  faceSolo: { maxWidth: 220 },
+  faceSolo: { maxWidth: 200 },
   faceName: { ...typography.bodyStrong, color: colors.textPrimary, marginTop: spacing.sm },
   faceRole: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.xs },
-  words: { gap: spacing.md, flex: 1, justifyContent: 'center' },
+  words: { gap: spacing.md },
   title: { ...typography.display, fontSize: 34, lineHeight: 40, color: colors.textPrimary },
   body: { ...typography.body, fontSize: 16, lineHeight: 24, color: colors.textSecondary },
   expertLine: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
