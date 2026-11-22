@@ -113,6 +113,39 @@ export const signInWithMagicLink = async (email: string): Promise<void> => {
   if (error) throw error;
 };
 
+// ---------- Sign in with Google or Apple ----------
+
+export type OAuthProvider = 'google' | 'apple';
+
+// Which one-tap sign-ins are switched on, read from the project's public auth
+// settings. The buttons only appear for providers the owner has enabled in
+// the Supabase dashboard, so switching one on needs no new build.
+export const fetchEnabledOAuthProviders = async (): Promise<OAuthProvider[]> => {
+  if (!url || !anonKey) return [];
+  try {
+    const res = await fetch(`${url}/auth/v1/settings`, { headers: { apikey: anonKey } });
+    if (!res.ok) return [];
+    const settings = (await res.json()) as { external?: Record<string, boolean> };
+    return (['google', 'apple'] as const).filter((p) => settings.external?.[p] === true);
+  } catch {
+    return [];
+  }
+};
+
+// Sends the browser to Google or Apple. They send it back to /auth-callback
+// with a code, which that screen exchanges for a session (the same path the
+// emailed link uses). Web only for now: the phone app will need its own
+// native sign-in sheet.
+export const signInWithProvider = async (provider: OAuthProvider): Promise<void> => {
+  const sb = getSupabase();
+  if (!sb) throw new Error('Supabase is not configured');
+  const { error } = await sb.auth.signInWithOAuth({
+    provider,
+    options: { redirectTo: authRedirectUrl() },
+  });
+  if (error) throw error;
+};
+
 export const exchangeCodeForSession = async (code: string): Promise<void> => {
   const sb = getSupabase();
   if (!sb) throw new Error('Supabase is not configured');

@@ -993,13 +993,15 @@ export type NotificationPrefs = {
   smsReminders: boolean;
   // E.164, e.g. +14155550123. Private: only the owner can read it.
   phone: string | null;
+  // true once the number was proven with a texted code (migration 0028).
+  phoneVerified?: boolean;
 };
 
 // No row yet means the defaults: email on, texts off.
 export const fetchMyNotificationPrefs = async (userId: string): Promise<NotificationPrefs> => {
   const { data, error } = await sb()
     .from('notification_prefs')
-    .select('email_reminders, sms_reminders, phone')
+    .select('email_reminders, sms_reminders, phone, phone_verified_at')
     .eq('user_id', userId)
     .maybeSingle();
   if (error) throw error;
@@ -1007,7 +1009,40 @@ export const fetchMyNotificationPrefs = async (userId: string): Promise<Notifica
     emailReminders: data?.email_reminders ?? true,
     smsReminders: data?.sms_reminders ?? false,
     phone: data?.phone ?? null,
+    phoneVerified: Boolean(data?.phone && data?.phone_verified_at),
   };
+};
+
+// ---------- Verified mobile number (migration 0028) ----------
+
+export type AppConfig = {
+  // While true, a customer needs a verified mobile number to book.
+  phoneVerificationRequired: boolean;
+};
+
+// The owner's switches. If they cannot be read, nothing extra is required:
+// the database still enforces the rule, so this only decides what to show.
+export const fetchAppConfig = async (): Promise<AppConfig> => {
+  const { data, error } = await sb()
+    .from('app_config')
+    .select('phone_verification_required')
+    .maybeSingle();
+  if (error) return { phoneVerificationRequired: false };
+  return { phoneVerificationRequired: Boolean(data?.phone_verification_required) };
+};
+
+export const sendPhoneCode = async (phone: string): Promise<void> => {
+  const { error } = await sb().functions.invoke('verify-phone', {
+    body: { action: 'send', phone },
+  });
+  if (error) throw new Error(await functionErrorMessage(error));
+};
+
+export const checkPhoneCode = async (phone: string, code: string): Promise<void> => {
+  const { error } = await sb().functions.invoke('verify-phone', {
+    body: { action: 'check', phone, code },
+  });
+  if (error) throw new Error(await functionErrorMessage(error));
 };
 
 export const saveMyNotificationPrefs = async (

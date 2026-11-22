@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 import * as WebBrowser from 'expo-web-browser';
+import { SocialSignIn } from '@/components/account/SocialSignIn';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Screen } from '@/components/ui/Screen';
@@ -160,6 +161,7 @@ export default function LoginScreen() {
             ? "Enter your email and we'll send you a code. There is no password to set up."
             : "Enter the email you signed up with and we'll send you a sign-in code."}
         </Text>
+        <SocialSignIn />
         <TextInput
           placeholder="you@example.com"
           placeholderTextColor={colors.textMuted}

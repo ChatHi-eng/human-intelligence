@@ -1,7 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  checkPhoneCode,
+  fetchAppConfig,
   fetchMyNotificationPrefs,
   saveMyNotificationPrefs,
+  sendPhoneCode,
   type NotificationPrefs,
 } from '@/services/api';
 import { capture } from '@/services/analytics';
@@ -29,6 +32,33 @@ export const useSaveNotificationPrefs = () => {
         email: prefs.emailReminders,
         sms: prefs.smsReminders,
       });
+      void qc.invalidateQueries({ queryKey: ['notification-prefs'] });
+    },
+  });
+};
+
+// The owner's switches (is a verified mobile number needed to book?).
+export const useAppConfig = () =>
+  useQuery({
+    queryKey: ['app-config'],
+    queryFn: fetchAppConfig,
+    staleTime: 5 * 60_000,
+  });
+
+// Texting a code to a number, then checking the code the person typed. A
+// successful check saves the number as verified on the server.
+export const useSendPhoneCode = () =>
+  useMutation({
+    mutationFn: (phone: string) => sendPhoneCode(phone),
+    onSuccess: () => capture('phone_code_sent'),
+  });
+
+export const useCheckPhoneCode = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ phone, code }: { phone: string; code: string }) => checkPhoneCode(phone, code),
+    onSuccess: () => {
+      capture('phone_verified');
       void qc.invalidateQueries({ queryKey: ['notification-prefs'] });
     },
   });

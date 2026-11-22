@@ -2,6 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Toast from 'react-native-toast-message';
+import { PhoneVerify } from '@/components/account/PhoneVerify';
 import { PaymentSheet } from '@/components/booking/PaymentSheet';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
@@ -14,6 +15,7 @@ import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useCreateBooking, useExpertBusyTimes, useMyBookings } from '@/hooks/useBookings';
 import { useExpert } from '@/hooks/useExperts';
+import { useAppConfig, useNotificationPrefs } from '@/hooks/useNotificationPrefs';
 import { formatTime } from '@/lib/date';
 import { introWindows, noticeMinutesFor, sessionWindows } from '@/lib/discover';
 import { formatCurrency } from '@/lib/format';
@@ -41,6 +43,11 @@ export default function BookScreen() {
   const { mutate: book, isPending } = useCreateBooking();
   const { data: myBookings } = useMyBookings();
   const [chosenKind, setChosenKind] = useState<BookingKind>('session');
+  // A verified mobile number is needed before a first booking, once the
+  // owner has switched that on. After that it is on file and never asked again.
+  const { data: config } = useAppConfig();
+  const { data: prefs } = useNotificationPrefs();
+  const needsPhone = Boolean(config?.phoneVerificationRequired) && !prefs?.phoneVerified;
 
   // One free intro per customer per expert (the database enforces it too).
   const hadIntro = (myBookings ?? []).some(
@@ -297,7 +304,11 @@ export default function BookScreen() {
             />
 
             <View style={{ marginTop: spacing.lg }}>
-              {isIntro ? (
+              {needsPhone ? (
+                <PhoneVerify
+                  reason="One last step before you book. Palam uses it to reach you if plans change. It is not shown to the expert, and you only do this once."
+                />
+              ) : isIntro ? (
                 <View style={{ gap: spacing.md }}>
                   <Text style={styles.zoneNote}>
                     {expert.autoAccept

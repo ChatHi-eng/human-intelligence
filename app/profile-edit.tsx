@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Toast from 'react-native-toast-message';
+import { PhoneVerify } from '@/components/account/PhoneVerify';
 import { ReminderSettings } from '@/components/account/ReminderSettings';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
@@ -11,11 +12,14 @@ import { Screen } from '@/components/ui/Screen';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
+import { useAppConfig, useNotificationPrefs } from '@/hooks/useNotificationPrefs';
 import { useMyProfile, useUpdateMyProfile, useUploadImage } from '@/hooks/useProfile';
 
 export default function ProfileEditScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { data: config } = useAppConfig();
+  const { data: prefs } = useNotificationPrefs();
   const { data: profile, isLoading } = useMyProfile();
   const { mutate: update, isPending: saving } = useUpdateMyProfile();
   const { mutateAsync: upload, isPending: uploading } = useUploadImage();
@@ -132,6 +136,12 @@ export default function ProfileEditScreen() {
         />
         <Button title="Cancel" variant="ghost" onPress={() => router.back()} fullWidth />
 
+        {config?.phoneVerificationRequired || prefs?.phoneVerified ? (
+          <PhoneVerify
+            verifiedPhone={prefs?.phoneVerified ? prefs.phone : null}
+            reason="Palam uses it to reach you if plans change. It is not shown to anyone else."
+          />
+        ) : null}
         <ReminderSettings userId={user.id} />
       </ScrollView>
     </Screen>

@@ -317,6 +317,18 @@ How it runs: migration `0019_reminders.sql` creates the tables. A `pg_cron` job 
 
 To check it: Supabase, Database, Cron shows the job, and Edge Functions, `send-reminders`, Logs shows each run.
 
+## Sign-in with Google or Apple
+
+The sign-in screen shows "Continue with Google" / "Continue with Apple" above the email field for whichever providers are enabled in Supabase (Authentication → Sign In / Providers). The app reads the project's public auth settings, so enabling a provider needs no new build. Web only for now; the phone app will need a native sign-in sheet. The redirect address  must be in Supabase's allowed redirect URLs.
+
+## Verified mobile number before a first booking
+
+Migration 0028 and the  function. A customer proves a mobile number once, with a code texted by Twilio Verify, before their first booking; the number is kept privately in  and is never shown to experts.
+
+- Secrets (Supabase → Edge Functions → Secrets): , , .
+- The requirement is **off** until switched on, because nobody can pass a check that cannot send its code:
+  - While on, the booking screen asks for the number first and the database refuses a booking from a customer without a verified one.
+
 ## Account deletion
 
 Google Play requires apps with sign-up to offer in-app account deletion. The flow lives on the **You** tab → "Delete account": the user types DELETE, the `delete-account` Edge Function verifies them, refuses if they still have an upcoming/active booking, and otherwise deletes the auth user — the schema's `on delete cascade` chain removes the profile, expert application, bookings, reviews, and messages. Stripe is never touched: an expert's Connect account stays theirs.
