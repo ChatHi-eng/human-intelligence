@@ -92,7 +92,7 @@ export default function DiscoverScreen() {
   // list never shows as a row of empty categories.
   const { data: allExperts } = useExperts({});
   const chipIndustries = industries.filter((i) =>
-    (allExperts ?? []).some((e) => e.industryId === i.id),
+    (allExperts ?? []).some((e) => e.industryIds.includes(i.id)),
   );
   // Sorting or filtering by rating is pointless until someone has enough
   // reviews for a star average to show.
@@ -232,7 +232,7 @@ export default function DiscoverScreen() {
                       key={field.id}
                       title={field.label}
                       experts={sortExperts(
-                        everyone.filter((e) => e.industryId === field.id),
+                        everyone.filter((e) => e.industryIds.includes(field.id)),
                         'recommended',
                       )}
                       onPressExpert={openExpert}

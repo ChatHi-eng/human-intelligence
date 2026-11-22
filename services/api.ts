@@ -2,7 +2,7 @@
 // these functions are the only place that knows about the Supabase row shape.
 // If we ever swap the backend, only this file changes.
 import { getSupabase } from './supabase';
-import { industryDisplay } from '@/constants/industries';
+import { industryLabels } from '@/constants/industries';
 import type {
   AvailabilityDate,
   AvailabilityKind,
@@ -50,7 +50,9 @@ type ExpertProfileRow = {
   status: ExpertStatus;
   linkedin_url: string | null;
   industry_id: string;
+  industry_ids?: string[] | null;
   industry_custom?: string | null;
+  location?: string | null;
   current_title?: string | null;
   current_company?: string | null;
   topics?: string[] | null;
@@ -188,7 +190,13 @@ const mapExpert = (row: ExpertWithRelations): Expert | null => {
     avatarUrl: row.profiles.avatar_url,
     bio: row.profiles.bio,
     industryId: row.industry_id,
+    // Main field first. Rows from before migration 0027 only have the one.
+    industryIds: [
+      row.industry_id,
+      ...(row.industry_ids ?? []).filter((id) => id !== row.industry_id),
+    ],
     industryCustom: row.industry_custom ?? null,
+    location: row.location ?? null,
     currentTitle: row.current_title ?? null,
     currentCompany: row.current_company ?? null,
     topics: row.topics ?? [],
@@ -250,7 +258,7 @@ const mapReview = (row: ReviewRow): Review => ({
 
 // Shared select string for Expert + relations.
 const EXPERT_SELECT = `
-  profile_id, status, linkedin_url, industry_id, industry_custom, current_title, current_company,
+  profile_id, status, linkedin_url, industry_id, industry_ids, industry_custom, location, current_title, current_company,
   topics, timezone, paused, buffer_minutes, auto_accept, intro_enabled, intro_weekly_limit, headline, hourly_rate_cents, years_experience,
   verified, cover_image_url, rating_average, rating_count, how_i_can_help,
   stripe_connect_account_id, stripe_connect_payouts_enabled, created_at, updated_at,
@@ -369,7 +377,8 @@ export const fetchExperts = async (filters: ExpertsFilters = {}): Promise<Expert
     // Paused experts keep their profile but leave the list.
     .eq('paused', false)
     .order('rating_average', { ascending: false });
-  if (filters.industryId) q = q.eq('industry_id', filters.industryId);
+  // Any of the expert's fields counts, not just their main one.
+  if (filters.industryId) q = q.contains('industry_ids', [filters.industryId]);
   if (typeof filters.minRating === 'number') q = q.gte('rating_average', filters.minRating);
   if (typeof filters.maxSessionPriceCents === 'number') {
     q = q.lte('hourly_rate_cents', filters.maxSessionPriceCents);
@@ -394,7 +403,8 @@ export const filterExpertsByQuery = (experts: Expert[], query: string | undefine
       e.headline,
       e.bio ?? '',
       e.howICanHelp ?? '',
-      industryDisplay(e.industryId, e.industryCustom)?.label ?? '',
+      industryLabels(e.industryIds, e.industryCustom).join(' '),
+      e.location ?? '',
       e.currentTitle ?? '',
       e.currentCompany ?? '',
       e.topics.join(' '),
@@ -418,6 +428,9 @@ export const fetchExpert = async (id: string): Promise<Expert | null> => {
 
 export type ExpertProfileInput = {
   industryId: string;
+  // Every field, main one first. Left out, the stored list is kept.
+  industryIds?: string[];
+  location?: string | null;
   headline: string;
   // null = "I'll decide later" on the application wizard.
   sessionPriceCents: number | null;
@@ -458,6 +471,8 @@ export const upsertMyExpertProfile = async (
   if (input.linkedinUrl !== undefined) row.linkedin_url = input.linkedinUrl;
   if (input.resumeUrl !== undefined) row.resume_url = input.resumeUrl;
   if (input.applicationGoal !== undefined) row.application_goal = input.applicationGoal;
+  if (input.industryIds !== undefined) row.industry_ids = input.industryIds;
+  if (input.location !== undefined) row.location = input.location?.trim() || null;
   if (input.industryCustom !== undefined) row.industry_custom = input.industryCustom;
   if (input.currentTitle !== undefined) row.current_title = input.currentTitle;
   if (input.currentCompany !== undefined) row.current_company = input.currentCompany;

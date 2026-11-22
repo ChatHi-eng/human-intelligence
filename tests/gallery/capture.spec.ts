@@ -671,7 +671,7 @@ test.describe('main pass', () => {
     const next = () => page.getByText('Next', { exact: true }).click();
     const step = (n: number, name: string) => ({ group, title: `Application step ${n} of 6: ${name}`, route: '/expert-onboarding' });
 
-    await open(page, '/expert-onboarding', /What.s your field\?/);
+    await open(page, '/expert-onboarding', 'What do you know best?');
     await page.getByPlaceholder(/Search fields/).fill('design');
     await page.getByText('Product & UX Design', { exact: true }).click().catch(async () => {
       await page.getByPlaceholder(/Search fields/).fill('soft');

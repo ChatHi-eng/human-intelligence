@@ -48,6 +48,10 @@ export const PLATFORM_FEE_DISPLAY_PCT = Math.round(PLATFORM_FEE_PCT * 100);
 // as odd (owner's call, 2026-11-21), so below this number it shows none.
 export const WELCOME_FACES_MIN_EXPERTS = 12;
 
+// An expert can list this many fields. Enough for someone with a real
+// range, few enough that a profile still says what they are for.
+export const MAX_EXPERT_FIELDS = 3;
+
 // Discover's row of fields to browse by only helps when there are several to
 // choose between. With experts in one or two fields it showed a single odd
 // option, so below this number of fields the search bar stands alone.

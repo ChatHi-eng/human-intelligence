@@ -76,6 +76,15 @@ export default function StudioScreen() {
   const todays = asExpert.filter(
     (b) => isoDateKey(b.slot.startIso) === today && b.status === 'confirmed',
   );
+  // Everything booked and still to come, soonest first. With instant booking
+  // a session lands here the moment a customer pays.
+  const upcoming = asExpert
+    .filter(
+      (b) =>
+        (b.status === 'confirmed' || b.status === 'in_progress') &&
+        new Date(b.slot.endIso).getTime() > Date.now(),
+    )
+    .sort((a, b) => a.slot.startIso.localeCompare(b.slot.startIso));
   const weekly = earnings?.[1];
   const monthly = earnings?.[2];
 
@@ -235,23 +244,28 @@ export default function StudioScreen() {
           </View>
         )}
 
-        <SectionHeader title="Today's calls" />
-        {todays.length === 0 ? (
+        <SectionHeader
+          title="Upcoming sessions"
+          caption="Who you're meeting, when, and what they want to talk about."
+        />
+        {upcoming.length === 0 ? (
           <EmptyState
-            title="No calls today"
-            description="Enjoy the breather, or open up more availability."
-            icon="coffee"
+            title="Nothing booked yet"
+            description="When a customer books you, the session shows up here."
+            icon="calendar"
           />
         ) : (
-          todays.map((b) => (
-            <BookingCard
-              key={b.id}
-              booking={b}
-              expert={expertProfile}
-              viewerIsExpert
-              onPress={() => router.push(`/booking/${b.id}`)}
-            />
-          ))
+          <View style={{ gap: spacing.md }}>
+            {upcoming.map((b) => (
+              <BookingCard
+                key={b.id}
+                booking={b}
+                expert={expertProfile}
+                viewerIsExpert
+                onPress={() => router.push(`/booking/${b.id}`)}
+              />
+            ))}
+          </View>
         )}
 
         <SectionHeader title="Availability" caption="Weekly hours, extra dates and days off." />

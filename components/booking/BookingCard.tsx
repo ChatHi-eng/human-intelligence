@@ -47,6 +47,14 @@ export const BookingCard = ({ booking, expert, viewerIsExpert, onPress }: Bookin
         </View>
         <Badge label={status.label} tone={status.tone} />
       </View>
+      {viewerIsExpert && booking.customerNote ? (
+        <View style={styles.note}>
+          <Text style={styles.noteLabel}>What they want to talk about</Text>
+          <Text style={styles.noteText} numberOfLines={3}>
+            {booking.customerNote}
+          </Text>
+        </View>
+      ) : null}
       <View style={styles.footer}>
         <Text style={styles.footerLabel}>
           {minutesBetween(booking.slot.startIso, booking.slot.endIso)} min ·{' '}
@@ -72,6 +80,9 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.92 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   name: { ...typography.bodyStrong, color: colors.textPrimary },
+  note: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, gap: 2 },
+  noteLabel: { ...typography.caption, color: colors.textSecondary },
+  noteText: { ...typography.body, color: colors.textPrimary },
   meta: { ...typography.caption, color: colors.textSecondary },
   footer: {
     flexDirection: 'row',

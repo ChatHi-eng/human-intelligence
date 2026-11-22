@@ -60,6 +60,13 @@ export const industries: readonly Industry[] = [
 
 export const industryById = (id: string) => industries.find((i) => i.id === id);
 
+// The names of every field an expert lists, main one first. Their own typed
+// field stands in for "Something else".
+export const industryLabels = (ids: readonly string[], custom?: string | null): string[] =>
+  ids
+    .map((id) => industryDisplay(id, custom)?.label)
+    .filter((label): label is string => Boolean(label));
+
 // What to show for an expert's field anywhere in the UI: the listed industry,
 // or their own typed field when they chose "Something else".
 export const industryDisplay = (

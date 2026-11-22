@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { Screen } from '@/components/ui/Screen';
 import { SectionHeader } from '@/components/ui/SectionHeader';
+import { MAX_EXPERT_FIELDS } from '@/constants/business';
 import { industries, OTHER_INDUSTRY_ID } from '@/constants/industries';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
@@ -54,7 +55,10 @@ export default function ExpertProfileEditScreen() {
   const { mutate: upsert, isPending } = useUpsertMyExpertProfile();
   const { mutateAsync: upload, isPending: uploadingCover } = useUploadImage();
 
-  const [industryId, setIndustryId] = useState('');
+  // Up to three fields; the first is the main one.
+  const [industryIds, setIndustryIds] = useState<string[]>([]);
+  const industryId = industryIds[0] ?? '';
+  const [location, setLocation] = useState('');
   const [industryCustom, setIndustryCustom] = useState('');
   const [currentTitle, setCurrentTitle] = useState('');
   const [currentCompany, setCurrentCompany] = useState('');
@@ -69,7 +73,8 @@ export default function ExpertProfileEditScreen() {
 
   useEffect(() => {
     if (!existing) return;
-    setIndustryId(existing.industryId);
+    setIndustryIds(existing.industryIds);
+    setLocation(existing.location ?? '');
     setIndustryCustom(existing.industryCustom ?? '');
     setCurrentTitle(existing.currentTitle ?? '');
     setCurrentCompany(existing.currentCompany ?? '');
@@ -88,11 +93,22 @@ export default function ExpertProfileEditScreen() {
     return <Redirect href={{ pathname: '/expert/[id]', params: { id: user?.id ?? existing.id } }} />;
   }
   const section = params.section;
-  const other = industryId === OTHER_INDUSTRY_ID;
+  const other = industryIds.includes(OTHER_INDUSTRY_ID);
+  const toggleField = (id: string) => {
+    if (industryIds.includes(id)) return setIndustryIds(industryIds.filter((f) => f !== id));
+    if (industryIds.length >= MAX_EXPERT_FIELDS) {
+      return setErrors((e) => ({
+        ...e,
+        field: `You can pick up to ${MAX_EXPERT_FIELDS}. Tap one you picked to take it off first.`,
+      }));
+    }
+    setIndustryIds([...industryIds, id]);
+  };
 
   const dirty =
     section === 'identity'
-      ? industryId !== existing.industryId ||
+      ? industryIds.join('|') !== existing.industryIds.join('|') ||
+        location.trim() !== (existing.location ?? '') ||
         industryCustom.trim() !== (existing.industryCustom ?? '') ||
         currentTitle.trim() !== (existing.currentTitle ?? '') ||
         currentCompany.trim() !== (existing.currentCompany ?? '') ||
@@ -150,7 +166,7 @@ export default function ExpertProfileEditScreen() {
     const found: Record<string, string> = {};
     const yearsNumber = Number(years);
     if (section === 'identity') {
-      if (!industryId) found.field = 'Pick your field.';
+      if (!industryId) found.field = 'Pick at least one field.';
       if (other && !industryCustom.trim()) found.fieldCustom = 'Type the name of your field.';
       if (!headline.trim()) found.headline = 'Write one line on what you offer.';
       if (!Number.isFinite(yearsNumber) || yearsNumber < 0 || years.trim() === '') {
@@ -164,6 +180,8 @@ export default function ExpertProfileEditScreen() {
       section === 'identity'
         ? {
             industryId,
+            industryIds,
+            location: location.trim() || null,
             industryCustom: other ? industryCustom.trim() : null,
             currentTitle: currentTitle.trim() || null,
             currentCompany: currentCompany.trim() || null,
@@ -209,7 +227,9 @@ export default function ExpertProfileEditScreen() {
 
         {section === 'identity' ? (
           <>
-            <Text style={styles.label}>Field</Text>
+            <Text style={styles.label}>
+              Fields (up to {MAX_EXPERT_FIELDS}, your main one first)
+            </Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -219,14 +239,14 @@ export default function ExpertProfileEditScreen() {
                 <Chip
                   key={i.id}
                   label={i.label}
-                  active={industryId === i.id}
-                  onPress={() => setIndustryId(i.id)}
+                  active={industryIds.includes(i.id)}
+                  onPress={() => toggleField(i.id)}
                 />
               ))}
               <Chip
-                label="✨ Something else"
+                label="Something else"
                 active={other}
-                onPress={() => setIndustryId(OTHER_INDUSTRY_ID)}
+                onPress={() => toggleField(OTHER_INDUSTRY_ID)}
               />
             </ScrollView>
             <FieldError message={errors.field} />
@@ -260,6 +280,16 @@ export default function ExpertProfileEditScreen() {
               placeholderTextColor={colors.textMuted}
               value={currentCompany}
               onChangeText={setCurrentCompany}
+              style={styles.input}
+              maxLength={80}
+            />
+
+            <Text style={styles.label}>Where you&apos;re based (optional)</Text>
+            <TextInput
+              placeholder="e.g. Austin, TX or London, UK"
+              placeholderTextColor={colors.textMuted}
+              value={location}
+              onChangeText={setLocation}
               style={styles.input}
               maxLength={80}
             />
@@ -461,9 +491,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     backgroundColor: colors.surfaceAlt,
   },
-  chipActive: { backgroundColor: colors.textPrimary },
+  chipActive: { backgroundColor: colors.surface, borderColor: colors.textPrimary, borderWidth: 2 },
   chipText: { ...typography.bodyStrong, color: colors.textPrimary },
-  chipTextActive: { color: '#FFFFFF' },
+  chipTextActive: { color: colors.textPrimary },
   topicRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   topicChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   topicChip: {

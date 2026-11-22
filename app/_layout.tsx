@@ -16,6 +16,7 @@ import Toast from 'react-native-toast-message';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { colors, fonts, spacing, typography } from '@/constants/theme';
+import { needsRealName } from '@/lib/names';
 import { useAuthStore } from '@/store/authStore';
 
 export default function RootLayout() {
@@ -82,6 +83,7 @@ export default function RootLayout() {
                   name="profile-edit"
                   options={{ title: '', presentation: 'modal' }}
                 />
+                <Stack.Screen name="your-name" options={{ headerShown: false }} />
                 <Stack.Screen
                   name="delete-account"
                   options={{ title: '', presentation: 'modal' }}
@@ -121,6 +123,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const segments = useSegments();
   const isHydrated = useAuthStore((s) => s.isHydrated);
   const user = useAuthStore((s) => s.user);
+  const email = useAuthStore((s) => s.email);
   const configError = useAuthStore((s) => s.configError);
   const hydrate = useAuthStore((s) => s.hydrate);
 
@@ -151,10 +154,13 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     const onPublicExpert = segments[0] === 'expert';
     if (!user && !inAuthGroup && !onAuthCallback && !onPublicExpert) {
       router.replace('/(auth)/welcome');
-    } else if (user && inAuthGroup) {
+    } else if (user && needsRealName(user.displayName, email)) {
+      // Signed in but still named after their email address: ask once.
+      if (segments[0] !== 'your-name') router.replace('/your-name');
+    } else if (user && (inAuthGroup || segments[0] === 'your-name')) {
       router.replace('/(tabs)');
     }
-  }, [isHydrated, user, segments, router, configError]);
+  }, [isHydrated, user, email, segments, router, configError]);
 
   if (!isHydrated) return <LoadingView label="Loading…" />;
   if (configError) return <ConfigErrorScreen message={configError} />;

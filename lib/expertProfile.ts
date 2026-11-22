@@ -9,6 +9,8 @@ import type { Expert } from '@/types/user';
  */
 export const currentProfileInput = (expert: Expert): ExpertProfileInput => ({
   industryId: expert.industryId,
+  industryIds: expert.industryIds,
+  location: expert.location,
   headline: expert.headline,
   sessionPriceCents: expert.sessionPrice,
   yearsExperience: expert.yearsExperience,

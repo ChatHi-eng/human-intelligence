@@ -18,7 +18,7 @@ import {
   MESSAGING_ENABLED,
   PHONE_SESSIONS_ENABLED,
 } from '@/constants/featureFlags';
-import { industryDisplay } from '@/constants/industries';
+import { industryDisplay, industryLabels } from '@/constants/industries';
 import { colors, fonts, radius, shadow, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useExpert } from '@/hooks/useExperts';
@@ -158,7 +158,15 @@ export default function ExpertProfileScreen() {
               {industry ? (
                 <View style={styles.fieldRow}>
                   <Icon name={industry.icon} size={16} color={colors.textSecondary} />
-                  <Text style={styles.fieldText}>{industry.label}</Text>
+                  <Text style={styles.fieldText}>
+                    {industryLabels(expert.industryIds, expert.industryCustom).join(' · ')}
+                  </Text>
+                </View>
+              ) : null}
+              {expert.location ? (
+                <View style={styles.fieldRow}>
+                  <Icon name="map-pin" size={16} color={colors.textSecondary} />
+                  <Text style={styles.fieldText}>{expert.location}</Text>
                 </View>
               ) : null}
             </View>
@@ -472,8 +480,8 @@ const styles = StyleSheet.create({
   name: { ...typography.title, color: colors.textPrimary },
   headline: { ...typography.body, fontSize: 16, lineHeight: 24, color: colors.textPrimary },
   roleLine: { ...typography.body, color: colors.textSecondary },
-  fieldRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  fieldText: { ...typography.body, color: colors.textSecondary },
+  fieldRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
+  fieldText: { ...typography.body, color: colors.textSecondary, flex: 1 },
   introText: { ...typography.bodyStrong, color: colors.accentInk },
   stats: {
     flexDirection: 'row',

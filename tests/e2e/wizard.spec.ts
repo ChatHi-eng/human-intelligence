@@ -97,7 +97,7 @@ test('expert application wizard walks all six steps and submits', async ({ page 
 
   // ---- Step 1 · Field --------------------------------------------------
   await page.goto('/expert-onboarding');
-  await expect(page.getByText(/What.s your field\?/)).toBeVisible({ timeout: 90_000 });
+  await expect(page.getByText('What do you know best?')).toBeVisible({ timeout: 90_000 });
   await expect(page.getByText('Step 1 of 6 · Field')).toBeVisible();
   // Applications are written with an upsert; keep the body to check the new
   // v3 fields actually reach the database call.
@@ -120,10 +120,25 @@ test('expert application wizard walks all six steps and submits', async ({ page 
   await page.getByText('Something else', { exact: true }).click();
   await expect(page.getByPlaceholder(/Veterinary medicine/)).toHaveValue('Beekeeping');
   await shot('wizard-1b-custom-field');
+  // Tapping a picked field again takes it off.
+  await page.getByText('Something else', { exact: true }).click();
+  await expect(page.getByPlaceholder(/Veterinary medicine/)).toHaveCount(0);
   // Searching narrows the list to a listed field.
   await search.fill('soft');
   await expect(page.getByText('Real Estate', { exact: true })).toBeHidden();
   await page.getByText('Software Engineering', { exact: true }).click();
+  // An expert can list more than one field; the first is their main one.
+  await search.fill('');
+  await page.getByText('Data & AI', { exact: true }).click();
+  await page.getByText('Startups & Founding', { exact: true }).click();
+  await expect(
+    page.getByText('3 of 3 picked: Software Engineering, Data & AI, Startups & Founding'),
+  ).toBeVisible();
+  // A fourth is refused, with the reason.
+  await page.getByText('Sales', { exact: true }).click();
+  await expect(page.getByText('You can pick up to 3 fields')).toBeVisible();
+  await page.getByText('Startups & Founding', { exact: true }).click();
+  await expect(page.getByText('2 of 3 picked: Software Engineering, Data & AI')).toBeVisible();
   await search.fill('');
   await shot('wizard-1-field');
   await next();
@@ -133,6 +148,7 @@ test('expert application wizard walks all six steps and submits', async ({ page 
   await page.getByPlaceholder('e.g. Senior Product Designer').fill('Staff Engineer');
   await page.getByPlaceholder('e.g. Acme, or Self-employed').fill('Acme');
   await page.getByPlaceholder('10').fill('12');
+  await page.getByPlaceholder(/Austin, TX/).fill('Seattle, WA');
   await next(); // no LinkedIn, no resume → blocked
   await expect(page.getByText('Add your LinkedIn or a resume')).toBeVisible();
   await page.getByPlaceholder('https://linkedin.com/in/you').fill('https://linkedin.com/in/test-expert');
@@ -208,6 +224,8 @@ test('expert application wizard walks all six steps and submits', async ({ page 
   await expect(page.getByText('Application received')).toBeVisible();
   expect(submitted).toMatchObject({
     industry_id: 'coders',
+    industry_ids: ['coders', 'data-ai'],
+    location: 'Seattle, WA',
     industry_custom: null,
     current_title: 'Staff Engineer',
     current_company: 'Acme',

@@ -13,9 +13,10 @@ import {
   industries,
   industryById,
   industryDisplay,
+  industryLabels,
   OTHER_INDUSTRY_ID,
 } from '@/constants/industries';
-import { PLATFORM_FEE_DISPLAY_PCT } from '@/constants/business';
+import { MAX_EXPERT_FIELDS, PLATFORM_FEE_DISPLAY_PCT } from '@/constants/business';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useMyExpertProfile, useUpsertMyExpertProfile } from '@/hooks/useExperts';
 import { useUpdateMyProfile, useUploadImage, useUploadResume } from '@/hooks/useProfile';
@@ -44,7 +45,11 @@ export default function ExpertOnboardingScreen() {
 
   const [step, setStep] = useState(0);
   const [done, setDone] = useState(false);
-  const [industryId, setIndustryId] = useState('');
+  // Up to three fields, in the order they were picked. The first is the main
+  // field: it sets the price guide and leads the profile.
+  const [industryIds, setIndustryIds] = useState<string[]>([]);
+  const industryId = industryIds[0] ?? '';
+  const [location, setLocation] = useState('');
   const [industrySearch, setIndustrySearch] = useState('');
   const [industryCustom, setIndustryCustom] = useState('');
   const [currentTitle, setCurrentTitle] = useState('');
@@ -82,8 +87,27 @@ export default function ExpertOnboardingScreen() {
   }
 
   const industry = industryById(industryId);
-  const isOther = industryId === OTHER_INDUSTRY_ID;
+  const isOther = industryIds.includes(OTHER_INDUSTRY_ID);
   const fieldDisplay = industryDisplay(industryId, industryCustom);
+  const fieldLabels = industryLabels(industryIds, industryCustom);
+  // Tap to add a field, tap again to take it off. A fourth pick is refused
+  // with a reason instead of silently swapping one out.
+  const toggleField = (id: string) => {
+    if (industryIds.includes(id)) {
+      setIndustryIds(industryIds.filter((f) => f !== id));
+      return true;
+    }
+    if (industryIds.length >= MAX_EXPERT_FIELDS) {
+      Toast.show({
+        type: 'info',
+        text1: `You can pick up to ${MAX_EXPERT_FIELDS} fields`,
+        text2: 'Tap one you picked to take it off first.',
+      });
+      return false;
+    }
+    setIndustryIds([...industryIds, id]);
+    return true;
+  };
   const searchNeedle = industrySearch.trim().toLowerCase();
   const visibleIndustries = searchNeedle
     ? industries.filter((i) => i.label.toLowerCase().includes(searchNeedle))
@@ -240,6 +264,8 @@ export default function ExpertOnboardingScreen() {
     upsert(
       {
         industryId,
+        industryIds,
+        location: location.trim() || null,
         headline: headline.trim(),
         sessionPriceCents: decideLater ? null : Math.round(Number(rateDollars) * 100),
         yearsExperience: Math.floor(Number(years)),
@@ -317,11 +343,11 @@ export default function ExpertOnboardingScreen() {
       >
         {step === 0 && (
           <>
-            <Text style={styles.title}>What&apos;s your field?</Text>
+            <Text style={styles.title}>What do you know best?</Text>
             <Text style={styles.caption}>
-              Search or pick the closest fit. Not listed? Choose &quot;Something else&quot; and
-              type your own. The application takes about four minutes, and a real person reads
-              every one.
+              Pick up to {MAX_EXPERT_FIELDS} fields. The first one you pick is your main field.
+              Not listed? Choose &quot;Something else&quot; and type your own. The application
+              takes about four minutes, and a real person reads every one.
             </Text>
             <TextInput
               placeholder="Search fields (try law, design, finance)"
@@ -333,14 +359,22 @@ export default function ExpertOnboardingScreen() {
             />
             <View style={styles.industryGrid}>
               {visibleIndustries.map((i) => {
-                const active = industryId === i.id;
+                const active = industryIds.includes(i.id);
                 return (
                   <Pressable
                     key={i.id}
-                    onPress={() => setIndustryId(i.id)}
+                    onPress={() => toggleField(i.id)}
+                    accessibilityState={{ selected: active }}
                     style={[styles.industryTile, active && styles.industryTileActive]}
                   >
-                    <Icon name={i.icon} size={24} color={colors.textPrimary} />
+                    <View style={styles.industryTileTop}>
+                      <Icon name={i.icon} size={24} color={colors.textPrimary} />
+                      {active ? (
+                        <Text style={styles.industryPicked}>
+                          {industryIds[0] === i.id ? 'Main' : 'Added'}
+                        </Text>
+                      ) : null}
+                    </View>
                     <Text style={[styles.industryLabel, active && styles.industryLabelActive]}>
                       {i.label}
                     </Text>
@@ -349,20 +383,34 @@ export default function ExpertOnboardingScreen() {
               })}
               <Pressable
                 onPress={() => {
-                  setIndustryId(OTHER_INDUSTRY_ID);
+                  const wasPicked = isOther;
+                  if (!toggleField(OTHER_INDUSTRY_ID)) return;
                   // Carry a search that matched nothing straight into the field.
-                  if (!industryCustom && visibleIndustries.length === 0) {
+                  if (!wasPicked && !industryCustom && visibleIndustries.length === 0) {
                     setIndustryCustom(industrySearch.trim());
                   }
                 }}
+                accessibilityState={{ selected: isOther }}
                 style={[styles.industryTile, isOther && styles.industryTileActive]}
               >
-                <Icon name="plus-circle" size={24} color={colors.textPrimary} />
+                <View style={styles.industryTileTop}>
+                  <Icon name="plus-circle" size={24} color={colors.textPrimary} />
+                  {isOther ? (
+                    <Text style={styles.industryPicked}>
+                      {industryIds[0] === OTHER_INDUSTRY_ID ? 'Main' : 'Added'}
+                    </Text>
+                  ) : null}
+                </View>
                 <Text style={[styles.industryLabel, isOther && styles.industryLabelActive]}>
                   Something else
                 </Text>
               </Pressable>
             </View>
+            {industryIds.length > 0 ? (
+              <Text style={styles.fieldCount}>
+                {industryIds.length} of {MAX_EXPERT_FIELDS} picked: {fieldLabels.join(', ') || 'Something else'}
+              </Text>
+            ) : null}
             {isOther && (
               <>
                 <Text style={styles.label}>Your field</Text>
@@ -405,6 +453,19 @@ export default function ExpertOnboardingScreen() {
               style={styles.input}
               maxLength={80}
             />
+            <Text style={styles.label}>Where you&apos;re based (optional)</Text>
+            <TextInput
+              placeholder="e.g. Austin, TX or London, UK"
+              placeholderTextColor={colors.textMuted}
+              value={location}
+              onChangeText={setLocation}
+              style={styles.input}
+              maxLength={80}
+            />
+            <Text style={styles.privacyNote}>
+              Shown on your profile. It helps people who need someone who knows their local rules
+              or prices.
+            </Text>
             <Text style={styles.label}>Years of experience</Text>
             <TextInput
               placeholder="10"
@@ -628,8 +689,8 @@ export default function ExpertOnboardingScreen() {
             <Text style={[styles.label, { marginTop: spacing.lg }]}>Your application</Text>
             <View style={styles.summaryCard}>
               <SummaryRow
-                label="Field"
-                value={fieldDisplay ? fieldDisplay.label : '—'}
+                label={fieldLabels.length > 1 ? 'Fields' : 'Field'}
+                value={fieldLabels.length > 0 ? fieldLabels.join(', ') : '—'}
                 onEdit={() => setStep(0)}
               />
               <SummaryRow
@@ -785,6 +846,9 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     padding: spacing.lg - 1,
   },
+  industryTileTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  industryPicked: { ...typography.label, fontSize: 12, color: colors.accentInk },
+  fieldCount: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.md },
   industryLabel: { ...typography.bodyStrong, color: colors.textPrimary },
   industryLabelActive: { color: colors.textPrimary },
   resumeRow: {

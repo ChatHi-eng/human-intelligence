@@ -115,7 +115,7 @@ export const sortExperts = (experts: Expert[], sort: ExpertSort, now: Date = new
 export const topicsForField = (experts: Expert[], fieldId: string, limit = 8): string[] => {
   const counts = new Map<string, { label: string; n: number }>();
   for (const e of experts) {
-    if (e.industryId !== fieldId) continue;
+    if (!e.industryIds.includes(fieldId)) continue;
     for (const topic of e.topics) {
       const key = topic.trim().toLowerCase();
       if (!key) continue;
@@ -144,10 +144,10 @@ export const matchExperts = (
   topic: string | null,
   now: Date = new Date(),
 ): ExpertMatch[] => {
-  const field = experts.filter((e) => e.industryId === fieldId);
+  const field = experts.filter((e) => e.industryIds.includes(fieldId));
   const needle = topic?.trim().toLowerCase() ?? '';
   const fieldLabel = (e: Expert) =>
-    industryDisplay(e.industryId, e.industryCustom)?.label ?? 'this field';
+    industryDisplay(fieldId, e.industryCustom)?.label ?? 'this field';
 
   const scored = field.map((expert) => {
     const listed = needle ? expert.topics.find((t) => t.trim().toLowerCase() === needle) : undefined;

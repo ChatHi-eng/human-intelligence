@@ -52,9 +52,14 @@ export type Expert = Profile & {
   role: 'expert';
   status: ExpertStatus;
   linkedinUrl: string | null;
+  // Their main field. Always the first entry of industryIds.
   industryId: string;
-  // Their own field name when industryId is 'other'.
+  // Every field they work in, main one first, three at most.
+  industryIds: string[];
+  // Their own field name when one of their fields is 'other'.
   industryCustom: string | null;
+  // Where they are based ("Austin, TX"). null = not given.
+  location: string | null;
   // Current role, shown as "Title at Company".
   currentTitle: string | null;
   currentCompany: string | null;
