@@ -17,6 +17,8 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { colors, fonts, spacing, typography } from '@/constants/theme';
 import { needsRealName } from '@/lib/names';
+import { saveMyTimezone } from '@/services/api';
+import { syncPush } from '@/services/push';
 import { useAuthStore } from '@/store/authStore';
 
 export default function RootLayout() {
@@ -143,6 +145,20 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       queryClient.clear();
     }
     lastUserId.current = userId;
+  }, [isHydrated, userId, queryClient]);
+
+  // Once someone is signed in: note the time zone this device is in, so
+  // emails and notifications state times the way they read them, and keep a
+  // device that already has notifications on registered to this person.
+  useEffect(() => {
+    if (!isHydrated || !userId) return;
+    try {
+      const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (zone) void saveMyTimezone(userId, zone).catch(() => undefined);
+    } catch {
+      /* no zone on this device: emails name the zone they use */
+    }
+    void syncPush(userId).then(() => queryClient.invalidateQueries({ queryKey: ['push-state'] }));
   }, [isHydrated, userId, queryClient]);
 
   useEffect(() => {

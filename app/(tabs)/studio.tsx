@@ -2,6 +2,7 @@ import { Redirect, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Toast from 'react-native-toast-message';
+import { NotificationPrompt } from '@/components/account/NotificationPrompt';
 import { BookingCard } from '@/components/booking/BookingCard';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
@@ -140,6 +141,13 @@ export default function StudioScreen() {
             uri={expertProfile.avatarUrl ?? expertProfile.coverImageUrl}
             name={expertProfile.displayName}
             size={64}
+          />
+        </View>
+
+        <View style={{ marginBottom: spacing.lg }}>
+          <NotificationPrompt
+            title="Hear about bookings right away"
+            body="Palam can tell you on this device when someone books or asks for a session, and remind you before each one starts."
           />
         </View>
 

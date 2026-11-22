@@ -9,6 +9,7 @@ import {
 } from '@/services/supabase';
 import { capture, identify, reset } from '@/services/analytics';
 import { fetchMyProfile } from '@/services/api';
+import { forgetPushDevice } from '@/services/push';
 
 type AuthState = {
   user: Profile | null;
@@ -79,6 +80,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signOut: async () => {
     capture('signed_out');
+    // While still signed in: stop this device getting this person's
+    // notifications, so they cannot reach whoever uses it next.
+    // Never let it hold sign-out up for long.
+    await Promise.race([forgetPushDevice(), new Promise((done) => setTimeout(done, 3000))]);
     await signOutFromSupabase();
     reset();
     set({ user: null, email: null });

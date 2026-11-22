@@ -4,13 +4,21 @@
 // confirmed sessions that are coming up and reminds BOTH people, on every
 // channel they have switched on:
 //
-//   day_before   sent once, between 28 and 24 hours before the start
-//   hour_before  sent once, between 60 and 5 minutes before the start
+//   day_before     sent once, between 28 and 24 hours before the start
+//   hour_before    sent once, between 60 and 20 minutes before the start
+//   starting_soon  sent once, in the last 12 minutes before the start
 //
-//   email  on by default (notification_prefs.email_reminders)
-//   push   to every device token the person has registered (push_tokens)
+//   push   every reminder, to every device the person has switched
+//          notifications on for (push_tokens): browsers and phones
+//   email  on by default (notification_prefs.email_reminders). Always sent a
+//          day before. An hour before it is sent only to someone with no
+//          device to notify, so nobody gets the same nudge twice. Never sent
+//          for starting_soon: ten minutes is too late for an inbox.
 //   text   only when they opted in and gave a number, and only when the
 //          TWILIO_* secrets below are set
+//
+// Times are written in each person's own time zone when their browser has
+// reported one (notification_prefs.timezone).
 //
 // Idempotent: a row in booking_reminders is claimed before anything is sent,
 // so a retry or an overlapping run can never send the same reminder twice.
@@ -28,12 +36,13 @@
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import { clockTime, pushToUsers, shortWhen } from '../_shared/notify.ts';
 
 const DEFAULT_SENDER = 'Palam <onboarding@resend.dev>';
 const SUPPORT_EMAIL = 'info@palamapp.com';
 const BRAND_GREEN = '#0F6E56';
 
-type Kind = 'day_before' | 'hour_before';
+type Kind = 'day_before' | 'hour_before' | 'starting_soon';
 
 type BookingRow = {
   id: string;
@@ -51,6 +60,7 @@ type Prefs = {
   email_reminders: boolean;
   sms_reminders: boolean;
   phone: string | null;
+  timezone: string | null;
 };
 
 const json = (body: unknown, status = 200) =>
@@ -103,7 +113,8 @@ const formatWhen = (startIso: string, tz: string) => {
 
 const kindFor = (minutesToStart: number): Kind | null => {
   if (minutesToStart > 24 * 60 && minutesToStart <= 28 * 60) return 'day_before';
-  if (minutesToStart >= 5 && minutesToStart <= 60) return 'hour_before';
+  if (minutesToStart > 20 && minutesToStart <= 60) return 'hour_before';
+  if (minutesToStart > 0 && minutesToStart <= 12) return 'starting_soon';
   return null;
 };
 
@@ -160,23 +171,6 @@ serve(async (req) => {
     }
   };
 
-  const sendPush = async (tokens: string[], title: string, body: string, bookingId: string) => {
-    if (tokens.length === 0) return;
-    try {
-      const res = await fetch('https://exp.host/--/api/v2/push/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify(
-          tokens.map((to) => ({ to, title, body, sound: 'default', data: { bookingId } })),
-        ),
-      });
-      if (res.ok) sent.push += tokens.length;
-      else console.error('Expo push error', res.status, await res.text());
-    } catch (err) {
-      console.error('Expo push request failed', err);
-    }
-  };
-
   const sendSms = async (to: string, body: string) => {
     if (!smsReady) return;
     try {
@@ -224,9 +218,9 @@ serve(async (req) => {
       admin.from('profiles').select('id, display_name').in('id', ids),
       admin
         .from('notification_prefs')
-        .select('user_id, email_reminders, sms_reminders, phone')
+        .select('user_id, email_reminders, sms_reminders, phone, timezone')
         .in('user_id', ids),
-      admin.from('push_tokens').select('user_id, token').in('user_id', ids),
+      admin.from('push_tokens').select('user_id').in('user_id', ids),
       admin
         .from('expert_profiles')
         .select('timezone')
@@ -237,34 +231,44 @@ serve(async (req) => {
       (profilesRes.data ?? []).find((r) => r.id === id)?.display_name ?? fallback;
     const prefsOf = (id: string): Prefs | undefined =>
       ((prefsRes.data ?? []) as Prefs[]).find((r) => r.user_id === id);
-    const tokensOf = (id: string) =>
-      (tokensRes.data ?? []).filter((r) => r.user_id === id).map((r) => r.token as string);
+    const hasDevice = (id: string) => (tokensRes.data ?? []).some((r) => r.user_id === id);
 
     const customerName = nameOf(booking.customer_id, 'your customer');
     const expertName = nameOf(booking.expert_profile_id, 'your expert');
     const expertTz = (expertRes.data?.timezone as string | null) ?? defaultTz;
 
+    // The zone the person's own browser reported wins. Failing that an expert
+    // has the zone they set their hours in; a customer gets the default, named.
+    const customerZone = prefsOf(booking.customer_id)?.timezone ?? null;
+    const expertZone = prefsOf(booking.expert_profile_id)?.timezone ?? expertTz;
     const recipients = [
       {
         id: booking.customer_id,
         isExpert: false,
         name: customerName,
         other: expertName,
-        // We do not know the customer's zone, so say which one this is.
-        when: formatWhen(booking.start_at, defaultTz),
+        tz: customerZone ?? defaultTz,
+        tzKnown: customerZone !== null,
       },
       {
         id: booking.expert_profile_id,
         isExpert: true,
         name: expertName,
         other: customerName,
-        when: formatWhen(booking.start_at, expertTz),
+        tz: expertZone,
+        tzKnown: true,
       },
-    ];
+    ].map((r) => ({ ...r, when: formatWhen(booking.start_at, r.tz) }));
+    const what = booking.kind === 'intro' ? 'intro call' : 'session';
 
     for (const r of recipients) {
       const prefs = prefsOf(r.id);
-      const soon = kind === 'hour_before';
+      const soon = kind !== 'day_before';
+      // A day before, email always goes. An hour before, it only goes to
+      // someone who has no device to notify. Ten minutes before, never.
+      const wantsEmail =
+        prefs?.email_reminders !== false &&
+        (kind === 'day_before' || (kind === 'hour_before' && !hasDevice(r.id)));
       const subject = soon
         ? `In about an hour: your session with ${r.other}`
         : `Reminder: your session with ${r.other}`;
@@ -272,14 +276,18 @@ serve(async (req) => {
         ? `Your session with ${escapeHtml(r.other)} starts in about an hour.`
         : `Your ${minutes}-minute ${booking.kind === 'intro' ? 'intro call' : 'session'} with ${escapeHtml(r.other)} is coming up.`;
 
-      if (prefs?.email_reminders !== false) {
+      if (wantsEmail) {
         const { data: userData } = await admin.auth.admin.getUserById(r.id);
         const email = userData?.user?.email;
         if (email) {
           const lines = [
             p(`Hi ${escapeHtml(r.name)},`),
             p(lead),
-            p(`<strong>When:</strong> ${r.when}<br><span style="font-size:13px;color:#6b7280;">The Palam app shows this in your own time zone.</span>`),
+            p(
+              r.tzKnown
+                ? `<strong>When:</strong> ${r.when}`
+                : `<strong>When:</strong> ${r.when}<br><span style="font-size:13px;color:#6b7280;">The Palam app shows this in your own time zone.</span>`,
+            ),
           ];
           if (r.isExpert && booking.customer_note) {
             lines.push(
@@ -301,17 +309,41 @@ serve(async (req) => {
         }
       }
 
-      await sendPush(
-        tokensOf(r.id),
-        soon ? 'Session in about an hour' : 'Session coming up',
-        `With ${r.other}. ${r.when}`,
-        booking.id,
-      );
+      const minutesLeft = Math.max(1, Math.round(minutesToStart));
+      sent.push += await pushToUsers(admin, [
+        {
+          userId: r.id,
+          message:
+            kind === 'starting_soon'
+              ? {
+                  title: `Starting in ${minutesLeft} ${minutesLeft === 1 ? 'minute' : 'minutes'}`,
+                  body: `Your ${what} with ${r.other}. Tap to join.`,
+                  path: `/booking/${booking.id}`,
+                  tag: `booking-${booking.id}`,
+                  ttlSeconds: 10 * 60,
+                }
+              : kind === 'hour_before'
+                ? {
+                    title: `In about an hour: ${r.other}`,
+                    body: `Your ${what} starts at ${clockTime(booking.start_at, r.tz, r.tzKnown)}. Open Palam to join.`,
+                    path: `/booking/${booking.id}`,
+                    tag: `booking-${booking.id}`,
+                    ttlSeconds: 45 * 60,
+                  }
+                : {
+                    title: `Reminder: ${what} with ${r.other}`,
+                    body: `${shortWhen(booking.start_at, r.tz, r.tzKnown)}. ${minutes} minutes, on video in Palam.`,
+                    path: `/booking/${booking.id}`,
+                    tag: `booking-${booking.id}`,
+                    ttlSeconds: 6 * 60 * 60,
+                  },
+        },
+      ]);
 
-      if (prefs?.sms_reminders && prefs.phone) {
+      if (kind !== 'starting_soon' && prefs?.sms_reminders && prefs.phone) {
         await sendSms(
           prefs.phone,
-          `Palam: your session with ${r.other} ${soon ? 'starts in about an hour' : `is on ${r.when}`}. Open the app to join. Reply STOP to opt out.`,
+          `Palam: your ${what} with ${r.other} ${soon ? 'starts in about an hour' : `is on ${r.when}`}. Open the app to join. Reply STOP to opt out.`,
         );
       }
     }

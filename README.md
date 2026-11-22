@@ -305,17 +305,30 @@ The price an expert sets is the price of one 30-minute session, and it is exactl
 
 Deploying functions: sign in once with `npx supabase login`, then `npx supabase functions deploy <name> --no-verify-jwt --project-ref dthpwxpxjhbsgzcjnept` deploys straight from this folder.
 
-## Reminders
+## Notifications and reminders
 
-Both people on a confirmed session are reminded twice: once a day before (sent between 28 and 24 hours ahead) and once about an hour before.
+Who hears what, and how. "Push" means a notification on the device itself.
 
-- **Email** is on by default. Anyone can switch it off under You, Edit account.
-- **Phone notifications** work in store and development builds only. The app asks for permission after a customer books or an expert accepts, and stores one token per device in `push_tokens`.
-- **Text messages** stay off until three secrets exist in Supabase (Edge Functions, Secrets): `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`. People opt in and enter a number under You, Edit account. Numbers live in `notification_prefs`, which only the owner of the row can read. In the US the Twilio number must be registered for application-to-person messaging before carriers deliver the texts.
+| Moment | Customer | Expert |
+| --- | --- | --- |
+| Request sent (approve-first) | Email | Email and push, with a 24-hour deadline; one email nudge halfway |
+| Booked (instant) or accepted | Email with a calendar file, and push | Email with a calendar file; push when it is an instant booking |
+| Declined, or closed unanswered | Email and push | Email and push when a request closes |
+| Cancelled | Email and push (when the expert cancels) | Email and push (when the customer cancels) |
+| A day before (28 to 24 hours) | Email and push | Email and push |
+| An hour before (60 to 20 minutes) | Push; email only if no device has push on | Same |
+| Ten minutes before (last 12 minutes) | Push | Push |
 
-How it runs: migration `0019_reminders.sql` creates the tables. A `pg_cron` job named `palam-send-reminders` calls the `send-reminders` Edge Function every ten minutes. The job authenticates with the shared webhook secret, read from Supabase Vault (`palam_webhook_secret`), so the value never appears in this public repository. The function records each reminder in `booking_reminders` before sending, so nothing is sent twice.
+- **Push works in the web app.** A browser subscribes through the service worker in `public/sw.js` and the subscription is stored in `push_tokens`. Chrome, Edge and Firefox (computer and Android) and Safari on a Mac work in a normal tab. An iPhone or iPad only allows it once Palam has been added to the Home Screen, which is why the web app now has `public/manifest.json` and `app/+html.tsx`; the app shows those steps to anyone on an iPhone browser tab. The phone app, when it exists, registers an Expo token in the same table and needs nothing new on the server.
+- **Asking.** The browser's permission question is only ever shown after a tap on "Turn on notifications": on a booking, in an expert's Studio, or under You, Edit account. "Not now" hides the card for a week. Signing out removes that device's subscription so the next person on it gets nothing meant for someone else.
+- **Sending.** `supabase/functions/_shared/notify.ts` sends to every device a person has (Web Push for browsers, Expo for phones) and deletes subscriptions a browser has dropped. `_shared/webpush.ts` is the Web Push encryption and sender identification. The server's key pair is created on first use and kept in `push_keys`, which only the service role can read, so there is no secret to set. Only real browser push services are ever contacted.
+- **Email** reminders are on by default and can be switched off under You, Edit account. Booking confirmations, changes and cancellations always go by email.
+- **Times** are written in each person's own time zone. The app saves the zone the browser reports to `notification_prefs.timezone`; an expert otherwise gets the zone they set their hours in, and anyone whose zone is unknown sees the zone named.
+- **Text messages** stay off until three secrets exist in Supabase (Edge Functions, Secrets): `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`. Numbers live in `notification_prefs`, which only the owner of the row can read. In the US the Twilio number must be registered for application-to-person messaging before carriers deliver the texts.
 
-To check it: Supabase, Database, Cron shows the job, and Edge Functions, `send-reminders`, Logs shows each run.
+How it runs: `lifecycle-emails` is called by a database trigger on every booking change and sends the confirmations. A `pg_cron` job named `palam-send-reminders` calls `send-reminders` every ten minutes. Both authenticate with the shared webhook secret, read from Supabase Vault (`palam_webhook_secret`), so the value never appears in this public repository. Each reminder is recorded in `booking_reminders` before it is sent, so nothing is sent twice. The `push` function hands browsers the public key, sends a test notification ("Send a test" in the app), and can send a notice to a list of people for Palam's own use.
+
+To check it: Supabase, Database, Cron shows the job, and Edge Functions, `send-reminders`, Logs shows each run. Migrations `0019_reminders.sql` and `0029_push_notifications.sql` create the tables. Deploy the three functions with the CLI, not by pasting, because they share the files in `_shared`.
 
 ## Sign-in with Google or Apple
 

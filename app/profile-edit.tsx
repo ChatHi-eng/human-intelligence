@@ -142,7 +142,7 @@ export default function ProfileEditScreen() {
             reason="Palam uses it to reach you if plans change. It is not shown to anyone else."
           />
         ) : null}
-        <ReminderSettings userId={user.id} />
+        <ReminderSettings />
       </ScrollView>
     </Screen>
   );

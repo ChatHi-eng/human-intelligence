@@ -2,6 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Toast from 'react-native-toast-message';
+import { NotificationPrompt } from '@/components/account/NotificationPrompt';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -274,6 +275,19 @@ export default function BookingDetailScreen() {
           />
           )}
         </Card>
+
+        {bookingActive && (isCustomer || isExpert) && !needsPayment && !confirmingPayment ? (
+          <View style={{ marginTop: spacing.lg }}>
+            <NotificationPrompt
+              title="Get a reminder before it starts"
+              body={
+                booking.status === 'requested' && isCustomer
+                  ? 'Palam can tell you on this device the moment your request is answered, and remind you before the session starts.'
+                  : 'Palam can remind you on this device a day before, an hour before and ten minutes before the start.'
+              }
+            />
+          </View>
+        ) : null}
 
         {confirmingPayment && isCustomer && (
           <Card style={{ marginTop: spacing.lg }}>

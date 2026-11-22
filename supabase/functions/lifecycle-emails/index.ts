@@ -23,6 +23,12 @@
 //       party who reported. The no_show_reported_* columns land in a separate
 //       no-show-policy migration; until they exist this simply never fires.
 //
+// Each of those moments also sends a notification to the devices of whoever
+// did not cause it (new request, booked, accepted, declined, cancelled,
+// closed), through ../_shared/notify.ts. Confirmation emails carry a calendar
+// file and a Google Calendar link. Times are written in each reader's own
+// time zone when their browser has reported one.
+//
 // Idempotency: every UPDATE email is derived by comparing old_record to
 // record, so webhook retries and no-op updates never double-send.
 //
@@ -58,6 +64,15 @@
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import {
+  base64Text,
+  calendarFile,
+  googleCalendarUrl,
+  pushToUsers,
+  shortWhen,
+  timezonesOf,
+  type PushMessage,
+} from '../_shared/notify.ts';
 
 // ---------------------------------------------------------------------------
 // Sender, the single place the from-address lives. Until palamapp.com is
@@ -137,7 +152,13 @@ const escapeHtml = (value: string) =>
 // always a quick 200 and the webhook never retries forever over a bad send.
 const sendEmail = async (
   resendKey: string,
-  payload: { from: string; to: string; subject: string; html: string },
+  payload: {
+    from: string;
+    to: string;
+    subject: string;
+    html: string;
+    attachments?: { filename: string; content: string }[];
+  },
 ) => {
   try {
     const res = await fetch('https://api.resend.com/emails', {
@@ -174,6 +195,13 @@ const emailHtml = (body: string) =>
   ].join('\n');
 
 const p = (text: string) => `<p style="margin:0 0 16px;">${text}</p>`;
+
+const plain = (html: string) =>
+  html
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&');
 
 const note = (text: string) => `<p style="margin:-8px 0 16px;font-size:13px;color:#6b7280;">${text}</p>`;
 
@@ -351,7 +379,64 @@ serve(async (req) => {
   const names = await namesOf([booking.customer_id, booking.expert_profile_id]);
   const customerName = names.get(booking.customer_id) ?? 'A Palam customer';
   const expertName = names.get(booking.expert_profile_id) ?? 'your expert';
+  // `when` is in Palam's default zone (owner alerts). Each reader gets their
+  // own: the zone their browser reported, or for an expert the zone they set
+  // their hours in.
   const when = formatWhen(booking.start_at, booking.end_at, tz);
+  const [zones, expertZoneRes] = await Promise.all([
+    timezonesOf(admin, [booking.customer_id, booking.expert_profile_id]),
+    admin
+      .from('expert_profiles')
+      .select('timezone')
+      .eq('profile_id', booking.expert_profile_id)
+      .maybeSingle(),
+  ]);
+  const customerZone = zones.get(booking.customer_id) ?? null;
+  const expertZone =
+    zones.get(booking.expert_profile_id) ?? (expertZoneRes.data?.timezone as string | null) ?? null;
+  const customerWhen = formatWhen(booking.start_at, booking.end_at, customerZone ?? tz);
+  const expertWhen = formatWhen(booking.start_at, booking.end_at, expertZone ?? tz);
+  // Only someone whose zone we had to guess is told the app shows local time.
+  const customerTimesNote = customerZone ? [] : [note(TIMES_NOTE)];
+  const customerShort = shortWhen(booking.start_at, customerZone ?? tz, customerZone !== null);
+  const expertShort = shortWhen(booking.start_at, expertZone ?? tz, expertZone !== null);
+  const customerPlain = plain(customerName);
+  const expertPlain = plain(expertName);
+
+  const bookingPath = `/booking/${booking.id}`;
+  const notify = (
+    userId: string,
+    message: Omit<PushMessage, 'path' | 'tag'>,
+    path = bookingPath,
+  ) =>
+    pushToUsers(admin, [
+      {
+        userId,
+        message: {
+          ...message,
+          path,
+          tag: `booking-${booking.id}`,
+          ttlSeconds: 12 * 60 * 60,
+        },
+      },
+    ]);
+
+  // The session as a calendar entry, for the confirmation emails.
+  const calendarFor = (other: string) => {
+    const event = {
+      bookingId: booking.id,
+      startIso: booking.start_at,
+      endIso: booking.end_at,
+      title: `Palam: ${booking.kind === 'intro' ? 'intro call' : 'session'} with ${other}`,
+      description: `Open Palam a few minutes before the start and tap Join. ${APP_URL}${bookingPath}`,
+    };
+    return {
+      attachments: [{ filename: 'palam-session.ics', content: base64Text(calendarFile(event)) }],
+      links: p(
+        `<a href="${APP_URL}${bookingPath}" style="color:${BRAND_GREEN};font-weight:700;">Open this booking</a> &nbsp;&middot;&nbsp; <a href="${googleCalendarUrl(event)}" style="color:${BRAND_GREEN};font-weight:700;">Add to Google Calendar</a><br><span style="font-size:13px;color:#6b7280;">For Apple or Outlook calendars, open the attached file.</span>`,
+      ),
+    };
+  };
   const format = mediumLabel(booking.medium);
   const price = money(booking.price_cents);
   const cut = money(expertCutCents(booking.price_cents));
@@ -396,17 +481,16 @@ serve(async (req) => {
             details(
               freeIntro
                 ? [
-                    ['When', when],
+                    ['When', expertWhen],
                     ['Format', format],
                   ]
                 : [
-                    ['When', when],
+                    ['When', expertWhen],
                     ['Format', format],
                     ['Price', price],
                     ['You earn', `${cut} (after Palam's ${pct}% fee)`],
                   ],
             ),
-            note(TIMES_NOTE),
             ...(booking.customer_note
               ? [
                   p(
@@ -442,11 +526,11 @@ serve(async (req) => {
             ),
             details([
               ['Expert', expertName],
-              ['When', when],
+              ['When', customerWhen],
               ['Format', format],
               ['Price', freeIntro ? 'Free' : price],
             ]),
-            note(TIMES_NOTE),
+            ...customerTimesNote,
             p(
               freeIntro
                 ? `${expertName} has 24 hours to answer. This intro call is free, so there is nothing to pay.`
@@ -459,6 +543,16 @@ serve(async (req) => {
     } else {
       console.error('request email skipped, no address for customer', booking.customer_id);
     }
+
+    // Requests are answered in Studio, so that is where the tap lands.
+    await notify(
+      booking.expert_profile_id,
+      {
+        title: 'New booking request',
+        body: `${customerPlain} asked for ${freeIntro ? 'a free intro call' : 'a session'} on ${expertShort}. You have 24 hours to answer.`,
+      },
+      '/studio',
+    );
 
     return json({ ok: true });
   }
@@ -494,10 +588,14 @@ serve(async (req) => {
       emailOf(booking.expert_profile_id),
     ]);
 
+    const customerCalendar = calendarFor(expertPlain);
+    const expertCalendar = calendarFor(customerPlain);
+
     if (customerEmail) {
       await sendEmail(resendKey, {
         from,
         to: customerEmail,
+        attachments: customerCalendar.attachments,
         subject: instant ? `You're booked with ${expertName}` : `You're booked: ${expertName} confirmed`,
         html: emailHtml(
           [
@@ -513,12 +611,13 @@ serve(async (req) => {
             ),
             details([
               ['Expert', expertName],
-              ['When', when],
+              ['When', customerWhen],
               ['Format', format],
             ]),
-            note(TIMES_NOTE),
+            ...customerTimesNote,
+            customerCalendar.links,
             p(
-              'To join, open Palam a few minutes before the start, open this booking, and tap <strong>Join</strong>. The call runs inside the app, so there is nothing to install.',
+              'To join, open Palam a few minutes before the start, open this booking, and tap <strong>Join</strong>. The call runs inside the app, so there is nothing to install. We&rsquo;ll remind you a day before, an hour before and ten minutes before.',
             ),
             p(
               freeIntro
@@ -537,6 +636,7 @@ serve(async (req) => {
       await sendEmail(resendKey, {
         from,
         to: expertEmail,
+        attachments: expertCalendar.attachments,
         subject: instant
           ? `New session booked: ${customerName}`
           : `Locked in: session with ${customerName}`,
@@ -553,16 +653,16 @@ serve(async (req) => {
             details(
               freeIntro
                 ? [
-                    ['When', when],
+                    ['When', expertWhen],
                     ['Format', format],
                   ]
                 : [
-                    ['When', when],
+                    ['When', expertWhen],
                     ['Format', format],
                     ['You earn', `${cut} (after Palam's ${pct}% fee)`],
                   ],
             ),
-            note(TIMES_NOTE),
+            expertCalendar.links,
             ...(instant && booking.customer_note
               ? [
                   p(
@@ -576,6 +676,21 @@ serve(async (req) => {
       });
     } else {
       console.error('confirmation email skipped, no address for expert', booking.expert_profile_id);
+    }
+
+    // The customer always hears it is on. The expert only when it is news to
+    // them: an instant booking. If they accepted a request, they just did it.
+    await notify(booking.customer_id, {
+      title: instant ? `You're booked with ${expertPlain}` : `${expertPlain} accepted`,
+      body: instant
+        ? `${customerShort}. We'll remind you before it starts.`
+        : `Your ${freeIntro ? 'intro call' : 'session'} is booked for ${customerShort}.`,
+    });
+    if (instant) {
+      await notify(booking.expert_profile_id, {
+        title: freeIntro ? 'New intro call booked' : 'New session booked',
+        body: `${customerPlain}, ${expertShort}.`,
+      });
     }
   }
 
@@ -611,7 +726,7 @@ serve(async (req) => {
                   : `${expertName} declined your session request. It happens. Schedules are messy and good people are busy.`,
             ),
             details([
-              ['When', when],
+              ['When', customerWhen],
               ['Format', format],
             ]),
             p(refundLine),
@@ -627,6 +742,23 @@ serve(async (req) => {
     } else {
       console.error('decline email skipped, no address for customer', booking.customer_id);
     }
+
+    await notify(
+      booking.customer_id,
+      old?.status === 'confirmed'
+        ? {
+            title: `${expertPlain} cancelled your ${freeIntro ? 'intro call' : 'session'}`,
+            body: freeIntro
+              ? `It was set for ${customerShort}.`
+              : `It was set for ${customerShort}. You'll get a full refund.`,
+          }
+        : {
+            title: `${expertPlain} declined your request`,
+            body: freeIntro
+              ? `It was for ${customerShort}. There are other experts on Palam.`
+              : `It was for ${customerShort}. You haven't been charged.`,
+          },
+    );
   }
 
   // The expert did not answer an approve-first request in time (set by the
@@ -652,7 +784,7 @@ serve(async (req) => {
                 : `${expertName} did not answer your session request in time, so it has closed. Your card was not charged, and the hold on it has been released.`,
             ),
             details([
-              ['When', when],
+              ['When', customerWhen],
               ['Format', format],
             ]),
             p(
@@ -665,6 +797,13 @@ serve(async (req) => {
     } else {
       console.error('expiry email skipped, no address for customer', booking.customer_id);
     }
+
+    await notify(booking.customer_id, {
+      title: `Your request to ${expertPlain} closed`,
+      body: freeIntro
+        ? "They didn't answer in time."
+        : "They didn't answer in time. You haven't been charged.",
+    });
   }
 
   if (becameCancelled && !declinedByExpert && !abandoned) {
@@ -695,7 +834,7 @@ serve(async (req) => {
             p(`Hi ${expertName},`),
             p(why),
             details([
-              ['When', when],
+              ['When', expertWhen],
               ['Format', format],
             ]),
             signoff('Thanks for being here,'),
@@ -705,6 +844,22 @@ serve(async (req) => {
     } else {
       console.error('cancellation email skipped, no address for expert', booking.expert_profile_id);
     }
+
+    await notify(
+      booking.expert_profile_id,
+      expired
+        ? {
+            title: 'Request closed',
+            body: `${customerPlain}'s request closed because it wasn't answered in time.`,
+          }
+        : {
+            title: `${freeIntro ? 'Intro call' : 'Session'} cancelled`,
+            body:
+              booking.cancellation_reason === 'cancelled by customer'
+                ? `${customerPlain} cancelled your ${freeIntro ? 'intro call' : 'session'} on ${expertShort}. That time is open again.`
+                : `${expertShort} with ${customerPlain} was cancelled.`,
+          },
+    );
   }
 
   // ---- payment_status → refunded: confirm the money came back --------------
@@ -771,7 +926,7 @@ serve(async (req) => {
               "We got your report. A human reviews every one within 48 hours, and you'll hear from us as soon as it's resolved. Nothing more to do on your side.",
             ),
             details([
-              ['When', when],
+              ['When', reporterIsCustomer ? customerWhen : expertWhen],
               ['Format', format],
             ]),
             signoff('Thanks for flagging it,'),

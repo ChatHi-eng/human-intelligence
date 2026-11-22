@@ -1074,3 +1074,56 @@ export const savePushToken = async (
     .upsert({ token, user_id: userId, platform, updated_at: new Date().toISOString() });
   if (error) throw error;
 };
+
+// ---------- Notifications in the browser (migration 0029) ----------
+
+// A browser's push subscription: where to send, and the keys to encrypt with.
+export type WebPushSubscription = { endpoint: string; p256dh: string; auth: string };
+
+export const savePushSubscription = async (
+  userId: string,
+  subscription: WebPushSubscription,
+): Promise<void> => {
+  const { error } = await sb().from('push_tokens').upsert({
+    token: subscription.endpoint,
+    user_id: userId,
+    platform: 'web',
+    p256dh: subscription.p256dh,
+    auth: subscription.auth,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) throw error;
+};
+
+// Row level security limits this to the signed-in person's own devices.
+export const deletePushToken = async (token: string): Promise<void> => {
+  const { error } = await sb().from('push_tokens').delete().eq('token', token);
+  if (error) throw error;
+};
+
+// The server's public key, which a browser needs before it can subscribe.
+export const fetchPushPublicKey = async (): Promise<string> => {
+  const { data, error } = await sb().functions.invoke('push', { body: { action: 'key' } });
+  if (error) throw new Error(await functionErrorMessage(error));
+  const key = (data as { publicKey?: string } | null)?.publicKey;
+  if (!key) throw new Error('Notifications are not set up yet.');
+  return key;
+};
+
+// Sends a test notification to the signed-in person's own devices. Resolves
+// to how many devices took it.
+export const sendTestPush = async (): Promise<number> => {
+  const { data, error } = await sb().functions.invoke('push', { body: { action: 'test' } });
+  if (error) throw new Error(await functionErrorMessage(error));
+  return (data as { delivered?: number } | null)?.delivered ?? 0;
+};
+
+// The time zone this device is in, so emails and notifications can state
+// times the way this person reads them. Only the zone is written; the other
+// reminder settings on the row are left as they are.
+export const saveMyTimezone = async (userId: string, timezone: string): Promise<void> => {
+  const { error } = await sb()
+    .from('notification_prefs')
+    .upsert({ user_id: userId, timezone }, { onConflict: 'user_id' });
+  if (error) throw error;
+};

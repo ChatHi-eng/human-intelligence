@@ -16,7 +16,7 @@ import {
 import { capture } from '@/services/analytics';
 import { addBookingToDeviceCalendar } from '@/services/calendar';
 import { scheduleBookingReminder } from '@/services/notifications';
-import { registerForPush } from '@/services/push';
+import { syncPush } from '@/services/push';
 import {
   createCheckoutSession,
   openCheckout,
@@ -166,7 +166,7 @@ export const useCreateBooking = () => {
       return { bookingId: booking.id, checkoutResult: result.type };
     },
     onSuccess: () => {
-      if (userId) void registerForPush(userId);
+      if (userId) void syncPush(userId);
       void qc.invalidateQueries({ queryKey: ['bookings'] });
     },
   });
@@ -195,7 +195,7 @@ export const useAcceptBooking = () => {
       );
     },
     onSuccess: () => {
-      if (userId) void registerForPush(userId);
+      if (userId) void syncPush(userId);
       capture('booking_confirmed');
       void qc.invalidateQueries({ queryKey: ['bookings'] });
     },
