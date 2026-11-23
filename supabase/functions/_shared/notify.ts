@@ -224,6 +224,8 @@ export type CalendarEvent = {
   endIso: string;
   title: string;
   description: string;
+  // Where the calendar entry's own link goes. Defaults to the booking.
+  url?: string;
 };
 
 export const calendarFile = (event: CalendarEvent): string =>
@@ -240,7 +242,7 @@ export const calendarFile = (event: CalendarEvent): string =>
     `DTEND:${icsStamp(event.endIso)}`,
     `SUMMARY:${icsText(event.title)}`,
     `DESCRIPTION:${icsText(event.description)}`,
-    `URL:${APP_URL}/booking/${event.bookingId}`,
+    `URL:${event.url ?? `${APP_URL}/booking/${event.bookingId}`}`,
     'BEGIN:VALARM',
     'ACTION:DISPLAY',
     'DESCRIPTION:Palam session in 10 minutes',

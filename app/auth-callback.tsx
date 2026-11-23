@@ -1,7 +1,8 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useEffect } from 'react';
 import Toast from 'react-native-toast-message';
 import { LoadingView } from '@/components/ui/LoadingView';
+import { takeReturnPath } from '@/lib/returnPath';
 import { capture } from '@/services/analytics';
 import { exchangeCodeForSession } from '@/services/supabase';
 
@@ -18,7 +19,7 @@ export default function AuthCallback() {
         // new_account omitted — not cheaply knowable on this path.
         capture('sign_in_completed');
         Toast.show({ type: 'success', text1: 'Signed in' });
-        router.replace('/(tabs)');
+        router.replace((takeReturnPath() as Href | null) ?? '/(tabs)');
       } catch (err) {
         Toast.show({
           type: 'error',

@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { NotificationPrompt } from '@/components/account/NotificationPrompt';
@@ -27,7 +27,7 @@ import { formatDateTime, minutesBetween } from '@/lib/date';
 import { formatCurrency } from '@/lib/format';
 import { isFreeCancellation, isWithinNoShowReportWindow } from '@/lib/policy';
 import { capture } from '@/services/analytics';
-import { createRoomForBooking, openCallRoom } from '@/services/video';
+import { createRoomForBooking, joinCall, openCallRoom } from '@/services/video';
 import type { BookingStatus, PaymentStatus } from '@/types/booking';
 
 type CallStage = 'idle' | 'connecting' | 'in-call' | 'review';
@@ -67,7 +67,15 @@ const paymentLabel = (status: PaymentStatus): string => {
 };
 
 export default function BookingDetailScreen() {
-  const { id, stripe } = useLocalSearchParams<{ id: string; stripe?: string }>();
+  const { id, stripe, review } = useLocalSearchParams<{
+    id: string;
+    stripe?: string;
+    review?: string;
+  }>();
+  // Arriving from "How was your session?" (?review=1): bring the review card
+  // into view instead of leaving it below the fold.
+  const scrollRef = useRef<ScrollView>(null);
+  const showedReview = useRef(false);
   const router = useRouter();
   const { user } = useAuth();
   const { data: booking, isLoading, refetch } = useBooking(id);
@@ -111,11 +119,20 @@ export default function BookingDetailScreen() {
   const handleJoin = async () => {
     setStage('connecting');
     try {
-      // Use the persisted URL if we have one. Otherwise mint a fresh one (the
-      // booking flow may have skipped minting due to a transient Daily error).
-      const room = booking.callRoomUrl
-        ? { url: booking.callRoomUrl, name: '' }
-        : await createRoomForBooking(booking.id);
+      // With the room's address already in hand, open it at once (a browser
+      // only allows a new tab straight after the tap) and tell Palam in the
+      // background that this person went in. Otherwise ask for the room,
+      // which records it too.
+      let url = booking.callRoomUrl;
+      if (url) {
+        void joinCall(booking.id).catch(() => undefined);
+      } else {
+        const joined = await joinCall(booking.id).catch(() => null);
+        url =
+          joined?.status === 'ok' ? joined.url : (await createRoomForBooking(booking.id)).url;
+      }
+      const room = { url };
+      capture('call_joined', { via: 'booking' });
       // openBrowserAsync returns quickly once the browser has actually opened.
       // We don't await the entire call session, the user can navigate back
       // any time and hit 'Review the call' when finished.
@@ -201,7 +218,11 @@ export default function BookingDetailScreen() {
 
   return (
     <Screen>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <ScrollView
+        ref={scrollRef}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
+      >
         <Card>
           <View style={styles.headerRow}>
             <Avatar
@@ -354,6 +375,13 @@ export default function BookingDetailScreen() {
         )}
 
         {reviewEligible ? (
+          <View
+            onLayout={(event) => {
+              if (review !== '1' || showedReview.current) return;
+              showedReview.current = true;
+              scrollRef.current?.scrollTo({ y: event.nativeEvent.layout.y, animated: false });
+            }}
+          >
           <Card style={{ marginTop: spacing.lg }}>
             <Text style={styles.sectionTitle}>How was your call?</Text>
             <View style={{ marginVertical: spacing.md }}>
@@ -374,6 +402,7 @@ export default function BookingDetailScreen() {
               loading={submittingReview}
             />
           </Card>
+          </View>
         ) : canJoin && !callOver ? (
           <Card style={{ marginTop: spacing.lg }}>
             <Text style={styles.sectionTitle}>

@@ -6,7 +6,7 @@ import {
   useFonts,
 } from '@expo-google-fonts/manrope';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack, useGlobalSearchParams, usePathname, useRouter, useSegments, type Href } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -17,6 +17,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { colors, fonts, spacing, typography } from '@/constants/theme';
 import { needsRealName } from '@/lib/names';
+import { rememberReturnPath, takeReturnPath } from '@/lib/returnPath';
 import { saveMyTimezone } from '@/services/api';
 import { syncPush } from '@/services/push';
 import { useAuthStore } from '@/store/authStore';
@@ -86,6 +87,7 @@ export default function RootLayout() {
                   options={{ title: '', presentation: 'modal' }}
                 />
                 <Stack.Screen name="your-name" options={{ headerShown: false }} />
+                <Stack.Screen name="join" options={{ headerShown: false }} />
                 <Stack.Screen
                   name="delete-account"
                   options={{ title: '', presentation: 'modal' }}
@@ -123,6 +125,8 @@ export default function RootLayout() {
 function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const segments = useSegments();
+  const pathname = usePathname();
+  const { review } = useGlobalSearchParams<{ review?: string }>();
   const isHydrated = useAuthStore((s) => s.isHydrated);
   const user = useAuthStore((s) => s.user);
   const email = useAuthStore((s) => s.email);
@@ -168,15 +172,22 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     // Expert profiles are publicly shareable (LinkedIn-bio links on the web
     // build) — /expert/[id] renders signed-out; RLS limits anon to approved rows.
     const onPublicExpert = segments[0] === 'expert';
+    // A personal join link (/join?b=..&k=..) is its own pass into one call,
+    // so it works signed out and is never interrupted.
+    const onJoinLink = segments[0] === 'join';
+    if (onJoinLink) return;
     if (!user && !inAuthGroup && !onAuthCallback && !onPublicExpert) {
+      // Keep where they were headed (a booking from an email, say), so that
+      // signing in takes them there and not to the home screen.
+      rememberReturnPath(review === '1' ? `${pathname}?review=1` : pathname);
       router.replace('/(auth)/welcome');
     } else if (user && needsRealName(user.displayName, email)) {
       // Signed in but still named after their email address: ask once.
       if (segments[0] !== 'your-name') router.replace('/your-name');
     } else if (user && (inAuthGroup || segments[0] === 'your-name')) {
-      router.replace('/(tabs)');
+      router.replace((takeReturnPath() as Href | null) ?? '/(tabs)');
     }
-  }, [isHydrated, user, email, segments, router, configError]);
+  }, [isHydrated, user, email, segments, pathname, review, router, configError]);
 
   if (!isHydrated) return <LoadingView label="Loading…" />;
   if (configError) return <ConfigErrorScreen message={configError} />;

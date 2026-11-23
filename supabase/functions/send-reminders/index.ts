@@ -1,6 +1,6 @@
 // Supabase Edge Function, send-reminders
 //
-// Called every ten minutes by a pg_cron job (see README "Reminders"). Finds
+// Called every two minutes by a pg_cron job (see README "Reminders"). Finds
 // confirmed sessions that are coming up and reminds BOTH people, on every
 // channel they have switched on:
 //
@@ -20,6 +20,17 @@
 // Times are written in each person's own time zone when their browser has
 // reported one (notification_prefs.timezone).
 //
+// Every reminder, on every channel, carries that person's own link into the
+// call (/join?b=...&k=..., see ../_shared/join.ts).
+//
+// The same run also sends two once-only messages about sessions that are
+// running or just over (../_shared/session-alerts.ts):
+//
+//   other_waiting  one person opened the call, the other has not, and the
+//                  start is two minutes gone: the missing person is told
+//   review_prompt  twenty minutes after a session both people joined, the
+//                  customer is asked for a review
+//
 // Idempotent: a row in booking_reminders is claimed before anything is sent,
 // so a retry or an overlapping run can never send the same reminder twice.
 //
@@ -36,7 +47,15 @@
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
-import { clockTime, pushToUsers, shortWhen } from '../_shared/notify.ts';
+import { peopleInRoom } from '../_shared/daily.ts';
+import { joinKey, joinPath } from '../_shared/join.ts';
+import { APP_URL, clockTime, pushToUsers, shortWhen } from '../_shared/notify.ts';
+import {
+  emailButton,
+  sendReviewPrompt,
+  sendWaitingAlert,
+  type AlertEnv,
+} from '../_shared/session-alerts.ts';
 
 const DEFAULT_SENDER = 'Palam <onboarding@resend.dev>';
 const SUPPORT_EMAIL = 'info@palamapp.com';
@@ -155,7 +174,7 @@ serve(async (req) => {
     return json({ error: 'Lookup failed' }, 500);
   }
 
-  const sent = { email: 0, push: 0, sms: 0, reminders: 0 };
+  const sent = { email: 0, push: 0, sms: 0, reminders: 0, waiting: 0, reviews: 0 };
 
   const sendEmail = async (to: string, subject: string, html: string) => {
     try {
@@ -241,9 +260,14 @@ serve(async (req) => {
     // has the zone they set their hours in; a customer gets the default, named.
     const customerZone = prefsOf(booking.customer_id)?.timezone ?? null;
     const expertZone = prefsOf(booking.expert_profile_id)?.timezone ?? expertTz;
+    const [customerKey, expertKey] = await Promise.all([
+      joinKey(serviceKey, booking.id, 'customer'),
+      joinKey(serviceKey, booking.id, 'expert'),
+    ]);
     const recipients = [
       {
         id: booking.customer_id,
+        join: joinPath(booking.id, customerKey),
         isExpert: false,
         name: customerName,
         other: expertName,
@@ -252,6 +276,7 @@ serve(async (req) => {
       },
       {
         id: booking.expert_profile_id,
+        join: joinPath(booking.id, expertKey),
         isExpert: true,
         name: expertName,
         other: customerName,
@@ -295,8 +320,9 @@ serve(async (req) => {
             );
           }
           lines.push(
+            emailButton('Join the call', `${APP_URL}${r.join}`),
             p(
-              'To join, open Palam a few minutes before the start, open this booking, and tap <strong>Join</strong>.',
+              'This is your personal link, so do not forward it. It opens the call from 15 minutes before the start. You can also open the booking in Palam and tap <strong>Join</strong>.',
             ),
           );
           if (!soon && !r.isExpert) {
@@ -318,7 +344,7 @@ serve(async (req) => {
               ? {
                   title: `Starting in ${minutesLeft} ${minutesLeft === 1 ? 'minute' : 'minutes'}`,
                   body: `Your ${what} with ${r.other}. Tap to join.`,
-                  path: `/booking/${booking.id}`,
+                  path: r.join,
                   tag: `booking-${booking.id}`,
                   ttlSeconds: 10 * 60,
                 }
@@ -326,14 +352,14 @@ serve(async (req) => {
                 ? {
                     title: `In about an hour: ${r.other}`,
                     body: `Your ${what} starts at ${clockTime(booking.start_at, r.tz, r.tzKnown)}. Open Palam to join.`,
-                    path: `/booking/${booking.id}`,
+                    path: r.join,
                     tag: `booking-${booking.id}`,
                     ttlSeconds: 45 * 60,
                   }
                 : {
                     title: `Reminder: ${what} with ${r.other}`,
                     body: `${shortWhen(booking.start_at, r.tz, r.tzKnown)}. ${minutes} minutes, on video in Palam.`,
-                    path: `/booking/${booking.id}`,
+                    path: r.join,
                     tag: `booking-${booking.id}`,
                     ttlSeconds: 6 * 60 * 60,
                   },
@@ -343,10 +369,81 @@ serve(async (req) => {
       if (kind !== 'starting_soon' && prefs?.sms_reminders && prefs.phone) {
         await sendSms(
           prefs.phone,
-          `Palam: your ${what} with ${r.other} ${soon ? 'starts in about an hour' : `is on ${r.when}`}. Open the app to join. Reply STOP to opt out.`,
+          `Palam: your ${what} with ${r.other} ${soon ? 'starts in about an hour' : `is on ${r.when}`}. Join: ${APP_URL}${r.join} Reply STOP to opt out.`,
         );
       }
     }
+  }
+
+  // ---- Sessions running now, and sessions just finished -------------------
+  const dailyKey = Deno.env.get('DAILY_API_KEY');
+  const alertEnv: AlertEnv = {
+    resendKey,
+    serviceKey,
+    from,
+    defaultTz,
+    twilio:
+      twilioSid && twilioToken && twilioFrom
+        ? { sid: twilioSid, token: twilioToken, from: twilioFrom }
+        : null,
+  };
+  const sessionColumns =
+    'id, customer_id, expert_profile_id, start_at, end_at, kind, daily_room_name, customer_joined_at, expert_joined_at';
+
+  // One person opened the call, the other has not, and it started two
+  // minutes ago or more.
+  try {
+    const { data: running } = await admin
+      .from('bookings')
+      .select(sessionColumns)
+      .in('status', ['confirmed', 'in_progress'])
+      .lte('start_at', new Date(now - 2 * 60_000).toISOString())
+      .gt('end_at', new Date(now).toISOString());
+    for (const b of running ?? []) {
+      const customerIn = Boolean(b.customer_joined_at);
+      const expertIn = Boolean(b.expert_joined_at);
+      if (customerIn === expertIn) continue;
+      // Ask the room itself. Nobody there means the one who came has left;
+      // two there means the other got in some other way. Either way, no alert.
+      if (dailyKey && b.daily_room_name) {
+        const inRoom = await peopleInRoom(dailyKey, b.daily_room_name);
+        if (inRoom !== null && inRoom !== 1) continue;
+      }
+      if (await sendWaitingAlert(admin, alertEnv, b, customerIn ? 'expert' : 'customer')) {
+        sent.waiting += 1;
+      }
+    }
+  } catch (err) {
+    console.error('waiting check failed', err);
+  }
+
+  // Finished at least twenty minutes ago (and within the last day), both
+  // people came, and nobody reported a no-show: ask the customer for a review.
+  try {
+    const { data: finished } = await admin
+      .from('bookings')
+      .select(sessionColumns)
+      .in('status', ['confirmed', 'in_progress', 'completed'])
+      .lte('end_at', new Date(now - 20 * 60_000).toISOString())
+      .gt('end_at', new Date(now - 24 * 60 * 60_000).toISOString())
+      .not('customer_joined_at', 'is', null)
+      .not('expert_joined_at', 'is', null)
+      .is('no_show_reported_by', null);
+    const finishedIds = (finished ?? []).map((b) => b.id as string);
+    if (finishedIds.length > 0) {
+      const { data: asked } = await admin
+        .from('booking_reminders')
+        .select('booking_id')
+        .eq('kind', 'review_prompt')
+        .in('booking_id', finishedIds);
+      const done = new Set((asked ?? []).map((r) => r.booking_id as string));
+      for (const b of finished ?? []) {
+        if (done.has(b.id)) continue;
+        if (await sendReviewPrompt(admin, alertEnv, b)) sent.reviews += 1;
+      }
+    }
+  } catch (err) {
+    console.error('review prompts failed', err);
   }
 
   return json({ ok: true, ...sent, smsConfigured: smsReady });

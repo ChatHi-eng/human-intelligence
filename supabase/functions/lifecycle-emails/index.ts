@@ -26,7 +26,8 @@
 // Each of those moments also sends a notification to the devices of whoever
 // did not cause it (new request, booked, accepted, declined, cancelled,
 // closed), through ../_shared/notify.ts. Confirmation emails carry a calendar
-// file and a Google Calendar link. Times are written in each reader's own
+// file, a Google Calendar link and the reader's own link into the call
+// (../_shared/join.ts), which the calendar entry carries too. Times are written in each reader's own
 // time zone when their browser has reported one.
 //
 // Idempotency: every UPDATE email is derived by comparing old_record to
@@ -64,6 +65,7 @@
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import { joinKey, joinPath } from '../_shared/join.ts';
 import {
   base64Text,
   calendarFile,
@@ -422,18 +424,20 @@ serve(async (req) => {
     ]);
 
   // The session as a calendar entry, for the confirmation emails.
-  const calendarFor = (other: string) => {
+  const calendarFor = async (other: string, role: 'customer' | 'expert') => {
+    const joinUrl = `${APP_URL}${joinPath(booking.id, await joinKey(serviceKey, booking.id, role))}`;
     const event = {
       bookingId: booking.id,
       startIso: booking.start_at,
       endIso: booking.end_at,
       title: `Palam: ${booking.kind === 'intro' ? 'intro call' : 'session'} with ${other}`,
-      description: `Open Palam a few minutes before the start and tap Join. ${APP_URL}${bookingPath}`,
+      description: `Join the call: ${joinUrl} (your personal link, open from 15 minutes before the start)`,
+      url: joinUrl,
     };
     return {
       attachments: [{ filename: 'palam-session.ics', content: base64Text(calendarFile(event)) }],
       links: p(
-        `<a href="${APP_URL}${bookingPath}" style="color:${BRAND_GREEN};font-weight:700;">Open this booking</a> &nbsp;&middot;&nbsp; <a href="${googleCalendarUrl(event)}" style="color:${BRAND_GREEN};font-weight:700;">Add to Google Calendar</a><br><span style="font-size:13px;color:#6b7280;">For Apple or Outlook calendars, open the attached file.</span>`,
+        `<a href="${joinUrl}" style="color:${BRAND_GREEN};font-weight:700;">Join the call</a> &nbsp;&middot;&nbsp; <a href="${googleCalendarUrl(event)}" style="color:${BRAND_GREEN};font-weight:700;">Add to Google Calendar</a> &nbsp;&middot;&nbsp; <a href="${APP_URL}${bookingPath}" style="color:${BRAND_GREEN};font-weight:700;">Open this booking</a><br><span style="font-size:13px;color:#6b7280;">The join link is your personal one, so do not forward it. It opens the call from 15 minutes before the start. For Apple or Outlook calendars, open the attached file.</span>`,
       ),
     };
   };
@@ -588,8 +592,8 @@ serve(async (req) => {
       emailOf(booking.expert_profile_id),
     ]);
 
-    const customerCalendar = calendarFor(expertPlain);
-    const expertCalendar = calendarFor(customerPlain);
+    const customerCalendar = await calendarFor(expertPlain, 'customer');
+    const expertCalendar = await calendarFor(customerPlain, 'expert');
 
     if (customerEmail) {
       await sendEmail(resendKey, {
@@ -617,7 +621,7 @@ serve(async (req) => {
             ...customerTimesNote,
             customerCalendar.links,
             p(
-              'To join, open Palam a few minutes before the start, open this booking, and tap <strong>Join</strong>. The call runs inside the app, so there is nothing to install. We&rsquo;ll remind you a day before, an hour before and ten minutes before.',
+              'To join, use the link above, or open this booking in Palam and tap <strong>Join</strong>. The call runs in your browser, so there is nothing to install. We&rsquo;ll remind you a day before, an hour before and ten minutes before, with the link each time.',
             ),
             p(
               freeIntro
