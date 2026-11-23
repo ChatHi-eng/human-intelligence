@@ -9,6 +9,8 @@ export type CancelSheetProps = {
   working: boolean;
   onKeep: () => void;
   onConfirm: () => void;
+  // Opens the screen for moving the booking, when that is possible.
+  onMove?: () => void;
 };
 
 // Asked before any booking is cancelled, declined or withdrawn. It says what
@@ -16,7 +18,14 @@ export type CancelSheetProps = {
 // the person may not expect (no refund, a late cancellation on an expert's
 // record) in red. Keeping the booking is the easy answer: it is the first
 // button, tapping outside does it, and so does the back button.
-export const CancelSheet = ({ visible, copy, working, onKeep, onConfirm }: CancelSheetProps) => {
+export const CancelSheet = ({
+  visible,
+  copy,
+  working,
+  onKeep,
+  onConfirm,
+  onMove,
+}: CancelSheetProps) => {
   const close = () => {
     if (!working) onKeep();
   };
@@ -40,6 +49,9 @@ export const CancelSheet = ({ visible, copy, working, onKeep, onConfirm }: Cance
           </View>
         ) : null}
         <View style={styles.actions}>
+          {copy.moveLabel && onMove ? (
+            <Button title={copy.moveLabel} onPress={onMove} disabled={working} />
+          ) : null}
           <Button title={copy.keepLabel} variant="secondary" onPress={close} disabled={working} />
           <Button
             title={copy.confirmLabel}

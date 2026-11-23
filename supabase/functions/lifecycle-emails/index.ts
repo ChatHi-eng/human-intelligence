@@ -15,6 +15,13 @@
 //   bookings UPDATE, status → cancelled
 //     → the OTHER party, copy branching on cancellation_reason
 //       ('declined by expert' → customer; anything else → expert)
+//   bookings UPDATE, start_at changed (a move, migration 0032)
+//     → both: the new time, with a fresh calendar file; the one who did not
+//       make the move also gets a notification
+//   reschedule_proposals INSERT (an expert suggests new times)
+//     → customer: email and notification, "pick one or keep the original"
+//   reschedule_proposals UPDATE → declined
+//     → expert: the customer is keeping the original time
 //   bookings UPDATE, status → cancelled with expert_late_cancel set
 //     → owner alert: an expert cancelled a confirmed session with less than
 //       24 hours to go (migration 0031 records it; the app warns the expert
@@ -126,6 +133,19 @@ type BookingRow = {
   // Set by the database when an expert cancels a confirmed session inside
   // 24 hours (migration 0031).
   expert_late_cancel?: boolean | null;
+  // A move (migration 0032): how many so far, who made the last one, and the
+  // time it had before.
+  reschedule_count?: number | null;
+  rescheduled_by?: string | null;
+  previous_start_at?: string | null;
+};
+
+// An expert's suggestion of new times (migration 0032).
+type ProposalRow = {
+  id: string;
+  booking_id: string;
+  options: string[];
+  status: string;
 };
 
 // Shape of the payload supabase_functions.http_request POSTs for row events.
@@ -133,8 +153,8 @@ type WebhookPayload = {
   type: 'INSERT' | 'UPDATE' | 'DELETE';
   table: string;
   schema: string;
-  record: ProfileRow | BookingRow | null;
-  old_record: ProfileRow | BookingRow | null;
+  record: ProfileRow | BookingRow | ProposalRow | null;
+  old_record: ProfileRow | BookingRow | ProposalRow | null;
 };
 
 const corsHeaders = {
@@ -378,12 +398,32 @@ serve(async (req) => {
   // -------------------------------------------------------------------------
   // bookings INSERT / UPDATE
   // -------------------------------------------------------------------------
-  if (payload.table !== 'bookings') {
+  if (payload.table !== 'bookings' && payload.table !== 'reschedule_proposals') {
     return json({ ok: true, skipped: true });
   }
 
-  const booking = payload.record as BookingRow;
-  const old = payload.old_record as BookingRow | null;
+  // A suggestion of new times is about a booking, so load that booking and
+  // use the same names, time zones and helpers as everything below.
+  let proposal: ProposalRow | null = null;
+  let proposalWas: ProposalRow | null = null;
+  let loadedBooking: BookingRow | null = null;
+  if (payload.table === 'reschedule_proposals') {
+    proposal = payload.record as ProposalRow;
+    proposalWas = payload.old_record as ProposalRow | null;
+    const { data, error } = await admin
+      .from('bookings')
+      .select('*')
+      .eq('id', proposal.booking_id)
+      .maybeSingle();
+    if (error || !data) {
+      console.error('proposal booking lookup failed', proposal.booking_id, error?.message);
+      return json({ ok: true, skipped: true });
+    }
+    loadedBooking = data as BookingRow;
+  }
+
+  const booking = loadedBooking ?? (payload.record as BookingRow);
+  const old = proposal ? null : (payload.old_record as BookingRow | null);
 
   const names = await namesOf([booking.customer_id, booking.expert_profile_id]);
   const customerName = names.get(booking.customer_id) ?? 'A Palam customer';
@@ -440,6 +480,7 @@ serve(async (req) => {
       title: `Palam: ${booking.kind === 'intro' ? 'intro call' : 'session'} with ${other}`,
       description: `Join the call: ${joinUrl} (your personal link, open from 15 minutes before the start)`,
       url: joinUrl,
+      sequence: booking.reschedule_count ?? 0,
     };
     return {
       attachments: [{ filename: 'palam-session.ics', content: base64Text(calendarFile(event)) }],
@@ -455,6 +496,188 @@ serve(async (req) => {
 
   const instant = booking.booking_mode === 'instant';
   const freeIntro = booking.kind === 'intro';
+
+  // ---- An expert suggested new times, or the customer answered -------------
+  if (proposal) {
+    const session = freeIntro ? 'intro call' : 'session';
+    const optionLine = (iso: string, zone: string | null) =>
+      shortWhen(iso, zone ?? tz, zone !== null);
+
+    if (payload.type === 'INSERT' && proposal.status === 'pending') {
+      const customerEmail = await emailOf(booking.customer_id);
+      const times = proposal.options.map((o) => optionLine(o, customerZone));
+      if (customerEmail) {
+        await sendEmail(resendKey, {
+          from,
+          to: customerEmail,
+          subject: `${expertName} asked to move your ${session}`,
+          html: emailHtml(
+            [
+              p(`Hi ${customerName},`),
+              p(
+                `${expertName} can't make ${customerShort} and has suggested ${times.length === 1 ? 'another time' : 'other times'}:`,
+              ),
+              `<ul style="margin:0 0 16px;padding-left:20px;">${times.map((t) => `<li style="margin:0 0 4px;"><strong>${t}</strong></li>`).join('')}</ul>`,
+              ...customerTimesNote,
+              p(
+                `<a href="${APP_URL}${bookingPath}" style="display:inline-block;background:${BRAND_GREEN};color:#ffffff;font-weight:700;text-decoration:none;padding:12px 22px;border-radius:12px;">Choose a time</a>`,
+              ),
+              p(
+                freeIntro
+                  ? 'Nothing changes unless you pick one. You can also keep the time you have, or cancel.'
+                  : 'Nothing changes unless you pick one, and it costs nothing to move. You can also keep the time you have. If no time works, you can cancel for a full refund while your session is more than 24 hours away.',
+              ),
+              signoff('Talk soon,'),
+            ].join('\n'),
+          ),
+        });
+      } else {
+        console.error('proposal email skipped, no address for customer', booking.customer_id);
+      }
+      await notify(booking.customer_id, {
+        title: `${expertPlain} asked to move your ${session}`,
+        body:
+          times.length === 1
+            ? `New time suggested: ${times[0]}. Tap to answer.`
+            : `${times.length} new times suggested. Tap to pick one.`,
+      });
+      return json({ ok: true });
+    }
+
+    const becameDeclined =
+      payload.type === 'UPDATE' && proposalWas?.status === 'pending' && proposal.status === 'declined';
+    if (becameDeclined) {
+      const expertEmail = await emailOf(booking.expert_profile_id);
+      if (expertEmail) {
+        await sendEmail(resendKey, {
+          from,
+          to: expertEmail,
+          subject: `${customerName} is keeping the original time`,
+          html: emailHtml(
+            [
+              p(`Hi ${expertName},`),
+              p(
+                `${customerName} could not do the ${proposal.options.length === 1 ? 'time' : 'times'} you suggested, so your ${session} stays where it was.`,
+              ),
+              details([['When', expertWhen]]),
+              p(
+                `You can suggest other times from the booking. If you cannot make it at all, cancel from the booking so ${customerName} is told and refunded.`,
+              ),
+              p(
+                `<a href="${APP_URL}${bookingPath}" style="color:${BRAND_GREEN};font-weight:700;">Open this booking</a>`,
+              ),
+              signoff('Thanks for being here,'),
+            ].join('\n'),
+          ),
+        });
+      } else {
+        console.error('proposal answer email skipped, no address for expert', booking.expert_profile_id);
+      }
+      await notify(booking.expert_profile_id, {
+        title: `${customerPlain} is keeping the original time`,
+        body: `Your ${session} stays at ${expertShort}.`,
+      });
+      return json({ ok: true });
+    }
+    // Accepted: the booking itself moves, and that change sends the news.
+    return json({ ok: true, skipped: true });
+  }
+
+  // ---- The booking was moved to a new time ---------------------------------
+  const moved =
+    payload.type === 'UPDATE' &&
+    old !== null &&
+    Date.parse(old.start_at) !== Date.parse(booking.start_at) &&
+    booking.status === 'confirmed';
+  if (moved && old) {
+    const session = freeIntro ? 'intro call' : 'session';
+    const byCustomer = booking.rescheduled_by === 'customer';
+    const customerWas = shortWhen(old.start_at, customerZone ?? tz, customerZone !== null);
+    const expertWas = shortWhen(old.start_at, expertZone ?? tz, expertZone !== null);
+    const [customerEmail, expertEmail, customerCalendar, expertCalendar] = await Promise.all([
+      emailOf(booking.customer_id),
+      emailOf(booking.expert_profile_id),
+      calendarFor(expertPlain, 'customer'),
+      calendarFor(customerPlain, 'expert'),
+    ]);
+    const calendarNote = p(
+      '<span style="font-size:13px;color:#6b7280;">The attached file updates the entry in your calendar. Your join link is the same, and reminders now follow the new time.</span>',
+    );
+
+    if (customerEmail) {
+      await sendEmail(resendKey, {
+        from,
+        to: customerEmail,
+        attachments: customerCalendar.attachments,
+        subject: `Your ${session} with ${expertName} has a new time`,
+        html: emailHtml(
+          [
+            p(`Hi ${customerName},`),
+            p(
+              byCustomer
+                ? `Done. Your ${session} with ${expertName} is moved.`
+                : `You picked a new time, so your ${session} with ${expertName} is moved.`,
+            ),
+            details([
+              ['New time', customerWhen],
+              ['Was', customerWas],
+            ]),
+            ...customerTimesNote,
+            customerCalendar.links,
+            calendarNote,
+            signoff('Talk soon,'),
+          ].join('\n'),
+        ),
+      });
+    } else {
+      console.error('move email skipped, no address for customer', booking.customer_id);
+    }
+
+    if (expertEmail) {
+      await sendEmail(resendKey, {
+        from,
+        to: expertEmail,
+        attachments: expertCalendar.attachments,
+        subject: byCustomer
+          ? `${customerName} moved their ${session}`
+          : `${customerName} accepted a new time`,
+        html: emailHtml(
+          [
+            p(`Hi ${expertName},`),
+            p(
+              byCustomer
+                ? `${customerName} moved their ${session} with you to another of your open times. There is nothing you need to do.`
+                : `${customerName} picked one of the times you suggested, so your ${session} is moved. Nothing goes on your record for this.`,
+            ),
+            details([
+              ['New time', expertWhen],
+              ['Was', expertWas],
+            ]),
+            expertCalendar.links,
+            calendarNote,
+            signoff('Thanks for being here,'),
+          ].join('\n'),
+        ),
+      });
+    } else {
+      console.error('move email skipped, no address for expert', booking.expert_profile_id);
+    }
+
+    // Whoever made the move already knows; the other person gets the news.
+    if (byCustomer) {
+      await notify(booking.expert_profile_id, {
+        title: `${customerPlain} moved their ${session}`,
+        body: `Now ${expertShort}. It was ${expertWas}.`,
+      });
+    } else {
+      await notify(booking.expert_profile_id, {
+        title: `${customerPlain} accepted a new time`,
+        body: `Your ${session} is now ${expertShort}.`,
+      });
+    }
+    return json({ ok: true });
+  }
+
   // A paid booking is not news when its row appears: the customer has not
   // paid yet, so its emails come from the UPDATEs that follow. A free intro
   // has no payment step, so its row appearing IS the event.
@@ -775,7 +998,23 @@ serve(async (req) => {
   // An expert cancelled a confirmed session with less than a day to go. The
   // app told them Palam looks at every one of these, so tell the owner.
   if (becameCancelled && booking.expert_late_cancel === true) {
-    const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: rules } = await admin
+      .from('app_config')
+      .select('late_cancel_pause_count, late_cancel_window_days')
+      .limit(1)
+      .maybeSingle();
+    const limit = (rules?.late_cancel_pause_count as number | null) ?? 2;
+    const windowDays = (rules?.late_cancel_window_days as number | null) ?? 90;
+    const { data: standing } = await admin
+      .from('expert_profiles')
+      .select('palam_paused_at')
+      .eq('profile_id', booking.expert_profile_id)
+      .maybeSingle();
+    // Paused by this cancellation, not by an earlier one.
+    const pausedNow =
+      Boolean(standing?.palam_paused_at) &&
+      Date.now() - Date.parse(standing?.palam_paused_at as string) < 10 * 60_000;
+    const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000).toISOString();
     const { count } = await admin
       .from('bookings')
       .select('id', { count: 'exact', head: true })
@@ -796,17 +1035,59 @@ serve(async (req) => {
             ['Session', when],
             ['Expert', expertName],
             ['Customer', customerName],
-            ['Late cancellations, last 90 days', String(total)],
+            [`Late cancellations, last ${windowDays} days`, String(total)],
+            ['Profile', pausedNow ? 'Paused automatically just now' : standing?.palam_paused_at ? 'Already paused by Palam' : 'Not paused'],
             ['Booking', escapeHtml(booking.id)],
           ]),
           p(
-            total >= 2
-              ? 'This is not their first in 90 days. The app tells experts that repeated late cancellations can get a profile paused, so this one is worth a conversation. To pause them, set <strong>paused</strong> to true on their row in expert_profiles.'
-              : 'Nothing has been done to their profile. The app tells experts that repeated late cancellations can get a profile paused; that decision is yours.',
+            pausedNow
+              ? `That makes ${total} in ${windowDays} days, so their profile was paused automatically: hidden from Discover and closed to new bookings. Sessions already booked still stand. They have been told to write to ${SUPPORT_EMAIL}. To lift the pause, set <strong>paused</strong> to false and clear <strong>palam_paused_at</strong> on their row in expert_profiles.`
+              : `Nothing has been done to their profile. At ${limit} within ${windowDays} days it is paused automatically.`,
           ),
         ].join('\n'),
       ),
     });
+
+    if (pausedNow) {
+      const expertEmail = await emailOf(booking.expert_profile_id);
+      if (expertEmail) {
+        await sendEmail(resendKey, {
+          from,
+          to: expertEmail,
+          subject: 'Your Palam profile is paused',
+          html: emailHtml(
+            [
+              p(`Hi ${expertName},`),
+              p(
+                `You have cancelled ${total} confirmed sessions with less than 24 hours to go in the last ${windowDays} days, so your profile is paused.`,
+              ),
+              p(
+                'While it is paused you are hidden from Discover and nobody can book you. Sessions you already have still stand, and you are paid for them as usual.',
+              ),
+              p(
+                `A person at Palam looks at every pause. If something got in the way, reply to this email or write to <a href="mailto:${SUPPORT_EMAIL}" style="color:${BRAND_GREEN};font-weight:700;">${SUPPORT_EMAIL}</a> and tell us what happened.`,
+              ),
+              p(
+                'Next time a session will not work, use <strong>Suggest a new time</strong> on the booking. If the customer accepts, nothing goes on your record.',
+              ),
+              signoff('Thanks,'),
+            ].join('\n'),
+          ),
+        });
+      }
+      await pushToUsers(admin, [
+        {
+          userId: booking.expert_profile_id,
+          message: {
+            title: 'Your profile is paused',
+            body: `${total} late cancellations in ${windowDays} days. Sessions you already have still stand. Check your email.`,
+            path: '/studio',
+            tag: 'palam-pause',
+            ttlSeconds: 24 * 60 * 60,
+          },
+        },
+      ]);
+    }
   }
 
   // The expert did not answer an approve-first request in time (set by the

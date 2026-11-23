@@ -87,6 +87,9 @@ export type Expert = Profile & {
   introWeeklyLimit: number;
   // Hidden from Discover and not bookable while true; hours are kept.
   paused: boolean;
+  // Paused by Palam (after repeated late cancellations), not by the expert.
+  // Only Palam can lift it.
+  pausedByPalam: boolean;
   // Minutes kept free on either side of each booked session.
   bufferMinutes: number;
   verified: boolean;

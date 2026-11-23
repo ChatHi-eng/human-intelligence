@@ -19,6 +19,7 @@ import type {
   BookingStatus,
   CallMedium,
   PaymentStatus,
+  RescheduleProposal,
   TimeSlot,
 } from '@/types/booking';
 import type { Review } from '@/types/review';
@@ -58,6 +59,7 @@ type ExpertProfileRow = {
   topics?: string[] | null;
   timezone?: string | null;
   paused?: boolean | null;
+  palam_paused_at?: string | null;
   buffer_minutes?: number | null;
   auto_accept?: boolean | null;
   intro_enabled?: boolean | null;
@@ -122,6 +124,8 @@ type BookingRow = {
   customer?: { display_name: string; avatar_url: string | null } | null;
   no_show_reported_by?: string | null;
   no_show_reported_at?: string | null;
+  reschedule_count?: number | null;
+  previous_start_at?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -214,6 +218,7 @@ const mapExpert = (row: ExpertWithRelations): Expert | null => {
     introEnabled: row.intro_enabled ?? false,
     introWeeklyLimit: row.intro_weekly_limit ?? 3,
     paused: row.paused ?? false,
+    pausedByPalam: Boolean(row.palam_paused_at),
     bufferMinutes: row.buffer_minutes ?? 0,
     verified: row.verified,
     coverImageUrl: row.cover_image_url ?? '',
@@ -241,6 +246,8 @@ const mapBooking = (row: BookingRow): Booking => ({
   // ?? null keeps older databases working until migration 0012 is applied.
   noShowReportedBy: row.no_show_reported_by ?? null,
   noShowReportedAt: row.no_show_reported_at ?? null,
+  rescheduleCount: row.reschedule_count ?? 0,
+  previousStartIso: row.previous_start_at ?? null,
   createdAt: row.created_at,
 });
 
@@ -259,7 +266,7 @@ const mapReview = (row: ReviewRow): Review => ({
 // Shared select string for Expert + relations.
 const EXPERT_SELECT = `
   profile_id, status, linkedin_url, industry_id, industry_ids, industry_custom, location, current_title, current_company,
-  topics, timezone, paused, buffer_minutes, auto_accept, intro_enabled, intro_weekly_limit, headline, hourly_rate_cents, years_experience,
+  topics, timezone, paused, palam_paused_at, buffer_minutes, auto_accept, intro_enabled, intro_weekly_limit, headline, hourly_rate_cents, years_experience,
   verified, cover_image_url, rating_average, rating_count, how_i_can_help,
   stripe_connect_account_id, stripe_connect_payouts_enabled, created_at, updated_at,
   profiles!inner(id, display_name, avatar_url, bio, created_at, updated_at),
@@ -720,10 +727,13 @@ export const cancelBooking = async (id: string, reason?: string): Promise<void> 
 };
 
 // How many confirmed sessions this expert has cancelled with less than 24
-// hours to go, in the last 90 days. The database records each one itself
-// (migration 0031); the app cannot write it.
-export const fetchMyLateCancellationCount = async (userId: string): Promise<number> => {
-  const since = new Date(Date.now() - 90 * 24 * 60 * 60_000).toISOString();
+// hours to go, in the window Palam counts over. The database records each
+// one itself (migration 0031); the app cannot write it.
+export const fetchMyLateCancellationCount = async (
+  userId: string,
+  windowDays: number,
+): Promise<number> => {
+  const since = new Date(Date.now() - windowDays * 24 * 60 * 60_000).toISOString();
   const { count, error } = await sb()
     .from('bookings')
     .select('id', { count: 'exact', head: true })
@@ -732,6 +742,69 @@ export const fetchMyLateCancellationCount = async (userId: string): Promise<numb
     .gte('cancelled_at', since);
   if (error) throw error;
   return count ?? 0;
+};
+
+// ---------- Moving a booking to a new time (migration 0032) ----------
+// Every rule (who may move it, the 24-hour cutoff, the limit on moves, whether
+// the expert is free) is enforced by these database functions; the messages
+// they raise are written for the person to read.
+
+// A customer moves their own confirmed booking to another open time.
+export const rescheduleBooking = async (bookingId: string, startIso: string): Promise<void> => {
+  const { error } = await sb().rpc('reschedule_booking', {
+    p_booking: bookingId,
+    p_start: startIso,
+  });
+  if (error) throw new Error(error.message);
+};
+
+// An expert suggests up to three new times. The booking only moves if the
+// customer picks one.
+export const proposeReschedule = async (bookingId: string, options: string[]): Promise<void> => {
+  const { error } = await sb().rpc('propose_reschedule', {
+    p_booking: bookingId,
+    p_options: options,
+  });
+  if (error) throw new Error(error.message);
+};
+
+// The customer's answer: one of the suggested times, or null to keep the
+// original.
+export const respondToReschedule = async (
+  proposalId: string,
+  choiceIso: string | null,
+): Promise<void> => {
+  const { error } = await sb().rpc('respond_to_reschedule', {
+    p_proposal: proposalId,
+    p_choice: choiceIso,
+  });
+  if (error) throw new Error(error.message);
+};
+
+// The expert takes an unanswered suggestion back.
+export const withdrawReschedule = async (proposalId: string): Promise<void> => {
+  const { error } = await sb().rpc('withdraw_reschedule', { p_proposal: proposalId });
+  if (error) throw new Error(error.message);
+};
+
+// The suggestion waiting on this booking, if there is one. Times that have
+// already passed are left out.
+export const fetchPendingReschedule = async (
+  bookingId: string,
+): Promise<RescheduleProposal | null> => {
+  const { data, error } = await sb()
+    .from('reschedule_proposals')
+    .select('id, booking_id, options, created_at')
+    .eq('booking_id', bookingId)
+    .eq('status', 'pending')
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const now = Date.now();
+  const options = ((data.options ?? []) as string[])
+    .filter((o) => new Date(o).getTime() > now)
+    .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+  return { id: data.id, bookingId: data.booking_id, options, createdAt: data.created_at };
 };
 
 // Pending requests for an expert to act on.
@@ -1033,6 +1106,18 @@ export const fetchMyNotificationPrefs = async (userId: string): Promise<Notifica
 export type AppConfig = {
   // While true, a customer needs a verified mobile number to book.
   phoneVerificationRequired: boolean;
+  // An expert is paused at this many late cancellations within this many days.
+  lateCancelPauseCount: number;
+  lateCancelWindowDays: number;
+  // How many times one booking can be moved to a new time.
+  maxReschedules: number;
+};
+
+export const DEFAULT_APP_CONFIG: AppConfig = {
+  phoneVerificationRequired: false,
+  lateCancelPauseCount: 2,
+  lateCancelWindowDays: 90,
+  maxReschedules: 2,
 };
 
 // The owner's switches. If they cannot be read, nothing extra is required:
@@ -1040,10 +1125,17 @@ export type AppConfig = {
 export const fetchAppConfig = async (): Promise<AppConfig> => {
   const { data, error } = await sb()
     .from('app_config')
-    .select('phone_verification_required')
+    .select(
+      'phone_verification_required, late_cancel_pause_count, late_cancel_window_days, max_reschedules',
+    )
     .maybeSingle();
-  if (error) return { phoneVerificationRequired: false };
-  return { phoneVerificationRequired: Boolean(data?.phone_verification_required) };
+  if (error || !data) return DEFAULT_APP_CONFIG;
+  return {
+    phoneVerificationRequired: Boolean(data.phone_verification_required),
+    lateCancelPauseCount: data.late_cancel_pause_count ?? DEFAULT_APP_CONFIG.lateCancelPauseCount,
+    lateCancelWindowDays: data.late_cancel_window_days ?? DEFAULT_APP_CONFIG.lateCancelWindowDays,
+    maxReschedules: data.max_reschedules ?? DEFAULT_APP_CONFIG.maxReschedules,
+  };
 };
 
 export const sendPhoneCode = async (phone: string): Promise<void> => {

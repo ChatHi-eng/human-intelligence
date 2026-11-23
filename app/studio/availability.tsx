@@ -63,7 +63,9 @@ export default function AvailabilityScreen() {
         <Card>
           <Text style={styles.cardTitle}>What customers see</Text>
           <Text style={styles.cardBody}>
-            {expert.paused
+            {expert.pausedByPalam
+              ? 'Palam has paused your profile, so you are hidden from Discover and nobody can book you. Write to info@palamapp.com to have it looked at.'
+              : expert.paused
               ? 'Your profile is paused. You are hidden from Discover and nobody can book you until you switch it back on.'
               : first
               ? `${openSlots.length} open times in the next ${BOOKING_WINDOW_DAYS} days. The next one is ${formatDateTime(first.startIso)}.`
@@ -80,13 +82,14 @@ export default function AvailabilityScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>Pause my profile</Text>
               <Text style={styles.cardNote}>
-                Hides you from Discover and stops new bookings. Your hours and any sessions
-                already booked stay as they are.
+                {expert.pausedByPalam
+                  ? 'Palam paused your profile, so this switch is locked until Palam lifts it.'
+                  : 'Hides you from Discover and stops new bookings. Your hours and any sessions already booked stay as they are.'}
               </Text>
             </View>
             <Switch
               value={expert.paused}
-              disabled={savingSettings}
+              disabled={savingSettings || expert.pausedByPalam}
               accessibilityLabel="Pause my profile"
               onValueChange={(paused) =>
                 updateSettings(

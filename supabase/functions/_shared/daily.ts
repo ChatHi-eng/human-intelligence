@@ -60,11 +60,23 @@ export const ensureRoom = async (
     if (created.ok) {
       room = (await created.json()) as DailyRoom;
     } else {
-      // Most likely both people opened their links at the same moment and the
-      // other request made the room first. Use that one.
-      const existing = await fetch(`https://api.daily.co/v1/rooms/${name}`, { headers });
-      if (existing.ok) room = (await existing.json()) as DailyRoom;
-      else console.error('Daily room error', created.status, await created.text());
+      // A room of this name is already there: both people opened their links
+      // at the same moment, or the booking was moved to a new time. Set its
+      // closing time to this booking's, and use it.
+      const updated = await fetch(`https://api.daily.co/v1/rooms/${name}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          properties: { exp: Math.floor(expiresAtMs / 1000), eject_at_room_exp: true },
+        }),
+      });
+      if (updated.ok) {
+        room = (await updated.json()) as DailyRoom;
+      } else {
+        const existing = await fetch(`https://api.daily.co/v1/rooms/${name}`, { headers });
+        if (existing.ok) room = (await existing.json()) as DailyRoom;
+        else console.error('Daily room error', created.status, await created.text());
+      }
     }
   } catch (err) {
     console.error('Daily request failed', err);

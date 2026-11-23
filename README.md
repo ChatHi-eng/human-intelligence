@@ -344,7 +344,23 @@ Nothing is cancelled on one tap. The booking screen opens a sheet (`components/b
 - **A customer with less than 24 hours to go** is told the payment is not refunded and goes to the expert.
 - **An expert with less than 24 hours to go** on a confirmed session is told the customer is refunded in full, they are not paid, and it counts as a late cancellation on their record, with how many they already have in the last 90 days.
 
-That record is real. Migration `0031_cancellation_record.sql` has the database stamp every cancellation with who did it and when (`cancelled_at`, `cancelled_by`) and set `expert_late_cancel` when an expert cancels a confirmed session inside 24 hours. The app cannot write these columns. Each late cancellation emails the owner (`APPLICATION_ALERT_EMAIL`) with the expert's count for the last 90 days. Nothing is done to the expert's profile automatically: pausing one is the owner's decision (`expert_profiles.paused`). Star ratings are not touched; they only come from customer reviews.
+That record is real. Migration `0031_cancellation_record.sql` has the database stamp every cancellation with who did it and when (`cancelled_at`, `cancelled_by`) and set `expert_late_cancel` when an expert cancels a confirmed session inside 24 hours. The app cannot write these columns. Each late cancellation emails the owner (`APPLICATION_ALERT_EMAIL`) with the expert's count. Star ratings are not touched; they only come from customer reviews.
+
+**The automatic pause.** Two late cancellations within 90 days pause the expert (migration `0032_reschedule_and_pause.sql`): they are hidden from Discover and closed to new bookings, the sessions they already have still stand, and they get an email and a notification saying why. The pause sets the ordinary `paused` flag plus `palam_paused_at`, and while that is set the expert cannot switch themselves back on. The owner lifts it:
+
+`update expert_profiles set paused = false, palam_paused_at = null, palam_pause_reason = null where profile_id = '<id>';`
+
+The two numbers are settings, not code: `app_config.late_cancel_pause_count` (0 turns the automatic pause off) and `app_config.late_cancel_window_days`. The app reads them for its wording, so changing them changes what experts are told. If they change, update the line in `docs/terms.html` to match.
+
+## Moving a booking (rescheduling)
+
+The better option than cancelling, offered on the booking and again inside the cancel sheet.
+
+- **A customer** taps "Change time" and picks another of the expert's open times (`app/reschedule/[id].tsx`). The booking moves at once: same booking, same payment, no refund round trip. Allowed until 24 hours before the start.
+- **An expert** taps "Suggest a new time" and picks up to three of their open times. Nothing moves unless the customer picks one on their booking screen; they can also keep the original time. A move the customer accepts is never recorded against the expert, which is the way out of a late cancellation.
+- **A booking can be moved twice** in all (`app_config.max_reschedules`).
+
+Every rule is enforced by database functions in migration 0032 (`reschedule_booking`, `propose_reschedule`, `respond_to_reschedule`, `withdraw_reschedule`); the app cannot change a booking's time any other way. A move restarts the reminders for the new time, sends both people an updated calendar file, and keeps the same join link. Suggestions live in `reschedule_proposals`; a database trigger tells `lifecycle-emails`, which emails and notifies the other person.
 
 To see an expert's late cancellations: `select start_at, cancelled_at from bookings where expert_profile_id = '<id>' and expert_late_cancel order by cancelled_at desc;`
 

@@ -226,6 +226,9 @@ export type CalendarEvent = {
   description: string;
   // Where the calendar entry's own link goes. Defaults to the booking.
   url?: string;
+  // How many times the booking has been moved. A calendar app replaces the
+  // entry it already has when this number goes up.
+  sequence?: number;
 };
 
 export const calendarFile = (event: CalendarEvent): string =>
@@ -237,6 +240,7 @@ export const calendarFile = (event: CalendarEvent): string =>
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',
     `UID:${event.bookingId}@palamapp.com`,
+    `SEQUENCE:${event.sequence ?? 0}`,
     `DTSTAMP:${icsStamp(new Date().toISOString())}`,
     `DTSTART:${icsStamp(event.startIso)}`,
     `DTEND:${icsStamp(event.endIso)}`,

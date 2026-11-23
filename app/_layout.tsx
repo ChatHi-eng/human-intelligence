@@ -89,6 +89,10 @@ export default function RootLayout() {
                 <Stack.Screen name="your-name" options={{ headerShown: false }} />
                 <Stack.Screen name="join" options={{ headerShown: false }} />
                 <Stack.Screen
+                  name="reschedule/[id]"
+                  options={{ title: '', presentation: 'modal' }}
+                />
+                <Stack.Screen
                   name="delete-account"
                   options={{ title: '', presentation: 'modal' }}
                 />

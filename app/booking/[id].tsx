@@ -24,13 +24,19 @@ import {
 } from '@/hooks/useBookings';
 import { useExpert } from '@/hooks/useExperts';
 import { useOpenConversation } from '@/hooks/useMessages';
+import { useAppConfig } from '@/hooks/useNotificationPrefs';
+import {
+  usePendingReschedule,
+  useRespondToReschedule,
+  useWithdrawReschedule,
+} from '@/hooks/useReschedule';
 import { useMyReviewForBooking, useSubmitReview } from '@/hooks/useReviews';
 import { formatDateTime, minutesBetween } from '@/lib/date';
 import { formatCurrency } from '@/lib/format';
 import { cancelPrompt } from '@/lib/cancelCopy';
 import { isFreeCancellation, isWithinNoShowReportWindow } from '@/lib/policy';
 import { capture } from '@/services/analytics';
-import { fetchMyLateCancellationCount } from '@/services/api';
+import { DEFAULT_APP_CONFIG, fetchMyLateCancellationCount } from '@/services/api';
 import { createRoomForBooking, joinCall, openCallRoom } from '@/services/video';
 import type { BookingStatus, PaymentStatus } from '@/types/booking';
 
@@ -103,11 +109,16 @@ export default function BookingDetailScreen() {
     user?.id === booking?.expertId &&
     booking?.status === 'confirmed' &&
     !isFreeCancellation(booking.slot.startIso);
+  const { data: config = DEFAULT_APP_CONFIG } = useAppConfig();
   const { data: lateCancellations } = useQuery({
-    queryKey: ['late-cancellations', user?.id],
-    queryFn: () => fetchMyLateCancellationCount(user?.id ?? ''),
+    queryKey: ['late-cancellations', user?.id, config.lateCancelWindowDays],
+    queryFn: () => fetchMyLateCancellationCount(user?.id ?? '', config.lateCancelWindowDays),
     enabled: expertCancellingLate,
   });
+  // An expert's suggestion of new times, waiting on the customer.
+  const { data: proposal } = usePendingReschedule(id, booking?.status === 'confirmed');
+  const { mutate: answerProposal, isPending: answering } = useRespondToReschedule(id);
+  const { mutate: withdrawProposal, isPending: withdrawing } = useWithdrawReschedule(id);
 
   // Back from Stripe on the web (?stripe=success): the payment lands a few
   // seconds after the page does, so check often for half a minute before
@@ -227,6 +238,40 @@ export default function BookingDetailScreen() {
   // No-show reports: either party, from start+10min to start+72h, once.
   // An expert cancelling a confirmed session this late gets it on their record.
   const expertLate = isExpert && booking.status === 'confirmed' && !freeCancel;
+  // Moving the booking instead: a confirmed session that has not started
+  // and has moves left. A customer can do it until 24 hours before.
+  const notStarted = new Date(booking.slot.startIso).getTime() > Date.now();
+  const movesLeft = config.maxReschedules - booking.rescheduleCount;
+  const movable =
+    (isCustomer || isExpert) && booking.status === 'confirmed' && notStarted && movesLeft > 0;
+  const canMove = movable && (isExpert || freeCancel);
+  const openReschedule = () => {
+    setCancelSheetOpen(false);
+    router.push({ pathname: '/reschedule/[id]', params: { id: booking.id } });
+  };
+  const otherPerson = isExpert
+    ? (booking.customerName ?? 'the customer')
+    : (expert?.displayName ?? 'the expert');
+  const onAnswer = (choiceIso: string | null) => {
+    if (!proposal) return;
+    answerProposal(
+      { proposalId: proposal.id, choiceIso },
+      {
+        onSuccess: () =>
+          Toast.show(
+            choiceIso
+              ? { type: 'success', text1: 'Your booking is moved', text2: formatDateTime(choiceIso) }
+              : { type: 'success', text1: 'Keeping the original time' },
+          ),
+        onError: (err) =>
+          Toast.show({
+            type: 'error',
+            text1: 'Could not save your answer',
+            text2: err instanceof Error ? err.message : 'Unknown error',
+          }),
+      },
+    );
+  };
   const cancelCopy = cancelPrompt({
     role: isExpert ? 'expert' : 'customer',
     status: booking.status,
@@ -237,6 +282,8 @@ export default function BookingDetailScreen() {
     otherName: isExpert ? (booking.customerName ?? null) : (expert?.displayName ?? null),
     freeCancel,
     lateCancellations: lateCancellations ?? null,
+    pauseRule: { count: config.lateCancelPauseCount, days: config.lateCancelWindowDays },
+    canMoveInstead: canMove,
   });
   const runCancel = () =>
     cancel(
@@ -299,6 +346,11 @@ export default function BookingDetailScreen() {
                 {isExpert ? (booking.customerName ?? 'Customer') : (expert?.displayName ?? 'Expert')}
               </Text>
               <Text style={styles.meta}>{formatDateTime(booking.slot.startIso)}</Text>
+              {booking.previousStartIso && booking.status !== 'cancelled' ? (
+                <Text style={styles.movedFrom}>
+                  Moved from {formatDateTime(booking.previousStartIso)}
+                </Text>
+              ) : null}
             </View>
             <Badge label={status.label} tone={status.tone} />
           </View>
@@ -360,6 +412,35 @@ export default function BookingDetailScreen() {
           />
           )}
         </Card>
+
+        {isCustomer && proposal && proposal.options.length > 0 && booking.status === 'confirmed' ? (
+          <Card style={styles.proposalCard}>
+            <Text style={styles.sectionTitle}>
+              {otherPerson} asked to move this {booking.kind === 'intro' ? 'intro call' : 'session'}
+            </Text>
+            <Text style={styles.cardBody}>
+              Pick a time that works, or keep the one you have. Nothing changes unless you pick
+              one, and it costs nothing to move.
+            </Text>
+            <View style={styles.proposalOptions}>
+              {proposal.options.map((option) => (
+                <Button
+                  key={option}
+                  title={formatDateTime(option)}
+                  variant="secondary"
+                  disabled={answering}
+                  onPress={() => onAnswer(option)}
+                />
+              ))}
+              <Button
+                title="Keep the original time"
+                variant="ghost"
+                loading={answering}
+                onPress={() => onAnswer(null)}
+              />
+            </View>
+          </Card>
+        ) : null}
 
         {bookingActive && (isCustomer || isExpert) && !needsPayment && !confirmingPayment ? (
           <View style={{ marginTop: spacing.lg }}>
@@ -492,6 +573,77 @@ export default function BookingDetailScreen() {
           </Card>
         ) : null}
 
+        {(isCustomer || isExpert) && booking.status === 'confirmed' && notStarted ? (
+          <Card style={{ marginTop: spacing.lg }}>
+            <Text style={styles.sectionTitle}>
+              {isExpert ? "Can't make this time?" : 'Need a different time?'}
+            </Text>
+            {movesLeft <= 0 ? (
+              <Text style={[styles.cardBody, { marginBottom: 0 }]}>
+                A booking can be moved {config.maxReschedules} times, and this one has been.
+              </Text>
+            ) : isExpert && proposal && proposal.options.length > 0 ? (
+              <>
+                <Text style={styles.cardBody}>
+                  You suggested {proposal.options.length === 1 ? 'a new time' : 'new times'}.{' '}
+                  {otherPerson} has not answered yet, so the session stays where it is for now.
+                </Text>
+                {proposal.options.map((option) => (
+                  <Text key={option} style={styles.proposalTime}>
+                    {formatDateTime(option)}
+                  </Text>
+                ))}
+                <View style={styles.proposalOptions}>
+                  <Button
+                    title="Suggest different times"
+                    variant="secondary"
+                    onPress={openReschedule}
+                  />
+                  <Button
+                    title="Take my suggestion back"
+                    variant="ghost"
+                    loading={withdrawing}
+                    onPress={() =>
+                      withdrawProposal(proposal.id, {
+                        onSuccess: () =>
+                          Toast.show({ type: 'success', text1: 'Suggestion taken back' }),
+                        onError: (err) =>
+                          Toast.show({
+                            type: 'error',
+                            text1: 'Could not take it back',
+                            text2: err instanceof Error ? err.message : 'Unknown error',
+                          }),
+                      })
+                    }
+                  />
+                </View>
+              </>
+            ) : isExpert ? (
+              <>
+                <Text style={styles.cardBody}>
+                  Suggest up to three other times instead of cancelling. If {otherPerson} picks
+                  one, the session moves and nothing goes on your record.
+                </Text>
+                <Button title="Suggest a new time" variant="secondary" onPress={openReschedule} />
+              </>
+            ) : freeCancel ? (
+              <>
+                <Text style={styles.cardBody}>
+                  Move it to another of {otherPerson}&apos;s open times. It&apos;s free until 24
+                  hours before the start, and you keep the same booking and payment.
+                </Text>
+                <Button title="Change time" variant="secondary" onPress={openReschedule} />
+              </>
+            ) : (
+              <Text style={[styles.cardBody, { marginBottom: 0 }]}>
+                The time can be changed until 24 hours before the start, so it&apos;s too late to
+                move this one yourself. If {otherPerson} suggests a new time, you can accept it
+                here.
+              </Text>
+            )}
+          </Card>
+        ) : null}
+
         {canCancel && (
           <Card style={{ marginTop: spacing.lg }}>
             <Text style={styles.sectionTitle}>
@@ -599,6 +751,7 @@ export default function BookingDetailScreen() {
         working={cancelling}
         onKeep={() => setCancelSheetOpen(false)}
         onConfirm={runCancel}
+        onMove={openReschedule}
       />
     </Screen>
   );
@@ -633,6 +786,10 @@ const styles = StyleSheet.create({
   sectionTitle: { ...typography.heading, color: colors.textPrimary, marginBottom: spacing.sm },
   cardBody: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.md },
   policyWarning: { ...typography.bodyStrong, color: colors.danger, marginBottom: spacing.md },
+  movedFrom: { ...typography.caption, color: colors.textMuted, marginTop: 2 },
+  proposalCard: { marginTop: spacing.lg, borderColor: colors.accent },
+  proposalOptions: { gap: spacing.sm },
+  proposalTime: { ...typography.bodyStrong, color: colors.textPrimary, marginBottom: spacing.xs },
   noShowLink: { marginTop: spacing.lg, alignItems: 'center', paddingVertical: spacing.sm },
   noShowLinkText: { ...typography.body, color: colors.textMuted },
   reviewInput: {

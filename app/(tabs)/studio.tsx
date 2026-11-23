@@ -174,7 +174,20 @@ export default function StudioScreen() {
           style={styles.shareButton}
         />
 
-        {expertProfile.paused ? (
+        {expertProfile.pausedByPalam ? (
+          <Card style={styles.setupCard}>
+            <Text style={styles.cardTitle}>Palam has paused your profile</Text>
+            <Text style={styles.cardCaption}>
+              This follows repeated cancellations with less than 24 hours to go. You are hidden
+              from Discover and cannot be booked. Sessions already booked still stand, and you
+              are paid for them as usual.
+            </Text>
+            <Text style={styles.cardCaption}>
+              A person at Palam looks at every pause. Write to info@palamapp.com and tell us
+              what happened.
+            </Text>
+          </Card>
+        ) : expertProfile.paused ? (
           <Card style={styles.setupCard}>
             <Text style={styles.cardTitle}>Your profile is paused</Text>
             <Text style={styles.cardCaption}>

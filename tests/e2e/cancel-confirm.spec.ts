@@ -225,8 +225,9 @@ test('a customer inside 24 hours is told there is no refund, and can back out', 
   ).toBeVisible();
   await page.waitForTimeout(500);
   await page.screenshot({ path: 'tests/e2e/screenshots/cancel-sheet-customer-late.png' });
-  // Opening the sheet cancels nothing.
+  // Opening the sheet cancels nothing, and inside 24 hours there is no moving it.
   expect(calls.patches).toHaveLength(0);
+  await expect(page.getByText('Change the time instead', { exact: true })).toHaveCount(0);
 
   // Backing out is one tap and changes nothing.
   await page.getByText('Keep my session', { exact: true }).click();
@@ -260,6 +261,8 @@ test('a customer with more than 24 hours to go is told they get a full refund', 
     page.getByText('You get a full refund of $90. It can take 5 to 10 business days to reach your card.'),
   ).toBeVisible();
   await expect(page.getByText(/not refunded/)).toHaveCount(0);
+  // With time to spare, moving it is offered before cancelling it.
+  await expect(page.getByText('Change the time instead', { exact: true })).toBeVisible();
 
   await page.getByText('Cancel session', { exact: true }).click();
   await expect.poll(() => calls.patches).toHaveLength(1);
@@ -311,11 +314,13 @@ test('an expert inside 24 hours is warned it goes on their record', async ({ pag
   ).toBeVisible();
   await expect(
     page.getByText(
-      'This close to the start, it counts as a late cancellation on your record. Palam looks at every one, and repeated late cancellations can get your profile paused. You already have 1 in the last 90 days.',
+      'This close to the start, it counts as a late cancellation, and it would be number 2 in 90 days. Your profile will be paused: you keep the sessions you already have, but nobody can book you until Palam lifts it.',
     ),
   ).toBeVisible();
   await page.waitForTimeout(500);
   await page.screenshot({ path: 'tests/e2e/screenshots/cancel-sheet-expert-late.png' });
+  // The sheet offers the way out that costs them nothing.
+  await expect(page.getByText('Suggest a new time instead', { exact: true })).toBeVisible();
   expect(calls.responded).toHaveLength(0);
 
   await page.getByText('Keep session', { exact: true }).click();
@@ -351,4 +356,20 @@ test('an expert with more than 24 hours to go gets no late-cancellation warning'
   await page.waitForTimeout(500);
   await page.screenshot({ path: 'tests/e2e/screenshots/cancel-sheet-expert-early.png' });
   expect(calls.responded).toHaveLength(0);
+});
+
+test('an expert with no late cancellations is told where the limit is', async ({ page }) => {
+  test.setTimeout(120_000);
+  test.skip(!readEnv()?.EXPO_PUBLIC_SUPABASE_URL, 'No .env — app boots to the Setup screen');
+  await setUp(page, { as: 'expert', startsInHours: 3, lateCancellations: 0 });
+
+  await page.goto(`/booking/${BOOKING}`);
+  const open = page.getByText('Cancel booking', { exact: true });
+  await expect(open).toBeVisible({ timeout: 90_000 });
+  await open.click();
+  await expect(
+    page.getByText(
+      'This close to the start, it counts as a late cancellation on your record. At 2 within 90 days, your profile is paused until Palam has looked at it.',
+    ),
+  ).toBeVisible();
 });

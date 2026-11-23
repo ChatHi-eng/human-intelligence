@@ -19,9 +19,13 @@ export type CancelPromptInput = {
   otherName: string | null;
   // More than 24 hours before the start.
   freeCancel: boolean;
-  // For an expert: confirmed sessions they cancelled late in the last 90
-  // days. null while it is not known.
+  // For an expert: confirmed sessions they cancelled late within the window
+  // Palam counts over. null while it is not known.
   lateCancellations: number | null;
+  // Palam pauses an expert at `count` late cancellations within `days`.
+  pauseRule: { count: number; days: number };
+  // The booking could be moved to a new time instead of cancelled.
+  canMoveInstead: boolean;
 };
 
 export type CancelPrompt = {
@@ -32,9 +36,20 @@ export type CancelPrompt = {
   warning: string | null;
   confirmLabel: string;
   keepLabel: string;
+  // A gentler way out, offered beside the two answers: move the booking.
+  moveLabel: string | null;
 };
 
 export const cancelPrompt = (input: CancelPromptInput): CancelPrompt => {
+  const moveLabel = !input.canMoveInstead
+    ? null
+    : input.role === 'expert'
+      ? 'Suggest a new time instead'
+      : 'Change the time instead';
+  return { ...promptFor(input), moveLabel };
+};
+
+const promptFor = (input: CancelPromptInput): Omit<CancelPrompt, 'moveLabel'> => {
   const what = input.kind === 'intro' ? 'intro call' : 'session';
   const when = `${formatDay(input.startIso)} at ${formatTime(input.startIso)}`;
   const price = formatCurrency(input.priceCents);
@@ -73,15 +88,16 @@ export const cancelPrompt = (input: CancelPromptInput): CancelPrompt => {
         keepLabel: `Keep ${what}`,
       };
     }
-    const count = input.lateCancellations;
-    const soFar =
-      count === null || count === 0
-        ? ''
-        : ` You already have ${count} in the last 90 days.`;
+    const { count: limit, days } = input.pauseRule;
+    const soFar = input.lateCancellations ?? 0;
+    // This one would bring them to the limit.
+    const pauses = limit > 0 && soFar + 1 >= limit;
     return {
       title: `Cancel with less than 24 hours to go?`,
       lines,
-      warning: `This close to the start, it counts as a late cancellation on your record. Palam looks at every one, and repeated late cancellations can get your profile paused.${soFar}`,
+      warning: pauses
+        ? `This close to the start, it counts as a late cancellation, and it would be number ${soFar + 1} in ${days} days. Your profile will be paused: you keep the sessions you already have, but nobody can book you until Palam lifts it.`
+        : `This close to the start, it counts as a late cancellation on your record. At ${limit} within ${days} days, your profile is paused until Palam has looked at it.`,
       confirmLabel: 'Cancel anyway',
       keepLabel: `Keep ${what}`,
     };

@@ -50,6 +50,19 @@ export type Booking = {
   customerAvatarUrl: string | null;
   noShowReportedBy: string | null;
   noShowReportedAt: string | null;
+  // How many times this booking has been moved to a new time, and the time
+  // it had before the last move.
+  rescheduleCount: number;
+  previousStartIso: string | null;
+  createdAt: string;
+};
+
+// An expert's suggestion of new times for a booking, waiting on the customer.
+export type RescheduleProposal = {
+  id: string;
+  bookingId: string;
+  // Start times, soonest first.
+  options: string[];
   createdAt: string;
 };
 
