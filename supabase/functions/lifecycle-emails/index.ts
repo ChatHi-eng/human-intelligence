@@ -62,7 +62,7 @@
 //                        always shows the reader's local time.
 //   APPLICATION_ALERT_EMAIL, where owner alerts (no-show reports) go; same
 //                        secret notify-application uses (default
-//                        vkinatukara@gmail.com).
+//                        info@palamapp.com).
 //   PLATFORM_FEE_PCT  , same secret create-checkout-session reads (default 0.15);
 //                        used here only to show the expert their cut.
 //   CUSTOMER_BOOKING_ENABLED, set to "true" when customer booking opens. Until
@@ -302,7 +302,7 @@ serve(async (req) => {
   }
   const from = Deno.env.get('PALAM_SENDER') ?? DEFAULT_SENDER;
   const tz = Deno.env.get('PALAM_TIMEZONE') ?? 'UTC';
-  const alertEmail = Deno.env.get('APPLICATION_ALERT_EMAIL') ?? 'vkinatukara@gmail.com';
+  const alertEmail = Deno.env.get('APPLICATION_ALERT_EMAIL') ?? 'info@palamapp.com';
 
   // The migration-0013 triggers send this header; nothing else knows the value.
   if (req.headers.get('x-webhook-secret') !== webhookSecret) {

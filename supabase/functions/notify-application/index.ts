@@ -14,7 +14,7 @@
 //   WEBHOOK_SECRET         , any long random string; must be the exact same
 //                             value pasted into migration 0010
 //   APPLICATION_ALERT_EMAIL, optional; where new-application alerts go
-//                             (default vkinatukara@gmail.com)
+//                             (default info@palamapp.com)
 //   SUPABASE_SERVICE_ROLE_KEY (auto-provided by Supabase)
 //
 // Deploy via the Supabase dashboard: Edge Functions → New Function → paste this.
@@ -104,7 +104,7 @@ serve(async (req) => {
 
   const resendKey = Deno.env.get('RESEND_API_KEY');
   const webhookSecret = Deno.env.get('WEBHOOK_SECRET');
-  const alertEmail = Deno.env.get('APPLICATION_ALERT_EMAIL') ?? 'vkinatukara@gmail.com';
+  const alertEmail = Deno.env.get('APPLICATION_ALERT_EMAIL') ?? 'info@palamapp.com';
   // Same sender convention as lifecycle-emails: once the domain is verified
   // in Resend, the PALAM_SENDER secret wins; the test sender is the fallback.
   const palamSender = Deno.env.get('PALAM_SENDER') ?? 'Palam <onboarding@resend.dev>';

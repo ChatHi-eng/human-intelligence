@@ -38,7 +38,7 @@ serve(async (req) => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
   if (!resendKey || !supabaseUrl || !anonKey) return json({ error: 'Missing server config' }, 500);
-  const alertEmail = Deno.env.get('APPLICATION_ALERT_EMAIL') ?? 'vkinatukara@gmail.com';
+  const alertEmail = Deno.env.get('APPLICATION_ALERT_EMAIL') ?? 'info@palamapp.com';
   const from = Deno.env.get('PALAM_SENDER') ?? 'Palam <onboarding@resend.dev>';
 
   const authHeader = req.headers.get('Authorization');
