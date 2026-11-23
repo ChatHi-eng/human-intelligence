@@ -15,6 +15,10 @@
 //   bookings UPDATE, status → cancelled
 //     → the OTHER party, copy branching on cancellation_reason
 //       ('declined by expert' → customer; anything else → expert)
+//   bookings UPDATE, status → cancelled with expert_late_cancel set
+//     → owner alert: an expert cancelled a confirmed session with less than
+//       24 hours to go (migration 0031 records it; the app warns the expert
+//       that Palam looks at every one)
 //   bookings UPDATE, payment_status → refunded
 //     → customer: "Your refund is through", skipped when the same event is a
 //       decline, because the decline email already says "refunded in full"
@@ -119,6 +123,9 @@ type BookingRow = {
   // function must work whether or not that migration has run yet.
   no_show_reported_by?: string | null;
   no_show_reported_at?: string | null;
+  // Set by the database when an expert cancels a confirmed session inside
+  // 24 hours (migration 0031).
+  expert_late_cancel?: boolean | null;
 };
 
 // Shape of the payload supabase_functions.http_request POSTs for row events.
@@ -763,6 +770,43 @@ serve(async (req) => {
               : `It was for ${customerShort}. You haven't been charged.`,
           },
     );
+  }
+
+  // An expert cancelled a confirmed session with less than a day to go. The
+  // app told them Palam looks at every one of these, so tell the owner.
+  if (becameCancelled && booking.expert_late_cancel === true) {
+    const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    const { count } = await admin
+      .from('bookings')
+      .select('id', { count: 'exact', head: true })
+      .eq('expert_profile_id', booking.expert_profile_id)
+      .eq('expert_late_cancel', true)
+      .gte('cancelled_at', since);
+    const total = count ?? 1;
+    await sendEmail(resendKey, {
+      from,
+      to: alertEmail,
+      subject: `Late cancellation by an expert: ${expertName}`,
+      html: emailHtml(
+        [
+          p(
+            `${expertName} cancelled a confirmed ${what} with ${customerName} less than 24 hours before the start. The customer was told and is refunded in full.`,
+          ),
+          details([
+            ['Session', when],
+            ['Expert', expertName],
+            ['Customer', customerName],
+            ['Late cancellations, last 90 days', String(total)],
+            ['Booking', escapeHtml(booking.id)],
+          ]),
+          p(
+            total >= 2
+              ? 'This is not their first in 90 days. The app tells experts that repeated late cancellations can get a profile paused, so this one is worth a conversation. To pause them, set <strong>paused</strong> to true on their row in expert_profiles.'
+              : 'Nothing has been done to their profile. The app tells experts that repeated late cancellations can get a profile paused; that decision is yours.',
+          ),
+        ].join('\n'),
+      ),
+    });
   }
 
   // The expert did not answer an approve-first request in time (set by the

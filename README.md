@@ -337,6 +337,17 @@ To check it: Supabase, Database, Cron shows the job, and Edge Functions, `send-r
 
 A link in an email that needs a sign-in (a booking, the review prompt) is remembered while the person signs in, so they land where they were headed (`lib/returnPath.ts`).
 
+## Cancelling a booking
+
+Nothing is cancelled on one tap. The booking screen opens a sheet (`components/booking/CancelSheet.tsx`, wording in `lib/cancelCopy.ts`) that says what happens to the session, the money and the other person, and warns in red about anything that costs the person something:
+
+- **A customer with less than 24 hours to go** is told the payment is not refunded and goes to the expert.
+- **An expert with less than 24 hours to go** on a confirmed session is told the customer is refunded in full, they are not paid, and it counts as a late cancellation on their record, with how many they already have in the last 90 days.
+
+That record is real. Migration `0031_cancellation_record.sql` has the database stamp every cancellation with who did it and when (`cancelled_at`, `cancelled_by`) and set `expert_late_cancel` when an expert cancels a confirmed session inside 24 hours. The app cannot write these columns. Each late cancellation emails the owner (`APPLICATION_ALERT_EMAIL`) with the expert's count for the last 90 days. Nothing is done to the expert's profile automatically: pausing one is the owner's decision (`expert_profiles.paused`). Star ratings are not touched; they only come from customer reviews.
+
+To see an expert's late cancellations: `select start_at, cancelled_at from bookings where expert_profile_id = '<id>' and expert_late_cancel order by cancelled_at desc;`
+
 ## Sign-in with Google or Apple
 
 The sign-in screen shows "Continue with Google" / "Continue with Apple" above the email field for whichever providers are enabled in Supabase (Authentication → Sign In / Providers). The app reads the project's public auth settings, so enabling a provider needs no new build. Web only for now; the phone app will need a native sign-in sheet. The redirect address `https://app.palamapp.com/auth-callback` must be in Supabase's allowed redirect URLs.

@@ -1,8 +1,10 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { NotificationPrompt } from '@/components/account/NotificationPrompt';
+import { CancelSheet } from '@/components/booking/CancelSheet';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -25,8 +27,10 @@ import { useOpenConversation } from '@/hooks/useMessages';
 import { useMyReviewForBooking, useSubmitReview } from '@/hooks/useReviews';
 import { formatDateTime, minutesBetween } from '@/lib/date';
 import { formatCurrency } from '@/lib/format';
+import { cancelPrompt } from '@/lib/cancelCopy';
 import { isFreeCancellation, isWithinNoShowReportWindow } from '@/lib/policy';
 import { capture } from '@/services/analytics';
+import { fetchMyLateCancellationCount } from '@/services/api';
 import { createRoomForBooking, joinCall, openCallRoom } from '@/services/video';
 import type { BookingStatus, PaymentStatus } from '@/types/booking';
 
@@ -91,6 +95,19 @@ export default function BookingDetailScreen() {
   const [rating, setRating] = useState<1 | 2 | 3 | 4 | 5 | null>(null);
   const [comment, setComment] = useState('');
   const [confirmingNoShow, setConfirmingNoShow] = useState(false);
+  // Nothing is cancelled on the first tap: a sheet says what will happen.
+  const [cancelSheetOpen, setCancelSheetOpen] = useState(false);
+  // Only an expert about to cancel a confirmed session late needs their count.
+  const expertCancellingLate =
+    Boolean(user?.id) &&
+    user?.id === booking?.expertId &&
+    booking?.status === 'confirmed' &&
+    !isFreeCancellation(booking.slot.startIso);
+  const { data: lateCancellations } = useQuery({
+    queryKey: ['late-cancellations', user?.id],
+    queryFn: () => fetchMyLateCancellationCount(user?.id ?? ''),
+    enabled: expertCancellingLate,
+  });
 
   // Back from Stripe on the web (?stripe=success): the payment lands a few
   // seconds after the page does, so check often for half a minute before
@@ -208,6 +225,53 @@ export default function BookingDetailScreen() {
   const freeCancel = isFreeCancellation(booking.slot.startIso);
   const forfeitsPayment = isCustomer && !freeCancel && booking.paymentStatus === 'captured';
   // No-show reports: either party, from start+10min to start+72h, once.
+  // An expert cancelling a confirmed session this late gets it on their record.
+  const expertLate = isExpert && booking.status === 'confirmed' && !freeCancel;
+  const cancelCopy = cancelPrompt({
+    role: isExpert ? 'expert' : 'customer',
+    status: booking.status,
+    kind: booking.kind === 'intro' ? 'intro' : 'session',
+    paymentStatus: booking.paymentStatus,
+    priceCents: booking.priceCents,
+    startIso: booking.slot.startIso,
+    otherName: isExpert ? (booking.customerName ?? null) : (expert?.displayName ?? null),
+    freeCancel,
+    lateCancellations: lateCancellations ?? null,
+  });
+  const runCancel = () =>
+    cancel(
+      {
+        id: booking.id,
+        reason: isExpert
+          ? 'declined by expert'
+          : forfeitsPayment
+            ? 'cancelled by customer inside 24h, payment forfeited per policy'
+            : 'cancelled by customer',
+        // Inside 24h the customer forfeits the payment, don't attempt a
+        // refund (the server would refuse it anyway).
+        refund: !forfeitsPayment,
+        byExpert: isExpert,
+      },
+      {
+        onSuccess: () => {
+          capture('booking_cancelled', { by_customer: isCustomer, late: expertLate || forfeitsPayment });
+          setCancelSheetOpen(false);
+          Toast.show({
+            type: 'success',
+            text1: withdrawable ? 'Request withdrawn' : 'Booking cancelled',
+          });
+          router.replace('/(tabs)/bookings');
+        },
+        onError: (err) => {
+          setCancelSheetOpen(false);
+          Toast.show({
+            type: 'error',
+            text1: 'Could not cancel',
+            text2: err instanceof Error ? err.message : 'Unknown error',
+          });
+        },
+      },
+    );
   const reportWindowOpen = isWithinNoShowReportWindow(booking.slot.startIso);
   const reportableStatus =
     booking.status === 'confirmed' ||
@@ -446,6 +510,12 @@ export default function BookingDetailScreen() {
                 policy.
               </Text>
             )}
+            {expertLate && (
+              <Text style={styles.policyWarning}>
+                Less than 24 hours to go. Cancelling now counts as a late cancellation on your
+                record.
+              </Text>
+            )}
             <Button
               title={
                 forfeitsPayment
@@ -455,39 +525,7 @@ export default function BookingDetailScreen() {
                     : 'Cancel booking'
               }
               variant="dangerQuiet"
-              loading={cancelling}
-              onPress={() =>
-                cancel(
-                  {
-                    id: booking.id,
-                    reason: isExpert
-                      ? 'declined by expert'
-                      : forfeitsPayment
-                        ? 'cancelled by customer inside 24h, payment forfeited per policy'
-                        : 'cancelled by customer',
-                    // Inside 24h the customer forfeits the payment, don't
-                    // attempt a refund (the server would refuse it anyway).
-                    refund: !forfeitsPayment,
-                    byExpert: isExpert,
-                  },
-                  {
-                    onSuccess: () => {
-                      capture('booking_cancelled', { by_customer: isCustomer });
-                      Toast.show({
-                        type: 'success',
-                        text1: withdrawable ? 'Request withdrawn' : 'Booking cancelled',
-                      });
-                      router.replace('/(tabs)/bookings');
-                    },
-                    onError: (err) =>
-                      Toast.show({
-                        type: 'error',
-                        text1: 'Could not cancel',
-                        text2: err instanceof Error ? err.message : 'Unknown error',
-                      }),
-                  },
-                )
-              }
+              onPress={() => setCancelSheetOpen(true)}
             />
           </Card>
         )}
@@ -555,6 +593,13 @@ export default function BookingDetailScreen() {
           />
         )}
       </ScrollView>
+      <CancelSheet
+        visible={cancelSheetOpen}
+        copy={cancelCopy}
+        working={cancelling}
+        onKeep={() => setCancelSheetOpen(false)}
+        onConfirm={runCancel}
+      />
     </Screen>
   );
 }

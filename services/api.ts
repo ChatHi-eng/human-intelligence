@@ -719,6 +719,21 @@ export const cancelBooking = async (id: string, reason?: string): Promise<void> 
   if (error) throw error;
 };
 
+// How many confirmed sessions this expert has cancelled with less than 24
+// hours to go, in the last 90 days. The database records each one itself
+// (migration 0031); the app cannot write it.
+export const fetchMyLateCancellationCount = async (userId: string): Promise<number> => {
+  const since = new Date(Date.now() - 90 * 24 * 60 * 60_000).toISOString();
+  const { count, error } = await sb()
+    .from('bookings')
+    .select('id', { count: 'exact', head: true })
+    .eq('expert_profile_id', userId)
+    .eq('expert_late_cancel', true)
+    .gte('cancelled_at', since);
+  if (error) throw error;
+  return count ?? 0;
+};
+
 // Pending requests for an expert to act on.
 export const fetchPendingRequestsForExpert = async (userId: string): Promise<Booking[]> => {
   const { data, error } = await sb()
