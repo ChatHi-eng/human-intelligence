@@ -29,12 +29,15 @@ export type RefundResult =
 
 type StripeError = { error?: { message?: string; code?: string } };
 
-const call = async (
+// One call to Stripe. `account` makes it act as an expert's own Stripe
+// account (paying out their balance, reading it).
+export const stripeCall = async (
   stripeKey: string,
   method: 'GET' | 'POST',
   path: string,
   form?: Record<string, string>,
   idempotencyKey?: string,
+  account?: string,
 ) => {
   const res = await fetch(`${STRIPE}${path}`, {
     method,
@@ -43,6 +46,7 @@ const call = async (
       'Stripe-Version': VERSION,
       ...(form ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}),
       ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
+      ...(account ? { 'Stripe-Account': account } : {}),
     },
     body: form ? new URLSearchParams(form) : undefined,
   });
@@ -51,8 +55,10 @@ const call = async (
   return { ok: res.ok, status: res.status, body };
 };
 
-const message = (body: StripeError, fallback: string) =>
+export const stripeMessage = (body: StripeError, fallback: string) =>
   body?.error?.message ?? body?.error?.code ?? fallback;
+const message = stripeMessage;
+const call = stripeCall;
 
 // What a refund of this payment would do, without doing it. For the owner,
 // and for checking the refund path against Stripe with nothing moved.

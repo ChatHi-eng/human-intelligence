@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { colors, spacing, typography } from '@/constants/theme';
 import { useStartConnectOnboarding, useSyncConnectStatus } from '@/hooks/useExperts';
+import { useAppConfig } from '@/hooks/useNotificationPrefs';
+import { DEFAULT_APP_CONFIG } from '@/services/api';
 
 export type PayoutsCardProps = {
   expert: { stripeConnectAccountId: string | null; stripeConnectPayoutsEnabled: boolean };
@@ -13,6 +15,7 @@ export type PayoutsCardProps = {
 // Where an expert connects the bank account Palam pays them into (Stripe
 // Connect). Lives on the Session settings screen.
 export const PayoutsCard = ({ expert }: PayoutsCardProps) => {
+  const { data: config = DEFAULT_APP_CONFIG } = useAppConfig();
   const { mutate: start, isPending } = useStartConnectOnboarding();
   const { mutate: sync, isPending: syncing } = useSyncConnectStatus();
   const isReady = expert.stripeConnectPayoutsEnabled;
@@ -74,8 +77,9 @@ export const PayoutsCard = ({ expert }: PayoutsCardProps) => {
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Payouts</Text>
           <Text style={styles.body}>
-            Customers pay through Stripe, and Stripe pays you. Until you finish this setup,
-            payments are held for you by Palam.
+            Customers pay through Stripe, and Stripe pays you {config.payoutHoldHours} hours
+            after each session. Until you finish this setup, payments are held for you by
+            Palam.
             {__DEV__ ? ' Test mode uses fake bank details: enter anything plausible.' : ''}
           </Text>
         </View>

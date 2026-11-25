@@ -8,9 +8,12 @@ import { Screen } from '@/components/ui/Screen';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { colors, spacing, typography } from '@/constants/theme';
 import { useDailyEarningsSeries, useEarningsBuckets } from '@/hooks/useEarnings';
+import { useAppConfig } from '@/hooks/useNotificationPrefs';
 import { formatCurrency } from '@/lib/format';
+import { DEFAULT_APP_CONFIG } from '@/services/api';
 
 export default function ExpertEarningsScreen() {
+  const { data: config = DEFAULT_APP_CONFIG } = useAppConfig();
   const router = useRouter();
   const { data: buckets, isLoading } = useEarningsBuckets();
   const { data: daily } = useDailyEarningsSeries();
@@ -58,8 +61,10 @@ export default function ExpertEarningsScreen() {
         <Card style={{ marginTop: spacing.lg }}>
           <Text style={styles.cardTitle}>Payouts</Text>
           <Text style={styles.cardBody}>
-            Stripe pays what you earn into your bank account. The amounts above are what you
-            receive. You set up and change your bank details in Session settings.
+            You are paid {config.payoutHoldHours} hours after each session. The money waits in
+            your Stripe balance until then, and Stripe sends it to your bank, which usually
+            takes 1 to 2 business days more. The amounts above are what you receive. You set
+            up and change your bank details in Session settings.
           </Text>
           <Button
             title="Open Session settings"

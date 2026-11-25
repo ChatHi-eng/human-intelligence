@@ -1124,6 +1124,8 @@ export type AppConfig = {
   lateCancelWindowDays: number;
   // How many times one booking can be moved to a new time.
   maxReschedules: number;
+  // An expert is paid this many hours after a session's scheduled finish.
+  payoutHoldHours: number;
 };
 
 export const DEFAULT_APP_CONFIG: AppConfig = {
@@ -1131,6 +1133,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   lateCancelPauseCount: 2,
   lateCancelWindowDays: 90,
   maxReschedules: 2,
+  payoutHoldHours: 48,
 };
 
 // The owner's switches. If they cannot be read, nothing extra is required:
@@ -1139,7 +1142,7 @@ export const fetchAppConfig = async (): Promise<AppConfig> => {
   const { data, error } = await sb()
     .from('app_config')
     .select(
-      'phone_verification_required, late_cancel_pause_count, late_cancel_window_days, max_reschedules',
+      'phone_verification_required, late_cancel_pause_count, late_cancel_window_days, max_reschedules, payout_hold_hours',
     )
     .maybeSingle();
   if (error || !data) return DEFAULT_APP_CONFIG;
@@ -1148,6 +1151,7 @@ export const fetchAppConfig = async (): Promise<AppConfig> => {
     lateCancelPauseCount: data.late_cancel_pause_count ?? DEFAULT_APP_CONFIG.lateCancelPauseCount,
     lateCancelWindowDays: data.late_cancel_window_days ?? DEFAULT_APP_CONFIG.lateCancelWindowDays,
     maxReschedules: data.max_reschedules ?? DEFAULT_APP_CONFIG.maxReschedules,
+    payoutHoldHours: data.payout_hold_hours ?? DEFAULT_APP_CONFIG.payoutHoldHours,
   };
 };
 

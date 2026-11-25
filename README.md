@@ -389,7 +389,7 @@ A visit under 15 seconds is ignored, and leaving and coming back inside a minute
 
 **Messages.** At roll call, whoever is waiting alone is told where they stand: a waiting customer that they can leave and will be refunded, a waiting expert that they can leave and keep the payout. The other person is told too. When the session is settled, both get the result by push and email, and the owner (`APPLICATION_ALERT_EMAIL`) gets the visits, the money and the strike count. The booking screen shows the outcome and who was in the call when.
 
-**Refunds.** `_shared/refund.ts` refunds in full with `reverse_transfer` and `refund_application_fee`, so the expert's share is pulled back and Palam's fee returned; Palam is out only Stripe's processing fee. Cancellation refunds (`refund-booking`) use the same code. If the expert's share cannot be pulled back (their Stripe balance was already paid out), the customer is still refunded, from Palam, and the owner's email says so in bold. Expert payouts are **not** held back yet, so this can happen.
+**Refunds.** `_shared/refund.ts` refunds in full with `reverse_transfer` and `refund_application_fee`, so the expert's share is pulled back and Palam's fee returned; Palam is out only Stripe's processing fee. Cancellation refunds (`refund-booking`) use the same code. If the expert's share cannot be pulled back (their Stripe balance was already paid out), the customer is still refunded, from Palam, and the owner's email says so in bold. Expert payouts are held until 48 hours after the session (next section), so this should only happen for a refund made after that.
 
 **Strikes.** A strike is `bookings.no_show_strike`. Two inside 90 days pause the expert's profile (same pause as late cancellations, reason `no_shows`) until the owner has looked. Late cancellations are counted separately.
 
@@ -417,7 +417,32 @@ where profile_id = '<expert id>';
 
 **What the record cannot tell.** It shows that a person's pass was connected, not that someone was sitting there or that sound and picture worked. Those complaints, and anything the customer or expert writes in about within 48 hours, still go to a person. The "Report a no-show" link is still on the booking screen for sessions the record did not settle.
 
-**Not built yet:** holding expert payouts until after the session; the customer's one-tap "it was cut short" claim; a contest button in the app (people write to info@palamapp.com); a strike that stays provisional for 48 hours.
+**Not built yet:** the customer's one-tap "it was cut short" claim; a contest button in the app (people write to info@palamapp.com); a strike that stays provisional for 48 hours.
+
+## When experts are paid (the payout hold)
+
+An expert's share of a session stays in their Stripe balance until the session has happened, then Palam sends it to their bank: **48 hours after the scheduled finish** (`app_config.payout_hold_hours`). Held there, a refund for a no-show pulls it straight back. Before this, Stripe paid it out on its own daily schedule, often before the session took place, and Palam had to cover the refund. Migration `0034_payout_hold.sql`; the code is `supabase/functions/_shared/payouts.ts`, run by `send-reminders` every two minutes.
+
+- **The hold.** Every expert Stripe account is set to manual payouts: new ones when `create-connect-account` makes them, existing ones by the scheduled job. `expert_profiles.payouts_held_at` says when. A payment taken after that is marked `payout_state = 'held'` on its booking by the database.
+- **The release.** Once a held booking is 48 hours past its finish it is paid out, for exactly that booking's amount (the price less Palam's fee), so paying one session never sweeps up money held for another. It is only paid if the session stands: settled as `held`, `short` or `customer_no_show`, or cancelled late by the customer with no refund. The expert gets a "Payout sent" notification.
+- **What waits.** A session that is `needs_review`, has a no-show report on it, or was never settled is not paid out until you say so. A day overdue, you get one email at `APPLICATION_ALERT_EMAIL` saying why. If the money is simply not yet available in the expert's Stripe balance (Stripe releases card payments after about two business days), the job tries again every run.
+- **Refunded bookings** drop out of the hold by themselves.
+
+```sql
+-- What is being held, and why anything is waiting
+select id, expert_profile_id, end_at, price_cents - stripe_application_fee_cents as cents,
+       payout_state, attendance_outcome, payout_note
+from public.bookings where payout_state in ('held', 'on_hold', 'approved', 'releasing') order by end_at;
+
+-- Pay one out at the next run, whatever the record says
+update public.bookings set payout_state = 'approved' where id = '<booking id>';
+
+-- Stop one being paid out (a complaint came in), and let it go again
+update public.bookings set payout_state = 'on_hold' where id = '<booking id>';
+update public.bookings set payout_state = 'held' where id = '<booking id>';
+```
+
+Stripe does not provide escrow; this is delayed payout, which Stripe allows for up to two years in the US. Money that was already in an expert's Stripe balance before their account was switched (from payments taken earlier) is not released by Palam: pay it out from the Stripe dashboard. Payouts are per booking, not batched; if Stripe charges Palam per payout on the live plan, batching per expert per day is the change to make.
 
 ## Sign-in with Google or Apple
 

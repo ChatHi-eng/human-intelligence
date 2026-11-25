@@ -42,6 +42,11 @@
 // {"action":"preview","bookingId":"..."} answers with what would be decided
 // for one booking, and changes nothing.
 //
+// And it looks after expert payouts (../_shared/payouts.ts): an expert's
+// money stays in their Stripe balance until 48 hours after the session, and
+// is sent to their bank then, provided the session stands.
+// {"action":"payouts"} answers with what is being held for whom.
+//
 // Idempotent: a row in booking_reminders is claimed before anything is sent,
 // so a retry or an overlapping run can never send the same reminder twice.
 //
@@ -70,6 +75,7 @@ import {
   sendWaitingAlert,
   type AlertEnv,
 } from '../_shared/session-alerts.ts';
+import { holdNewAccounts, payoutsOverview, releasePayouts } from '../_shared/payouts.ts';
 import { previewDecision, rollCall, settleSessions, type SettleEnv } from '../_shared/settle.ts';
 
 const DEFAULT_SENDER = 'Palam <onboarding@resend.dev>';
@@ -201,6 +207,9 @@ serve(async (req) => {
   if (request.action === 'preview' && typeof request.bookingId === 'string') {
     return json(await previewDecision(admin, settleEnv, request.bookingId, Date.now()));
   }
+  if (request.action === 'payouts') {
+    return json(await payoutsOverview(admin, settleEnv));
+  }
 
   const now = Date.now();
   const { data: upcoming, error: bookingsError } = await admin
@@ -227,6 +236,9 @@ serve(async (req) => {
     settled: 0,
     refunded: 0,
     toReview: 0,
+    accountsHeld: 0,
+    payoutsSent: 0,
+    payoutsWaiting: 0,
   };
 
   // The line the video room reports on: set up the first time, and checked
@@ -511,6 +523,17 @@ serve(async (req) => {
     }
   } catch (err) {
     console.error('waiting check failed', err);
+  }
+
+  // Payouts. Any expert account still on Stripe's own schedule is switched
+  // to "hold until Palam sends it"; then whatever has fallen due is sent.
+  try {
+    sent.accountsHeld = await holdNewAccounts(admin, settleEnv);
+    const paid = await releasePayouts(admin, settleEnv, now);
+    sent.payoutsSent = paid.released;
+    sent.payoutsWaiting = paid.waiting;
+  } catch (err) {
+    console.error('payouts failed', err);
   }
 
   // Finished at least twenty minutes ago (and within the last day), both

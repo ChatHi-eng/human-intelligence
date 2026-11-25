@@ -86,6 +86,9 @@ serve(async (req) => {
         transfers: { requested: true },
       },
       metadata: { profile_id: user.id },
+      // Money stays in the expert's Stripe balance until Palam sends it, 48
+      // hours after each session (supabase/functions/_shared/payouts.ts).
+      settings: { payouts: { schedule: { interval: 'manual' } } },
     });
     accountId = account.id;
     // stripe_connect_account_id is a server-owned column (migration 0014):
@@ -95,7 +98,7 @@ serve(async (req) => {
     });
     const { error: saveError } = await admin
       .from('expert_profiles')
-      .update({ stripe_connect_account_id: accountId })
+      .update({ stripe_connect_account_id: accountId, payouts_held_at: new Date().toISOString() })
       .eq('profile_id', user.id);
     if (saveError) return json({ error: saveError.message }, 500);
   }
