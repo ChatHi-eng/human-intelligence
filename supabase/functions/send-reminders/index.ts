@@ -31,6 +31,17 @@
 //   review_prompt  twenty minutes after a session both people joined, the
 //                  customer is asked for a review
 //
+// And it settles sessions from the video room's own record of who was there
+// (../_shared/settle.ts, rules in ../_shared/attendance.ts):
+//
+//   roll_call          ten minutes in, whoever is waiting alone is told they
+//                      can leave, and what happens next
+//   attendance_result  ten minutes after the finish the session is settled:
+//                      an expert no-show is refunded in full then and there
+//
+// {"action":"preview","bookingId":"..."} answers with what would be decided
+// for one booking, and changes nothing.
+//
 // Idempotent: a row in booking_reminders is claimed before anything is sent,
 // so a retry or an overlapping run can never send the same reminder twice.
 //
@@ -41,13 +52,16 @@
 //   PALAM_SENDER, PALAM_TIMEZONE     as in lifecycle-emails
 //   TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER
 //                                    text reminders stay off until all three exist
+//   DAILY_API_KEY                    the room's record; without it nothing is settled
+//   STRIPE_SECRET_KEY                automatic refunds; without it the owner is asked
+//   APPLICATION_ALERT_EMAIL          where the owner's alerts go
 //
 // Deploy with "Verify JWT" OFF. The cron job authenticates with the
 // x-webhook-secret header, not a Supabase login.
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
-import { peopleInRoom } from '../_shared/daily.ts';
+import { ensureRoom, ensureWebhook, peopleInRoom } from '../_shared/daily.ts';
 import { joinKey, joinPath } from '../_shared/join.ts';
 import { APP_URL, clockTime, pushToUsers, shortWhen } from '../_shared/notify.ts';
 import {
@@ -56,6 +70,7 @@ import {
   sendWaitingAlert,
   type AlertEnv,
 } from '../_shared/session-alerts.ts';
+import { previewDecision, rollCall, settleSessions, type SettleEnv } from '../_shared/settle.ts';
 
 const DEFAULT_SENDER = 'Palam <onboarding@resend.dev>';
 const SUPPORT_EMAIL = 'info@palamapp.com';
@@ -72,6 +87,10 @@ type BookingRow = {
   medium: string;
   customer_note: string | null;
   kind: string | null;
+  daily_room_url: string | null;
+  daily_room_private: boolean | null;
+  daily_room_name: string | null;
+  daily_room_expires_at: string | null;
 };
 
 type Prefs = {
@@ -162,10 +181,33 @@ serve(async (req) => {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
+  const dailyKey = Deno.env.get('DAILY_API_KEY');
+  const settleEnv: SettleEnv = {
+    resendKey,
+    serviceKey,
+    from,
+    defaultTz,
+    twilio:
+      twilioSid && twilioToken && twilioFrom
+        ? { sid: twilioSid, token: twilioToken, from: twilioFrom }
+        : null,
+    dailyKey: dailyKey ?? undefined,
+    stripeKey: Deno.env.get('STRIPE_SECRET_KEY') ?? undefined,
+    alertEmail: Deno.env.get('APPLICATION_ALERT_EMAIL') ?? SUPPORT_EMAIL,
+  };
+
+  // Asked what would be decided for one booking: answer, and do nothing else.
+  const request = (await req.json().catch(() => ({}))) as { action?: unknown; bookingId?: unknown };
+  if (request.action === 'preview' && typeof request.bookingId === 'string') {
+    return json(await previewDecision(admin, settleEnv, request.bookingId, Date.now()));
+  }
+
   const now = Date.now();
   const { data: upcoming, error: bookingsError } = await admin
     .from('bookings')
-    .select('id, customer_id, expert_profile_id, start_at, end_at, medium, customer_note, kind')
+    .select(
+      'id, customer_id, expert_profile_id, start_at, end_at, medium, customer_note, kind, daily_room_url, daily_room_private, daily_room_name, daily_room_expires_at',
+    )
     .eq('status', 'confirmed')
     .gt('start_at', new Date(now).toISOString())
     .lte('start_at', new Date(now + 28 * 60 * 60_000).toISOString());
@@ -174,7 +216,43 @@ serve(async (req) => {
     return json({ error: 'Lookup failed' }, 500);
   }
 
-  const sent = { email: 0, push: 0, sms: 0, reminders: 0, waiting: 0, reviews: 0 };
+  const sent = {
+    email: 0,
+    push: 0,
+    sms: 0,
+    reminders: 0,
+    waiting: 0,
+    reviews: 0,
+    rollCalls: 0,
+    settled: 0,
+    refunded: 0,
+    toReview: 0,
+  };
+
+  // The line the video room reports on: set up the first time, and checked
+  // every quarter of an hour after that.
+  let roomReports = 'not checked';
+  if (dailyKey) {
+    try {
+      const { data: line } = await admin
+        .from('daily_webhook')
+        .select('state, checked_at')
+        .maybeSingle();
+      const stale =
+        !line?.checked_at ||
+        line.state !== 'ACTIVE' ||
+        now - Date.parse(line.checked_at as string) > 15 * 60_000;
+      if (stale) {
+        const result = await ensureWebhook(admin, dailyKey, `${supabaseUrl}/functions/v1/daily-webhook`);
+        roomReports = result.error ? `${result.state}: ${result.error}` : result.state;
+        if (result.error) console.error('room reports line', roomReports);
+      } else {
+        roomReports = line.state as string;
+      }
+    } catch (err) {
+      console.error('room reports check failed', err);
+    }
+  }
 
   const sendEmail = async (to: string, subject: string, html: string) => {
     try {
@@ -214,6 +292,17 @@ serve(async (req) => {
   for (const booking of (upcoming ?? []) as BookingRow[]) {
     const minutesToStart = (Date.parse(booking.start_at) - now) / 60_000;
     const minutes = Math.round((Date.parse(booking.end_at) - Date.parse(booking.start_at)) / 60_000);
+    // Within the hour: have the room made and private before anyone
+    // arrives, so the first person in is not kept waiting and nobody can
+    // walk in on an old link.
+    if (dailyKey && booking.medium === 'video' && minutesToStart <= 60 && !booking.daily_room_private) {
+      try {
+        await ensureRoom(admin, dailyKey, booking);
+      } catch (err) {
+        console.error('room setup failed', booking.id, err);
+      }
+    }
+
     const kind = kindFor(minutesToStart);
     if (!kind) continue;
 
@@ -376,17 +465,24 @@ serve(async (req) => {
   }
 
   // ---- Sessions running now, and sessions just finished -------------------
-  const dailyKey = Deno.env.get('DAILY_API_KEY');
-  const alertEnv: AlertEnv = {
-    resendKey,
-    serviceKey,
-    from,
-    defaultTz,
-    twilio:
-      twilioSid && twilioToken && twilioFrom
-        ? { sid: twilioSid, token: twilioToken, from: twilioFrom }
-        : null,
-  };
+  const alertEnv: AlertEnv = settleEnv;
+
+  // Ten minutes in: whoever is waiting alone is told where they stand.
+  try {
+    sent.rollCalls = await rollCall(admin, settleEnv, now);
+  } catch (err) {
+    console.error('roll call failed', err);
+  }
+
+  // Ten minutes after the finish: read the room's record and settle.
+  try {
+    const settled = await settleSessions(admin, settleEnv, now);
+    sent.settled = settled.decided;
+    sent.refunded = settled.refunded;
+    sent.toReview = settled.review;
+  } catch (err) {
+    console.error('settling failed', err);
+  }
   const sessionColumns =
     'id, customer_id, expert_profile_id, start_at, end_at, kind, daily_room_name, customer_joined_at, expert_joined_at';
 
@@ -428,7 +524,8 @@ serve(async (req) => {
       .gt('end_at', new Date(now - 24 * 60 * 60_000).toISOString())
       .not('customer_joined_at', 'is', null)
       .not('expert_joined_at', 'is', null)
-      .is('no_show_reported_by', null);
+      .is('no_show_reported_by', null)
+      .or('attendance_outcome.is.null,attendance_outcome.in.(held,short)');
     const finishedIds = (finished ?? []).map((b) => b.id as string);
     if (finishedIds.length > 0) {
       const { data: asked } = await admin
@@ -446,5 +543,5 @@ serve(async (req) => {
     console.error('review prompts failed', err);
   }
 
-  return json({ ok: true, ...sent, smsConfigured: smsReady });
+  return json({ ok: true, ...sent, smsConfigured: smsReady, roomReports });
 });

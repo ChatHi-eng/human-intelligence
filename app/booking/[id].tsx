@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { NotificationPrompt } from '@/components/account/NotificationPrompt';
 import { CancelSheet } from '@/components/booking/CancelSheet';
@@ -31,13 +31,13 @@ import {
   useWithdrawReschedule,
 } from '@/hooks/useReschedule';
 import { useMyReviewForBooking, useSubmitReview } from '@/hooks/useReviews';
-import { formatDateTime, minutesBetween } from '@/lib/date';
+import { formatDateTime, formatTime, minutesBetween } from '@/lib/date';
 import { formatCurrency } from '@/lib/format';
 import { cancelPrompt } from '@/lib/cancelCopy';
 import { isFreeCancellation, isWithinNoShowReportWindow } from '@/lib/policy';
 import { capture } from '@/services/analytics';
 import { DEFAULT_APP_CONFIG, fetchMyLateCancellationCount } from '@/services/api';
-import { createRoomForBooking, joinCall, openCallRoom } from '@/services/video';
+import { joinCall, openCallRoom } from '@/services/video';
 import type { BookingStatus, PaymentStatus } from '@/types/booking';
 
 type CallStage = 'idle' | 'connecting' | 'in-call' | 'review';
@@ -147,20 +147,25 @@ export default function BookingDetailScreen() {
   const handleJoin = async () => {
     setStage('connecting');
     try {
-      // With the room's address already in hand, open it at once (a browser
-      // only allows a new tab straight after the tap) and tell Palam in the
-      // background that this person went in. Otherwise ask for the room,
-      // which records it too.
-      let url = booking.callRoomUrl;
-      if (url) {
-        void joinCall(booking.id).catch(() => undefined);
+      // The room lets nobody in without their own pass, and Palam hands
+      // that out when asked. On the web a new tab has to open straight after
+      // the tap, before there is time to ask, so the tab opens on Palam's
+      // own join page, which asks and then goes into the call. On a phone
+      // there is no such rule: ask first, then open the call.
+      let url: string;
+      if (Platform.OS === 'web') {
+        url = `${window.location.origin}/join?b=${booking.id}`;
       } else {
-        const joined = await joinCall(booking.id).catch(() => null);
-        url =
-          joined?.status === 'ok' ? joined.url : (await createRoomForBooking(booking.id)).url;
+        const joined = await joinCall(booking.id);
+        if (joined.status !== 'ok') {
+          throw new Error(
+            joined.status === 'ended' ? 'This call has ended.' : 'The call is not open yet.',
+          );
+        }
+        url = joined.url;
+        capture('call_joined', { via: 'booking' });
       }
       const room = { url };
-      capture('call_joined', { via: 'booking' });
       // openBrowserAsync returns quickly once the browser has actually opened.
       // We don't await the entire call session, the user can navigate back
       // any time and hit 'Review the call' when finished.
@@ -205,12 +210,20 @@ export default function BookingDetailScreen() {
     );
   };
 
-  const status = statusBadge(booking.status);
+  // A session the call's record settled as a no-show is not "Confirmed".
+  const status: { label: string; tone: BadgeTone } =
+    booking.status !== 'cancelled' &&
+    (booking.attendanceOutcome === 'expert_no_show' ||
+      booking.attendanceOutcome === 'customer_no_show')
+      ? { label: 'Did not happen', tone: 'warning' }
+      : statusBadge(booking.status);
   const isCustomer = user?.id === booking.customerId;
   const isExpert = user?.id === booking.expertId;
+  // Nothing is left to cancel once the session's time has passed.
   const canCancel =
     (isCustomer || isExpert) &&
-    (booking.status === 'requested' || booking.status === 'confirmed');
+    (booking.status === 'requested' || booking.status === 'confirmed') &&
+    new Date(booking.slot.endIso).getTime() > Date.now();
   const canJoin = booking.status === 'confirmed' || booking.status === 'in_progress';
   const bookingActive = booking.status === 'requested' || booking.status === 'confirmed';
   const paymentIncomplete =
@@ -228,6 +241,9 @@ export default function BookingDetailScreen() {
     isCustomer &&
     !myReview &&
     booking.status !== 'cancelled' &&
+    // A session the call's record says did not happen is not one to review.
+    booking.attendanceOutcome !== 'expert_no_show' &&
+    booking.attendanceOutcome !== 'customer_no_show' &&
     (stage === 'review' || booking.status === 'completed' || (canJoin && callOver));
 
   // Cancellation policy: free until 24h before the start. Inside 24h a
@@ -324,8 +340,57 @@ export default function BookingDetailScreen() {
     booking.status === 'confirmed' ||
     booking.status === 'in_progress' ||
     booking.status === 'completed';
+  // Settled from the call's own record: there is nothing left to report.
+  const settledNoShow =
+    booking.attendanceOutcome === 'expert_no_show' ||
+    booking.attendanceOutcome === 'customer_no_show';
   const canReportNoShow =
-    (isCustomer || isExpert) && reportableStatus && reportWindowOpen && !booking.noShowReportedAt;
+    (isCustomer || isExpert) &&
+    reportableStatus &&
+    reportWindowOpen &&
+    !booking.noShowReportedAt &&
+    !settledNoShow;
+  const expertName = expert?.displayName ?? 'The expert';
+  const customerName = booking.customerName ?? 'The customer';
+  const wasPaid = booking.kind !== 'intro';
+  const refunded = booking.paymentStatus === 'refunded';
+  const outcomeCopy = !settledNoShow
+    ? null
+    : booking.attendanceOutcome === 'expert_no_show'
+      ? isCustomer
+        ? {
+            title: 'This session did not happen',
+            body: `${expertName} did not join. ${
+              !wasPaid
+                ? 'We are sorry.'
+                : refunded
+                  ? 'You have been refunded in full. Banks usually take 5 to 10 business days to show it.'
+                  : 'You are owed a full refund, and we are sending it now.'
+            }`,
+          }
+        : {
+            title: 'You missed this session',
+            body: `The call's record shows you were not there 10 minutes after the start. ${
+              wasPaid ? `${customerName} was refunded in full, and a` : 'A'
+            } missed session is on your record.`,
+          }
+      : isExpert
+        ? {
+            title: `${customerName} did not join`,
+            body: wasPaid
+              ? 'You waited the full 10 minutes, so you keep your payout for this session.'
+              : 'Thanks for waiting the full 10 minutes.',
+          }
+        : {
+            title: 'You missed this session',
+            body: `${expertName} waited in the call for you.${
+              wasPaid ? ' A session the customer misses is not refunded.' : ''
+            }`,
+          };
+  const visitsLine = (spans: [string, string][]) =>
+    spans.length === 0
+      ? 'not at all'
+      : spans.map(([from, to]) => `${formatTime(from)} to ${formatTime(to)}`).join(', ');
 
   return (
     <Screen>
@@ -682,7 +747,26 @@ export default function BookingDetailScreen() {
           </Card>
         )}
 
-        {booking.noShowReportedAt ? (
+        {outcomeCopy ? (
+          <Card style={{ marginTop: spacing.lg }}>
+            <Text style={styles.sectionTitle}>{outcomeCopy.title}</Text>
+            <Text style={styles.cardBody}>{outcomeCopy.body}</Text>
+            {booking.attendance ? (
+              <View style={styles.recordBox}>
+                <Text style={styles.label}>Who was in the call</Text>
+                <Text style={styles.recordLine}>
+                  {isCustomer ? 'You' : customerName}: {visitsLine(booking.attendance.customer)}
+                </Text>
+                <Text style={styles.recordLine}>
+                  {isExpert ? 'You' : expertName}: {visitsLine(booking.attendance.expert)}
+                </Text>
+              </View>
+            ) : null}
+            <Text style={[styles.cardBody, { marginBottom: 0 }]}>
+              Not right? Write to info@palamapp.com within 48 hours and a person will look at it.
+            </Text>
+          </Card>
+        ) : booking.noShowReportedAt ? (
           <Card style={{ marginTop: spacing.lg }}>
             <Text style={styles.sectionTitle}>Report received</Text>
             <Text style={[styles.cardBody, { marginBottom: 0 }]}>
@@ -791,6 +875,15 @@ const styles = StyleSheet.create({
   proposalOptions: { gap: spacing.sm },
   proposalTime: { ...typography.bodyStrong, color: colors.textPrimary, marginBottom: spacing.xs },
   noShowLink: { marginTop: spacing.lg, alignItems: 'center', paddingVertical: spacing.sm },
+  recordBox: {
+    paddingVertical: spacing.md,
+    marginBottom: spacing.md,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: colors.border,
+    gap: 2,
+  },
+  recordLine: { ...typography.body, color: colors.textPrimary },
   noShowLinkText: { ...typography.body, color: colors.textMuted },
   reviewInput: {
     minHeight: 96,

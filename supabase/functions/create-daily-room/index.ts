@@ -1,8 +1,8 @@
 // Supabase Edge Function — create-daily-room
 //
-// Mints a Daily.co room for a booking. Auth user must be either the customer
-// or the expert. Reuses an existing room if one is already attached to the
-// booking. Persists the room name + URL + expires_at back onto the booking.
+// Makes sure a booking has its (private) Daily.co room. Auth user must be
+// either the customer or the expert. Reuses the room if there is one. The
+// room itself is set up in ../_shared/daily.ts; getting INTO it is join-call.
 //
 // Deploy via Supabase dashboard. Toggle "Verify JWT" OFF.
 //
@@ -13,6 +13,7 @@
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import { appJoinUrl, ensureRoom } from '../_shared/daily.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -26,11 +27,7 @@ const json = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 
-// How long a call may run past its scheduled end before it is closed.
-const CALL_GRACE_SECONDS = 5 * 60;
-
 type RequestBody = { bookingId: string };
-type DailyRoom = { name: string; url: string; config?: { exp?: number } };
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -68,7 +65,7 @@ serve(async (req) => {
   const { data: booking, error: bookingError } = await userClient
     .from('bookings')
     .select(
-      'id, customer_id, expert_profile_id, end_at, medium, call_room_url, daily_room_name, daily_room_expires_at',
+      'id, customer_id, expert_profile_id, end_at, medium, daily_room_url, daily_room_private, daily_room_name, daily_room_expires_at',
     )
     .eq('id', body.bookingId)
     .maybeSingle();
@@ -81,65 +78,18 @@ serve(async (req) => {
     return json({ error: 'Booking is not a video call' }, 409);
   }
 
-  const now = Math.floor(Date.now() / 1000);
-  const existingValid =
-    booking.daily_room_name &&
-    booking.call_room_url &&
-    booking.daily_room_expires_at &&
-    Date.parse(booking.daily_room_expires_at) > Date.now();
-
-  if (existingValid) {
-    return json({ url: booking.call_room_url, name: booking.daily_room_name });
-  }
-
-  // The call closes for everyone five minutes after the scheduled finish
-  // (owner decision, Nov 2026): long enough to wrap up, short enough to
-  // protect the expert's next session.
-  const expiresAt = Math.floor(Date.parse(booking.end_at) / 1000) + CALL_GRACE_SECONDS;
-  if (expiresAt <= now) {
-    return json({ error: 'This session has ended' }, 410);
-  }
-
-  const dailyRes = await fetch('https://api.daily.co/v1/rooms', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${dailyKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      name: `hi-${booking.id.replace(/-/g, '').slice(0, 24)}`,
-      privacy: 'public',
-      properties: {
-        exp: expiresAt,
-        // Without this Daily only stops NEW people joining at exp; with it,
-        // everyone in the room is disconnected at that moment.
-        eject_at_room_exp: true,
-        enable_screenshare: true,
-        enable_chat: true,
-        start_video_off: false,
-        start_audio_off: false,
-      },
-    }),
-  });
-  if (!dailyRes.ok) {
-    const detail = await dailyRes.text();
-    return json({ error: `Daily error ${dailyRes.status}: ${detail}` }, 502);
-  }
-  const room = (await dailyRes.json()) as DailyRoom;
-
-  // call_room_url / daily_* are server-owned columns (migration 0014): only
-  // this function writes them, so the Join button can trust the stored URL.
+  // The room is private: nobody gets in with its address alone. So what goes
+  // back to the app is Palam's own join page, where a signed-in person is
+  // handed their pass (join-call). An older copy of the app, which opens
+  // whatever address it is given, lands there too.
   const admin = createClient(supabaseUrl, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  await admin
-    .from('bookings')
-    .update({
-      call_room_url: room.url,
-      daily_room_name: room.name,
-      daily_room_expires_at: new Date(expiresAt * 1000).toISOString(),
-    })
-    .eq('id', booking.id);
-
-  return json({ url: room.url, name: room.name });
+  const room = await ensureRoom(admin, dailyKey, booking);
+  if ('error' in room) {
+    return room.error === 'ended'
+      ? json({ error: 'This session has ended' }, 410)
+      : json({ error: 'The call could not be opened. Try again in a moment.' }, 502);
+  }
+  return json({ url: appJoinUrl(booking.id), name: room.name });
 });

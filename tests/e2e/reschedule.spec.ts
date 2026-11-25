@@ -382,7 +382,7 @@ test('an expert paused by Palam is told why and cannot switch back on', async ({
   await expect(page.getByText('Palam has paused your profile', { exact: true })).toBeVisible({
     timeout: 90_000,
   });
-  await expect(page.getByText(/repeated cancellations with less than 24 hours to go/)).toBeVisible();
+  await expect(page.getByText(/repeated late cancellations .* or missed\s+sessions/)).toBeVisible();
   await expect(page.getByText(/Write to info@palamapp\.com/)).toBeVisible();
   // The ordinary "switch back on" shortcut is not offered.
   await expect(page.getByText('Go to Availability to switch back on')).toHaveCount(0);

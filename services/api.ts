@@ -126,6 +126,11 @@ type BookingRow = {
   no_show_reported_at?: string | null;
   reschedule_count?: number | null;
   previous_start_at?: string | null;
+  attendance_outcome?: Booking['attendanceOutcome'];
+  attendance_detail?: {
+    togetherMinutes?: number;
+    spans?: { customer?: [string, string][]; expert?: [string, string][] };
+  } | null;
   created_at: string;
   updated_at: string;
 };
@@ -248,6 +253,14 @@ const mapBooking = (row: BookingRow): Booking => ({
   noShowReportedAt: row.no_show_reported_at ?? null,
   rescheduleCount: row.reschedule_count ?? 0,
   previousStartIso: row.previous_start_at ?? null,
+  attendanceOutcome: row.attendance_outcome ?? null,
+  attendance: row.attendance_detail
+    ? {
+        togetherMinutes: row.attendance_detail.togetherMinutes ?? 0,
+        customer: row.attendance_detail.spans?.customer ?? [],
+        expert: row.attendance_detail.spans?.expert ?? [],
+      }
+    : null,
   createdAt: row.created_at,
 });
 

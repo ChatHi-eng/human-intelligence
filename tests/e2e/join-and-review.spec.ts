@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { expect, test, type BrowserContext, type Page, type Route } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { joinKey, joinPath, readJoinKey } from '../../supabase/functions/_shared/join';
@@ -9,7 +9,10 @@ import { joinKey, joinPath, readJoinKey } from '../../supabase/functions/_shared
 // 2. /join takes someone straight into the call, signed in or not.
 // 3. Opened too early, it says when the call opens.
 // 4. Opened after the end, it says so.
-// 5. The Join button in the app tells Palam the person went in.
+// 5. The Join button opens Palam's join page in a new tab, which fetches
+//    this person's pass and goes into the call with it.
+// 5b. That page, opened signed out and without a key, asks for a sign-in.
+// 5c. A session settled as a no-show says so on the booking, with the record.
 // 6. The link in "How was your session?" lands on the review card.
 // 7. A signed-out person who taps that link is taken there after signing in.
 //
@@ -60,8 +63,8 @@ const storageKey = () =>
 // The app's Supabase calls, answered from here. `startsInMinutes` places the
 // customer's confirmed session relative to now.
 const stubBackend = async (
-  page: Page,
-  opts: { startsInMinutes: number; roomUrl?: string | null },
+  page: Page | BrowserContext,
+  opts: { startsInMinutes: number; roomUrl?: string | null; extra?: Record<string, unknown> },
 ) => {
   const start = Date.now() + opts.startsInMinutes * 60_000;
   const booking = {
@@ -87,6 +90,7 @@ const stubBackend = async (
     created_at: NOW_ISO,
     updated_at: NOW_ISO,
     customer: { display_name: 'Casey Rivera', avatar_url: null },
+    ...(opts.extra ?? {}),
   };
   const expertRow = {
     profile_id: EXPERT,
@@ -147,7 +151,7 @@ const stubBackend = async (
   return booking;
 };
 
-const signIn = (page: Page) =>
+const signIn = (page: Page | BrowserContext) =>
   page.addInitScript(
     ([key, value]) => window.localStorage.setItem(key, value),
     [storageKey(), JSON.stringify(session)] as const,
@@ -257,17 +261,19 @@ test('a join link opened after the end says the call has ended', async ({ page }
   await expect(page.getByText('This link does not work')).toBeVisible({ timeout: 90_000 });
 });
 
-test('the Join button opens the call and tells Palam the person went in', async ({ page, context }) => {
+test('the Join button opens the join page, which goes into the call with a pass', async ({ page, context }) => {
   test.setTimeout(120_000);
   test.skip(!readEnv()?.EXPO_PUBLIC_SUPABASE_URL, 'No .env — app boots to the Setup screen');
-  await signIn(page);
-  await stubBackend(page, { startsInMinutes: 5, roomUrl: ROOM_URL });
+  // Everything is set up on the whole browser, because the call opens in a
+  // second tab.
+  await signIn(context);
+  await stubBackend(context, { startsInMinutes: 5 });
   const asked: unknown[] = [];
-  await page.route('**/functions/v1/join-call', (route) => {
+  await context.route('**/functions/v1/join-call', (route) => {
     asked.push(route.request().postDataJSON());
     return json(route, {
       status: 'ok',
-      url: ROOM_URL,
+      url: `${ROOM_URL}?t=test-pass`,
       bookingId: BOOKING,
       otherName: 'Ana Morales',
       startAt: NOW_ISO,
@@ -284,10 +290,57 @@ test('the Join button opens the call and tells Palam the person went in', async 
   const opened = page.waitForEvent('popup');
   await page.getByText('Join call', { exact: true }).click();
   const room = await opened;
-  await room.waitForLoadState();
-  expect(room.url()).toBe(ROOM_URL);
+  // The new tab is Palam's own page first, then the room, pass in hand.
+  await expect(room.getByText('video room')).toBeVisible({ timeout: 90_000 });
+  expect(room.url()).toBe(`${ROOM_URL}?t=test-pass`);
   // Signed in, so no key: the server knows who this is from the sign-in.
-  await expect.poll(() => asked).toEqual([{ bookingId: BOOKING }]);
+  expect(asked).toEqual([{ bookingId: BOOKING }]);
+});
+
+test('the join page without a key asks a signed-out person to sign in', async ({ page }) => {
+  test.setTimeout(120_000);
+  test.skip(!readEnv()?.EXPO_PUBLIC_SUPABASE_URL, 'No .env — app boots to the Setup screen');
+  await stubBackend(page, { startsInMinutes: 5 });
+  let asked = 0;
+  await page.route('**/functions/v1/join-call', (route) => {
+    asked += 1;
+    return json(route, { status: 'invalid' });
+  });
+  await page.goto(`/join?b=${BOOKING}`);
+  await expect(page.getByText('Sign in to join your call')).toBeVisible({ timeout: 90_000 });
+  expect(asked).toBe(0);
+});
+
+test('a session settled as an expert no-show says so, with the record and the refund', async ({ page }) => {
+  test.setTimeout(120_000);
+  test.skip(!readEnv()?.EXPO_PUBLIC_SUPABASE_URL, 'No .env — app boots to the Setup screen');
+  await signIn(page);
+  const start = Date.now() - 60 * 60_000;
+  const iso = (m: number) => new Date(start + m * 60_000).toISOString();
+  await stubBackend(page, {
+    startsInMinutes: -60,
+    extra: {
+      payment_status: 'refunded',
+      attendance_outcome: 'expert_no_show',
+      attendance_decided_at: iso(40),
+      attendance_detail: {
+        togetherMinutes: 0,
+        spans: { customer: [[iso(2), iso(15)]], expert: [[iso(0), iso(2)]] },
+      },
+    },
+  });
+  await page.goto(`/booking/${BOOKING}`);
+  await expect(page.getByText('This session did not happen')).toBeVisible({ timeout: 90_000 });
+  await expect(page.getByText(/Ana Morales did not join\. You have been refunded in full/)).toBeVisible();
+  await expect(page.getByText('Who was in the call')).toBeVisible();
+  await expect(page.getByText(/^You: /)).toBeVisible();
+  await expect(page.getByText(/^Ana Morales: /)).toBeVisible();
+  // Settled from the record: nothing to report, and no review to leave.
+  await expect(page.getByText(/Report a no-show/)).toHaveCount(0);
+  await expect(page.getByText('Join call', { exact: true })).toHaveCount(0);
+  await page.getByText('This session did not happen').scrollIntoViewIfNeeded();
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: path.resolve(__dirname, 'screenshots/no-show-settled-customer.png') });
 });
 
 test('the review link lands on the review card', async ({ page }) => {

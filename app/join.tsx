@@ -6,19 +6,27 @@ import { LoadingView } from '@/components/ui/LoadingView';
 import { Screen } from '@/components/ui/Screen';
 import { colors, fonts, spacing, typography } from '@/constants/theme';
 import { formatDay, formatTime } from '@/lib/date';
+import { rememberReturnPath } from '@/lib/returnPath';
 import { capture } from '@/services/analytics';
 import { joinCall, openCallRoom, type JoinResult } from '@/services/video';
 import { useAuthStore } from '@/store/authStore';
 
-// Where the "Join the call" link in an email, text or notification lands:
-// /join?b=<booking>&k=<personal key>. The key is the pass, so this works
-// whether or not the person is signed in on this device. If it is time, it
-// goes straight into the call. If it is too early, it says when and goes in
-// by itself once the time comes.
+// The way into a call.
+//
+//   /join?b=<booking>&k=<personal key>   the "Join the call" link in an
+//       email, text or notification. The key says who you are, so this works
+//       whether or not you are signed in on this device.
+//   /join?b=<booking>                    what the Join button in the app
+//       opens. No key: you have to be signed in and on the booking.
+//
+// Either way Palam hands over that person's own pass into the room and sends
+// them in. The room lets nobody in without one. If it is too early, this
+// page says when and goes in by itself once the time comes.
 export default function JoinScreen() {
   const router = useRouter();
   const { b, k } = useLocalSearchParams<{ b?: string; k?: string }>();
   const signedIn = useAuthStore((s) => Boolean(s.user));
+  const hydrated = useAuthStore((s) => s.isHydrated);
   const [result, setResult] = useState<JoinResult | null>(null);
   const [failed, setFailed] = useState(false);
   const [opening, setOpening] = useState(false);
@@ -28,7 +36,7 @@ export default function JoinScreen() {
     async (url: string) => {
       if (entered.current) return;
       entered.current = true;
-      capture('call_joined', { via: 'link' });
+      capture('call_joined', { via: k ? 'link' : 'booking' });
       if (Platform.OS === 'web') {
         // The same tab becomes the call. A new tab would be blocked here,
         // because nothing was tapped on this page.
@@ -38,18 +46,21 @@ export default function JoinScreen() {
       await openCallRoom(url);
       if (b) router.replace({ pathname: '/booking/[id]', params: { id: b } });
     },
-    [b, router],
+    [b, k, router],
   );
 
   const tryJoin = useCallback(async () => {
-    if (!b || !k) {
+    if (!b) {
       setResult({ status: 'invalid' });
       return;
     }
+    // No key: wait to find out whether this person is signed in. If they are
+    // not, the screen below asks them to.
+    if (!k && (!hydrated || !signedIn)) return;
     setFailed(false);
     setOpening(true);
     try {
-      const next = await joinCall(b, k);
+      const next = await joinCall(b, k || undefined);
       setResult(next);
       if (next.status === 'ok') await enter(next.url);
     } catch {
@@ -57,7 +68,7 @@ export default function JoinScreen() {
     } finally {
       setOpening(false);
     }
-  }, [b, k, enter]);
+  }, [b, k, enter, hydrated, signedIn]);
 
   useEffect(() => {
     void tryJoin();
@@ -74,6 +85,21 @@ export default function JoinScreen() {
     return () => clearTimeout(timer);
   }, [joinFromAt, tryJoin]);
 
+  if (b && !k && hydrated && !signedIn) {
+    return (
+      <Shell
+        title="Sign in to join your call"
+        body="Sign in with the email you booked with, then tap Join on the booking. Or use the Join link in your reminder email, which works without signing in."
+        primary={{
+          title: 'Sign in',
+          onPress: () => {
+            rememberReturnPath(`/booking/${b}`);
+            router.replace('/(auth)/welcome');
+          },
+        }}
+      />
+    );
+  }
   if (failed) {
     return (
       <Shell

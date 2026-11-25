@@ -1,9 +1,10 @@
 // Supabase Edge Function — refund-booking
 //
 // Refund a booking's payment. Auth'd user must be either the customer or the
-// expert party to the booking. Calls stripe.refunds.create on the booking's
-// payment_intent. Sets payment_status='refunded' synchronously; the webhook
-// will also confirm via charge.refunded.
+// expert party to the booking. Refunds the booking's payment in full, pulling
+// the expert's share back and returning Palam's fee (../_shared/refund.ts).
+// Sets payment_status='refunded' synchronously; the webhook will also confirm
+// via charge.refunded.
 //
 // Cancellation policy (enforced here, server-side):
 //   - The expert cancelling always refunds the customer in full, any time.
@@ -19,6 +20,7 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import Stripe from 'https://esm.sh/stripe@16.12.0?target=deno';
+import { refundPayment } from '../_shared/refund.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -116,19 +118,34 @@ serve(async (req) => {
     return json({ error: 'Already refunded' }, 409);
   }
 
-  const refund = await stripe.refunds.create({
-    payment_intent: booking.stripe_payment_intent_id,
-    reason: 'requested_by_customer',
-    metadata: {
-      booking_id: booking.id,
-      cancellation_reason: body.reason ?? '',
-    },
+  const refund = await refundPayment(stripeKey, {
+    paymentIntentId: booking.stripe_payment_intent_id,
+    bookingId: booking.id,
+    why: 'cancelled',
+    note: body.reason ?? '',
   });
+  if (refund.status === 'blocked') {
+    console.error('refund blocked', booking.id, refund.reason);
+    return json(
+      { error: 'The refund could not be made just now. Email info@palamapp.com and we will sort it out.' },
+      502,
+    );
+  }
+  if (refund.status === 'refunded' && !refund.reversed) {
+    // Palam covered the expert's share. Loud in the logs so it is followed up.
+    console.error('refund made without pulling back the expert share', booking.id, refund.refundId);
+  }
 
   await admin
     .from('bookings')
-    .update({ payment_status: 'refunded' })
+    .update({
+      payment_status: refund.status === 'released' ? 'released' : 'refunded',
+      ...(refund.status === 'refunded' ? { stripe_refund_id: refund.refundId } : {}),
+    })
     .eq('id', booking.id);
 
-  return json({ refundId: refund.id, status: refund.status });
+  return json({
+    refundId: refund.status === 'refunded' ? refund.refundId : null,
+    status: refund.status === 'refunded' ? refund.refundStatus : refund.status,
+  });
 });

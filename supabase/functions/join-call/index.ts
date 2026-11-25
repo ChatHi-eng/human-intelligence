@@ -9,7 +9,9 @@
 //
 // Answers with a status:
 //
-//   ok             { url }  go to the call
+//   ok             { url }  go to the call. The address carries this
+//                           person's own pass into the room; the room lets
+//                           nobody in without one.
 //   early          the link was opened more than 15 minutes before the start
 //   ended          the call's time has passed
 //   cancelled      the booking was cancelled
@@ -26,7 +28,7 @@
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
-import { ensureRoom, peopleInRoom } from '../_shared/daily.ts';
+import { ensureRoom, peopleInRoom, roomPass } from '../_shared/daily.ts';
 import { CALL_GRACE_MS, JOIN_OPENS_MS, readJoinKey, type JoinRole } from '../_shared/join.ts';
 import { sendWaitingAlert, type AlertEnv } from '../_shared/session-alerts.ts';
 
@@ -72,7 +74,7 @@ serve(async (req) => {
   const { data: booking, error } = await admin
     .from('bookings')
     .select(
-      'id, customer_id, expert_profile_id, start_at, end_at, medium, status, kind, call_room_url, daily_room_name, daily_room_expires_at, customer_joined_at, expert_joined_at',
+      'id, customer_id, expert_profile_id, start_at, end_at, medium, status, kind, daily_room_url, daily_room_private, daily_room_name, daily_room_expires_at, customer_joined_at, expert_joined_at',
     )
     .eq('id', bookingId)
     .maybeSingle();
@@ -97,15 +99,17 @@ serve(async (req) => {
   }
   if (!booking || !role) return json({ status: 'invalid' });
 
+  const myId = role === 'customer' ? booking.customer_id : booking.expert_profile_id;
   const otherId = role === 'customer' ? booking.expert_profile_id : booking.customer_id;
-  const { data: other } = await admin
+  const { data: names } = await admin
     .from('profiles')
-    .select('display_name')
-    .eq('id', otherId)
-    .maybeSingle();
+    .select('id, display_name')
+    .in('id', [myId, otherId]);
+  const nameOf = (id: string) =>
+    ((names ?? []).find((r) => r.id === id)?.display_name as string | null | undefined) ?? null;
   const details = {
     bookingId: booking.id,
-    otherName: (other?.display_name as string | null) ?? null,
+    otherName: nameOf(otherId),
     startAt: booking.start_at,
     endAt: booking.end_at,
     kind: booking.kind === 'intro' ? 'intro' : 'session',
@@ -137,6 +141,17 @@ serve(async (req) => {
       ? json({ status: 'ended', ...details })
       : json({ error: 'The call could not be opened. Try again in a moment.' }, 502);
   }
+
+  // This person's pass. It names their side of the booking, which is how the
+  // room's record knows who was there (see ../_shared/attendance.ts).
+  const pass = await roomPass(dailyKey, {
+    room: room.name,
+    role,
+    userId: myId,
+    name: nameOf(myId),
+    expiresAtMs: room.expiresAtMs,
+  });
+  if (!pass) return json({ error: 'The call could not be opened. Try again in a moment.' }, 502);
 
   if (!early) {
     const mine = role === 'customer' ? 'customer_joined_at' : 'expert_joined_at';
@@ -177,5 +192,5 @@ serve(async (req) => {
     }
   }
 
-  return json({ status: 'ok', url: room.url, ...details });
+  return json({ status: 'ok', url: `${room.url}?t=${pass}`, ...details });
 });

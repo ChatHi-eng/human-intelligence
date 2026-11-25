@@ -54,7 +54,25 @@ export type Booking = {
   // it had before the last move.
   rescheduleCount: number;
   previousStartIso: string | null;
+  // What the video call's own record says happened, once the session is
+  // over. Null until then, and for sessions from before the record was kept.
+  attendanceOutcome: AttendanceOutcome | null;
+  attendance: BookingAttendance | null;
   createdAt: string;
+};
+
+export type AttendanceOutcome =
+  | 'held'
+  | 'short'
+  | 'expert_no_show'
+  | 'customer_no_show'
+  | 'needs_review';
+
+// When each person was in the call. Times are ISO strings.
+export type BookingAttendance = {
+  togetherMinutes: number;
+  customer: [string, string][];
+  expert: [string, string][];
 };
 
 // An expert's suggestion of new times for a booking, waiting on the customer.

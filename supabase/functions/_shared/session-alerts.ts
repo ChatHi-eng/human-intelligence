@@ -61,7 +61,7 @@ export const emailButton = (label: string, url: string) =>
     `<p style="margin:0 0 16px;font-size:12px;color:#9ca3af;word-break:break-all;">Or open ${url}</p>`,
   ].join('\n');
 
-const sendEmail = async (env: AlertEnv, to: string, subject: string, html: string) => {
+export const sendEmail = async (env: AlertEnv, to: string, subject: string, html: string) => {
   if (!env.resendKey) return false;
   try {
     const res = await fetch('https://api.resend.com/emails', {
@@ -100,7 +100,7 @@ const sendSms = async (env: AlertEnv, to: string, body: string) => {
 };
 
 // True when this call is the one that gets to send `kind` for the booking.
-const claim = async (admin: Admin, bookingId: string, kind: string): Promise<boolean> => {
+export const claim = async (admin: Admin, bookingId: string, kind: string): Promise<boolean> => {
   const { data, error } = await admin
     .from('booking_reminders')
     .upsert({ booking_id: bookingId, kind }, { onConflict: 'booking_id,kind', ignoreDuplicates: true })
@@ -112,7 +112,7 @@ const claim = async (admin: Admin, bookingId: string, kind: string): Promise<boo
   return Boolean(data && data.length > 0);
 };
 
-type Person = {
+export type Person = {
   name: string;
   email: string | null;
   emailReminders: boolean;
@@ -121,7 +121,7 @@ type Person = {
   tzKnown: boolean;
 };
 
-const loadPeople = async (admin: Admin, env: AlertEnv, booking: AlertBooking) => {
+export const loadPeople = async (admin: Admin, env: AlertEnv, booking: AlertBooking) => {
   const ids = [booking.customer_id, booking.expert_profile_id];
   const [profiles, prefs, expert] = await Promise.all([
     admin.from('profiles').select('id, display_name').in('id', ids),

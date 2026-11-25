@@ -207,6 +207,8 @@ Once a basic Checkout payment works, the next layer makes payments actually flow
 
 ### Cancellation & no-show policy (launch version)
 
+> No-shows are now settled automatically from the video call's own record. See **No-shows, settled from the call's own record** below. What follows is the manual flow, which still applies to sessions the record could not settle.
+
 Apply migration `0012_no_show_reports.sql` (Supabase → SQL Editor) before shipping a build with the report button. The policy, as enforced:
 
 - **Cancel/reschedule is free until 24 hours before the start**, for either side. Inside 24 hours a customer who cancels forfeits the payment (the expert keeps the payout); an expert who cancels always triggers a full refund. `refund-booking` enforces this server-side — a customer refund request inside 24h gets a 403 — and the app shows honest copy before an inside-24h cancel.
@@ -363,6 +365,59 @@ The better option than cancelling, offered on the booking and again inside the c
 Every rule is enforced by database functions in migration 0032 (`reschedule_booking`, `propose_reschedule`, `respond_to_reschedule`, `withdraw_reschedule`); the app cannot change a booking's time any other way. A move restarts the reminders for the new time, sends both people an updated calendar file, and keeps the same join link. Suggestions live in `reschedule_proposals`; a database trigger tells `lifecycle-emails`, which emails and notifies the other person.
 
 To see an expert's late cancellations: `select start_at, cancelled_at from bookings where expert_profile_id = '<id>' and expert_late_cancel order by cancelled_at desc;`
+
+## No-shows, settled from the call's own record
+
+Palam does not decide a no-show from what anyone reports. Each booking has its own **private** video room, each person goes in with their own pass, and the room tells Palam every time someone comes in or leaves. Ten minutes after the scheduled finish that record is read and the session is settled. Migration `0033_attendance_and_no_shows.sql`; the rules are in `supabase/functions/_shared/attendance.ts` and tested in `tests/e2e/attendance.spec.ts`.
+
+**How a person gets into the call.** The Join button and every reminder link go through the `join-call` function. It checks who is asking (their sign-in, or the personal key in their link), then hands back the room's address with that person's pass on the end. The room lets nobody in on its address alone, and there is no waiting screen in front of it: opening your link puts you in the room. `bookings.call_room_url` now holds Palam's own join page (`/join?b=<booking>`), never the room's address.
+
+**The record.** `daily-webhook` receives Daily's signed "joined" and "left" reports and writes one row per visit to `call_sessions` (service role only). `send-reminders` sets the reporting line up by itself, keeps its signing secret in `daily_webhook`, and re-checks it every 15 minutes. Before anything is decided, Daily's own after-the-fact list of who was in the room is merged in, so a report that never arrived does not go missing.
+
+**The rules.** Roll call is 10 minutes after the scheduled start.
+
+| What the record shows | Outcome | What happens |
+| --- | --- | --- |
+| Together 20 minutes or more | `held` | Nothing. The review prompt goes out as usual. |
+| Together 5 to 20 minutes | `short` | Stands as held. |
+| Under 5 minutes together, and the expert was never in the room by roll call while the customer came | `expert_no_show` | Full refund, automatically. One strike. Both are told. |
+| Under 5 minutes together, the customer is there at roll call and the expert is not (joined and left counts) | `expert_no_show` | The same. |
+| Under 5 minutes together, the expert is there at roll call and was there for 5 of the first 10 minutes, the customer is not | `customer_no_show` | No refund; the expert keeps the payout. Both are told. |
+| Anything else: nobody in the room, both there at roll call but barely together, the expert arrived too late to have waited, someone in the room without a pass, or the record could not be read | `needs_review` | **Nothing moves.** The owner gets an email with the visits and decides. |
+
+A visit under 15 seconds is ignored, and leaving and coming back inside a minute (a refresh, a dropped connection) counts as never having left.
+
+**Messages.** At roll call, whoever is waiting alone is told where they stand: a waiting customer that they can leave and will be refunded, a waiting expert that they can leave and keep the payout. The other person is told too. When the session is settled, both get the result by push and email, and the owner (`APPLICATION_ALERT_EMAIL`) gets the visits, the money and the strike count. The booking screen shows the outcome and who was in the call when.
+
+**Refunds.** `_shared/refund.ts` refunds in full with `reverse_transfer` and `refund_application_fee`, so the expert's share is pulled back and Palam's fee returned; Palam is out only Stripe's processing fee. Cancellation refunds (`refund-booking`) use the same code. If the expert's share cannot be pulled back (their Stripe balance was already paid out), the customer is still refunded, from Palam, and the owner's email says so in bold. Expert payouts are **not** held back yet, so this can happen.
+
+**Strikes.** A strike is `bookings.no_show_strike`. Two inside 90 days pause the expert's profile (same pause as late cancellations, reason `no_shows`) until the owner has looked. Late cancellations are counted separately.
+
+**The numbers** are in `app_config`: `no_show_grace_minutes` (10), `no_show_wait_minutes` (5), `session_held_minutes` (20), `session_floor_minutes` (5), `no_show_strike_count` (2), `no_show_strike_window_days` (90), `auto_refund_expert_no_show` (true; set false and the outcome is still decided but the refund is left to the owner), `attendance_live_from` (sessions before it are never settled automatically).
+
+**For the owner, in the SQL editor:**
+
+```sql
+-- Who was in the room for a booking, and when
+select role, joined_at, left_at, duration_seconds, source
+from public.call_sessions where booking_id = '<booking id>' order by joined_at;
+
+-- What was decided
+select attendance_outcome, attendance_decided_at, attendance_detail, no_show_strike, payment_status
+from public.bookings where id = '<booking id>';
+
+-- Excuse a strike (a Palam or video fault, a real emergency)
+update public.bookings set no_show_strike = false where id = '<booking id>';
+
+-- Lift a pause
+update public.expert_profiles
+set paused = false, palam_paused_at = null, palam_pause_reason = null
+where profile_id = '<expert id>';
+```
+
+**What the record cannot tell.** It shows that a person's pass was connected, not that someone was sitting there or that sound and picture worked. Those complaints, and anything the customer or expert writes in about within 48 hours, still go to a person. The "Report a no-show" link is still on the booking screen for sessions the record did not settle.
+
+**Not built yet:** holding expert payouts until after the session; the customer's one-tap "it was cut short" claim; a contest button in the app (people write to info@palamapp.com); a strike that stays provisional for 48 hours.
 
 ## Sign-in with Google or Apple
 
